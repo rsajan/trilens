@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m unittest*)",
+      "Bash(py -m unittest*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(gh *)",
+      "Edit(./.github/**)"
+    ],
+    "deny": [
+      "Read(./config/local.json)",
+      "Read(./data/technical/bundle.local.json)",
+      "Read(./technical_uploads/**)",
+      "Read(!technical_uploads/README.txt)"
+    ]
+  }
+}

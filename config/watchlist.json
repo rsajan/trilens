@@ -1,0 +1,12 @@
+{
+  "_help": "Edit this list any time and push. Keep it to about 40 names or fewer so the free servers finish within their time limit. India tickers end in .NS (NSE) or .BO (BSE). US tickers are plain. Names are optional.",
+  "tickers": [
+    "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "AMD", "NFLX",
+    "LLY", "ABBV", "UNH", "JPM", "V", "XOM", "COST", "PLTR",
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS", "SBIN.NS", "LT.NS", "HAL.NS", "BHARTIARTL.NS"
+  ],
+  "indices": ["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "^STI"],
+  "include_scanner_tickers": false,
+  "max_scanner_tickers": 15,
+  "sec_user_agent": ""
+}

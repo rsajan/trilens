@@ -1,0 +1,280 @@
+{
+  "_note": "Hand-written from the spec files and script comments in the reversal_strategy and Accumulation_Bot folders. Metrics marked metrics_from are refreshed from the Excel workbooks every time PUBLISH.bat runs; everything else is edited here.",
+  "strategies": [
+    {
+      "id": "v5", "name": "v5 + risk throttle", "family": "Reversal bot: doji or hammer at a 30-day low", "status": "live",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Buys a confirmed reversal off a 30-session low, only when the market is healthy and the stock is above its 200-day average. About 8 signals a year across the whole universe.",
+      "metrics": { "trades": 222, "per_year": 8.2, "win_pct": 60.36, "avg_r": 0.3449, "pf": 1.839, "t_stat": 3.78, "mdd_1pct": -6.79, "cagr20": 4.94, "cells": "4/4", "train_avg_r": 0.3249, "test_avg_r": 0.3688 },
+      "entry": [
+        "Pattern bar: its low is the lowest low of the last 30 sessions.",
+        "The pattern bar is a doji (body no more than 10% of its range) or a strict hammer (body at least 5% of range, lower wick at least 2.5 times the body, upper wick no more than half the body, close in the top quarter).",
+        "The next bar closes above the pattern bar's high plus 0.10 times ATR14.",
+        "That confirmation bar closes in the top 30% of its own range.",
+        "RSI14 is at least 45 on the confirmation bar. RSI and ATR are SMA-smoothed, not Wilder, which differs from TradingView.",
+        "The close is above the stock's 200-day SMA.",
+        "Confirmation-bar volume is at least 1.3 times its 20-day average.",
+        "Entry is the next session's open. The confirmation close is never fillable on an end-of-day scanner."
+      ],
+      "exit": [
+        "Stop: the pattern bar's low, with no buffer. Risk (R) is entry minus stop.",
+        "At +1R sell half and move the stop to entry.",
+        "The remaining half exits at +4R. The normal best case is therefore +2.5R, not +4R.",
+        "No trailing stop and no time stop. If one bar touches both stop and target, the stop is assumed.",
+        "Costs of 0.20% round trip are charged in R, so very tight stops pay a lot."
+      ],
+      "filters": [
+        "Regime gate: new entries only while more than 50% of the whole universe trades above its own 200-day average. Each market uses its own breadth.",
+        "At most 5 positions open at once. Extra signals are skipped, not queued.",
+        "Risk throttle: size is halved while v5's own total-R curve is below its 50-day mean. The multiplier is frozen at entry.",
+        "Trade the whole list. Never rank or filter symbols by their past results under this strategy.",
+        "Use it as an overlay: about 0.5% of the account per trade, 0.25% when the throttle is on."
+      ],
+      "verdict": "Chosen under the strictest protocol: selected on 2000-2015, confirmed on an untouched 2016-2026 half, positive in all 4 market and era cells. Without the throttle the drawdown is -9.55% and growth at a 20% drawdown budget is 4.68%. It is too sparse to carry an account alone, so it works as an overlay that is almost uncorrelated with long equity exposure (+0.06).",
+      "caveats": ["The universe uses today's index members projected backward, so older years read optimistically.", "The breadth gate is directionally right but not calibrated.", "Weekly-timeframe signals are scanned but were never backtested and are labelled unvalidated."],
+      "rejected": ["Resistance-becomes-support filter: no stable edge (t about 0.65) and the sign flips at looser settings.", "Tighter position caps, breadth thresholds and stop-width limits: they cut drawdown only by trading less.", "Releasing the break-even stop: better on the full sample but splits 7.20% and 2.56% across halves, so it is fitted.", "Ranking symbols by past performance: split-half correlation of 0.18 is noise.", "Win rate as an objective: across 1,344 configs it correlates negatively with total profit (r = -0.21)."],
+      "docs": ["v5-spec"]
+    },
+    {
+      "id": "v6", "name": "v6 shadow build", "family": "Reversal bot: shorter lookback", "status": "shadow",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "v5 with an 11-session swing low, an RSI floor of 30 and an EMA200 trend filter. Tracked live next to v5 so the two can be compared on real signals.",
+      "metrics": { "trades": 584, "per_year": 21.6, "win_pct": 59.8, "avg_r": 0.302, "t_stat": 5.43, "cagr20": 7.67, "cells": "4/4", "train_avg_r": 0.258, "test_avg_r": 0.354 },
+      "entry": [
+        "Pattern bar: its low is the lowest low of the last 11 sessions (v5 uses 30).",
+        "Same doji or strict hammer shape rules as v5.",
+        "Confirmation bar closes above the pattern high plus 0.10 times ATR14 and in the top 30% of its range.",
+        "RSI14 at least 30 (v5 uses 45).",
+        "Close above the 200-day EMA (v5 uses the 200-day SMA).",
+        "Volume at least 1.3 times the 20-day average. Entry at the next session's open."
+      ],
+      "exit": ["Same as v5: stop at the pattern low, half off at +1R with the stop to entry, the rest at +4R.", "No trailing or time stop. Costs 0.20% round trip."],
+      "filters": ["Same breadth gate and 5-position cap as v5.", "No risk throttle: it was measured on v6 and lowered return at equal drawdown."],
+      "verdict": "2.6 times the trade frequency of v5 with growth at a 20% drawdown budget of 7.67% against v5's 4.68%, and the hold-out average R (0.354) above the training half (0.258). It has not yet been through v5's full select-early, confirm-late protocol, so v5 stays the live pick.",
+      "caveats": ["Its raw drawdown at 1% risk is larger than v5's because it holds more trades at once, so size it smaller."],
+      "rejected": ["Waiting 20-30 bars after the swing low before confirming (Reading A): no edge out of sample (hold-out average R -0.0008, t = 1.77).", "RSI at least 30 alone, or an any-of-EMA20/50/200 trend filter alone, on the 30-bar window: both lowered growth at a common drawdown.", "The any-EMA trend filter is the weakest element tested, because the close is above the 20-day EMA most of the time."],
+      "docs": ["v6-spec"]
+    },
+    {
+      "id": "logic3", "name": "Logic 3: double bottom and engulfing", "family": "Double bottom, bullish engulfing, EMA cross, breakout", "status": "validated",
+      "status_label": "Validated, not live", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "A second low near the first, a bullish engulfing candle, then a breakout above the latest bullish candle. The only build that has passed the full honest protocol, but not yet put into live scanning.",
+      "metrics": { "trades": 599, "per_year": 22, "win_pct": 50.58, "avg_r": 0.4929, "pf": 1.973, "t_stat": 8.03, "mdd_1pct": -14.06, "cagr20": 15.82, "sharpe": 0.884, "cells": "4/4", "train_avg_r": 0.5487, "test_avg_r": 0.4253 },
+      "entry": [
+        "A big downtrend into the first bottom: the 40-bar high minus the low is at least 3 ATR and at least 5%, with EMA5 below EMA20 and the close below EMA50.",
+        "A second bottom 1 to 9 candles later within 0.5 ATR of the first, with a bounce of at least 0.5 ATR between them. Adjacent lows (tweezer bottoms) are accepted.",
+        "A bullish engulfing candle, or a dragonfly doji, within 5 bars of the second bottom.",
+        "EMA5 crosses above EMA20 at or within 5 bars after that candle.",
+        "The double bottom retraces 38.2% to 61.8% of the prior 90-bar up-leg.",
+        "A buy-stop rests above the high of the most recent bullish candle for up to 5 bars, and breakout volume must be at least 1.2 times its 20-day average."
+      ],
+      "exit": ["Stop: 0.5 ATR below the lower of the two bottoms. Skip the trade if risk is over 15% of price.", "Target: 2.0R. No break-even move, trail, scale-out or time stop.", "If one bar touches both stop and target, the stop is assumed.", "Costs of 0.20% round trip."],
+      "filters": ["One position per symbol and at most 8 open at once.", "Size it through the same risk throttle as v5 and v6; its monthly correlation to v6 is only +0.14."],
+      "verdict": "768 configurations were tested with the grid fixed in advance. Selected on 2000-2015 only and run once on 2016-2026 it returned +0.4253R (a 23% haircut from the +0.5487R selection value, still t = 4.66). A walk-forward from 2010, re-selecting each year, returned +0.4202R over 409 trades using only 5 distinct configs in 19 years. Losing years: 2 of 27.",
+      "caveats": ["Entry timing is worth about half the edge. Entering at the next open instead of on the intraday buy-stop roughly halves growth, so this needs a resting stop order. Check the fill assumption on real intraday data first.", "The universe is survivorship-biased.", "At about 22 trades a year the live sample takes months to say anything, so paper trade it alongside v5 and v6."],
+      "rejected": ["Any break-even move: the single worst change on the board (+0.75R costs -0.107R).", "3.0R target: strong on training (0.472) and gone on test (0.240).", "Breadth gate on this setup: 0.251 on training, 0.125 on test.", "Lows within 0.30 ATR, a cross within 3 bars, or engulfing strictly after the second bottom: all fitted to training.", "Dragonfly doji as a required bottom shape: only 19 trades.", "Fibonacci zone as a sizing tilt or a ranking rule: no gain in compounding.", "ATR trailing stops and an 8-bar breakout window."],
+      "docs": ["logic3-spec"]
+    },
+    {
+      "id": "s1", "name": "S1: double bottom and engulfing (frozen build)", "family": "Three-strategy study S1/S2/S3", "status": "shadow",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Big downtrend, then a double bottom 10-20 candles apart, a bullish engulfing candle, an EMA5 cross above EMA20, and a break of the recent candle's high. Scanned live and paper-traded.",
+      "metrics": { "trades": 370, "per_year": 13.7, "win_pct": 49.46, "avg_r": 0.7054, "pf": 2.361, "t_stat": 7.74, "mdd_1pct": -12.6, "cagr20": 15.26, "sharpe": 0.826, "cells": "4/4", "train_avg_r": 0.7748, "test_avg_r": 0.6163 },
+      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S1 tuned" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "entry": ["Big downtrend into the first bottom, then a double bottom 10 to 20 candles apart with lows within 0.5 ATR.", "A bullish engulfing candle with volume at least 1.2 times the prior bar's.", "EMA5 closes above EMA20.", "A buy-stop above the recent candle's high; the actual fill price is what gets recorded."],
+      "exit": ["Stop below the double bottom with a 0.10 ATR buffer; skip if risk is over 15%.", "Target: 2.5R. No break-even, trail or scale-out.", "Costs 0.20% round trip."],
+      "filters": ["Not capped or throttled in the paper-trade book. The study pooled it at 12 positions, so live per-trade R is comparable but portfolio return reads slightly high."],
+      "verdict": "The table shows the 'S1 tuned' research row, ranked first on the training years. In the 2010-2026 walk-forward the live frozen build was expected to win about 45.4% of trades at +0.56R. The hold-out half is weaker than training (0.62R against 0.77R) but clearly positive.",
+      "caveats": ["Fills happen intraday on a buy-stop, so the same execution risk as Logic 3 applies."],
+      "rejected": ["The checklist as first written (S1 spec): +0.2267R, about a third of the tuned result.", "Entering at the next open instead of on the stop: +0.57R against +0.71R."],
+      "docs": []
+    },
+    {
+      "id": "s2", "name": "S2: trend, Fibonacci pullback, dragonfly doji", "family": "Three-strategy study S1/S2/S3", "status": "retired",
+      "status_label": "Not carried forward", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "An uptrend, a retracement into the 50-61.8% Fibonacci band, then a dragonfly doji. Buys the next open. The weakest of the three and left out of the live blend.",
+      "metrics": { "trades": 610, "per_year": 22.6, "win_pct": 41.15, "avg_r": 0.1661, "pf": 1.264, "t_stat": 2.77, "mdd_1pct": -18.93, "cagr20": 3.68, "sharpe": 0.413, "cells": "4/4", "train_avg_r": 0.2425, "test_avg_r": 0.0886 },
+      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S2 robust" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "entry": ["An uptrend in the first half of the window.", "A retracement into the 50% to 61.8% Fibonacci band.", "A dragonfly doji, then buy at the next open."],
+      "exit": ["Structural stop and an R-multiple target, with the same 0.20% costs as the other studies."],
+      "filters": ["Shared portfolio cap and cost model with S1 and S3."],
+      "verdict": "The 'robust' version is the only S2 with a positive hold-out, and that edge is nearly gone (test average R 0.0886, t = 1.04). The tuned version scored 0.0588 on the test years.",
+      "caveats": ["Not part of the recommended blend."],
+      "rejected": ["The checklist as written: +0.2622R but only 173 trades and t = 2.31."],
+      "docs": []
+    },
+    {
+      "id": "s3", "name": "S3: range break (frozen build)", "family": "Three-strategy study S1/S2/S3", "status": "shadow",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Price ranges at one level for 10-15 candles, then closes outside the zone. Buys the next open on an upside break. Long only, 2R target.",
+      "metrics": { "trades": 694, "per_year": 25.7, "win_pct": 45.24, "avg_r": 0.3136, "pf": 1.55, "t_stat": 5.54, "mdd_1pct": -17.08, "cagr20": 8.87, "sharpe": 0.607, "cells": "4/4", "train_avg_r": 0.3486, "test_avg_r": 0.2594 },
+      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S3 tuned" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "entry": ["Price holds the same level for 10 to 15 candles, forming a tight zone.", "A close outside the upper edge of the zone.", "Buy the next session's open."],
+      "exit": ["Target: 2.0R from a structural stop.", "No break-even, trail or scale-out. Costs 0.20% round trip."],
+      "filters": ["Long only. The both-directions version at 1:1 scored +0.0357R and was dropped."],
+      "verdict": "Holds up on the hold-out half (test 0.2594, t = 2.87) and in both markets. A higher-frequency variant ('S3 freq', 849 trades) scored 11.1% growth at a 20% drawdown budget on the test years.",
+      "caveats": ["Edge is smaller in the US (+0.33R) than in India (+0.23R on fewer trades)."],
+      "rejected": ["Both directions at 1:1: no edge (t = 1.41)."],
+      "docs": []
+    },
+    {
+      "id": "blend", "name": "S1 + S3 blend (cap 12)", "family": "Three-strategy study S1/S2/S3", "status": "validated",
+      "status_label": "Recommended blend", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Run S1 tuned and S3 frequent together with up to 12 positions open. The headline figure is in-sample; the clean out-of-sample figure from 2010 is lower and is the one to plan around.",
+      "metrics": { "trades": 923, "per_year": 54.3, "win_pct": 43.88, "avg_r": 0.3358, "pf": 1.575, "t_stat": 6.52, "mdd_1pct": -26.91, "cagr20": 12.36, "sharpe": 0.708, "cells": "4/4" },
+      "metrics_from": { "file": "{reversal_dir}/S123_WALKFORWARD.xlsx", "sheet": "FROZEN Summary", "row": 0, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"] } },
+      "entry": ["Signals come from the S1 and S3 detectors described above.", "Both run on the same price cache and the same cost model."],
+      "exit": ["Each leg keeps its own exits: S1 at 2.5R, S3 at 2.0R."],
+      "filters": ["Up to 12 positions open across both strategies (14 at the peak in the walk-forward).", "The three strategies' returns correlate only about 0.19 with each other."],
+      "verdict": "The numbers shown are the frozen 2010-2026 out-of-sample run: 923 trades, +0.3358R, 12.36% growth at a 20% drawdown budget, drawdown -26.9% at 1% risk. The in-sample 'recommended' blend scored 16.86% (+0.4131R, t = 9.1, hold-out 0.3887), and the annually re-fitted walk-forward scored 11.41%. Plan around the lower, honest numbers.",
+      "caveats": ["The worst recent stretch: 2025 was -9.4% and 2026 is -5.6% to date in the walk-forward.", "Drawdown at 1% risk is large; size down to about 0.7-0.9% per trade for a 20% drawdown."],
+      "rejected": ["Annual re-selection of settings (11.41%) did worse than freezing the 2010 settings (13.13%), so constant re-tuning is not helping."],
+      "docs": []
+    },
+    {
+      "id": "accumulation", "name": "Accumulation Bot v2.3", "family": "Smart-money swing breakout, US and India", "status": "live",
+      "universe": "S&P 500, S&P 400 and Nasdaq-100; Nifty 500",
+      "headline": "Finds stocks that institutions appear to be accumulating, then waits for a tight-base breakout on heavy volume in a confirmed market uptrend. Quality first: few trades, high win rate.",
+      "metrics": { "trades": 67, "per_year": 2.7, "win_pct": 64, "avg_r": 0.6, "pf": 2.64 },
+      "entry": [
+        "A. Preliminary: price over $5, daily dollar volume over $20M, tight spread, earnings date known, and SPY or QQQ in an uptrend.",
+        "B. Seven points: price trend, moving-average alignment, relative strength (RS line near its 6-month high and the industry group in the top 30%), up/down volume and accumulation days (shown as support only in version 2), a tight base no deeper than 12%, and sound fundamentals.",
+        "C. Plan: entry within 3% of the pivot, risk no more than 8% of price, reward to risk at least 2:1, no earnings surprise inside the window.",
+        "Breakout volume at least 1.75 times the 20-day average. Grade A+ needs 2 times or more.",
+        "Only buys when the market regime reads Confirmed uptrend (the buy gate)."
+      ],
+      "exit": ["Stop below the base; move to break-even at +1.5R; trail the 21-day EMA; time stop at 60 days.", "Size: 1% account risk per trade (A+ takes 100% of that, A takes 75%), at most 8 positions and 20% in one name."],
+      "filters": ["India uses the same rules on the Nifty 500 with rupee thresholds (price over Rs 50, turnover over Rs 20 crore).", "Days with no new trading bar are skipped automatically."],
+      "verdict": "Version 2 raised the win rate from 55% to 64% and profit per trade from +0.28R to +0.60R against version 1, on 200 large caps from 2001 to 2026. A+ only: 40 trades, 68% win, +0.74R, profit factor 3.33.",
+      "caveats": ["That test used a hand-picked list of today's winners with rules chosen on the same data, so confirm on the full universe and paper trade before sizing up.", "The India rules were tuned on US data. Run the backtest on IN first.", "Fundamentals, earnings dates, spreads and institutional data have no free point-in-time history, so they only apply to the live scan, not the backtest."],
+      "rejected": ["Version 1's looser rules (50th-percentile industry, up/down volume and accumulation days required, 1.5 times volume)."],
+      "docs": ["acc-readme", "acc-sop"]
+    },
+    {
+      "id": "revdip", "name": "Revenue trend and price dip", "family": "Screen: growing revenue, oversold price", "status": "candidate",
+      "status_label": "Watch list only", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Looks for companies with a rising revenue record whose share price has dipped 15-40% from its 52-week high and just turned up. Use it as a watch list, not for sizing trades.",
+      "metrics": {},
+      "entry": ["Close is 15% to 40% below its 52-week high.", "RSI14 was at or below 40 within the last 3 sessions, and today is a reversal day (close up and RSI up).", "The market gate: the equal-weight index of that market must be above its 200-day average, otherwise signals are blocked.", "Revenue over the last 5 fiscal years is positive: CAGR above zero and at least 3 of 4 yearly changes up. US uses SEC EDGAR when a contact is set in revenue_dip_config.json, otherwise Yahoo; India uses Yahoo."],
+      "exit": ["Stop: 2.5 times ATR14, clipped to 5-12% below the close.", "Trail the stop to the highest close minus 3 ATR.", "Exit after 80 trading days.", "Risk 0.75% of equity per trade, position at most 12% of equity."],
+      "filters": ["Revenue is fetched only for stocks with a dip signal or in the dip zone, then cached for 14 days."],
+      "verdict": "Tested on 200 US stocks from 2001 to 2026 (today's survivors). With the market filter and ATR exits it earned about 11% a year with a -23% worst drawdown, but did not beat simply holding those stocks. With a stock list chosen only from past data it earned about 5% a year. The revenue filter itself has not been tested yet.",
+      "caveats": ["Screening output only. Do not size real trades from it yet."],
+      "rejected": [],
+      "docs": []
+    },
+    {
+      "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
+      "status_label": "Retired 2026-08-07", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "The live pick until 7 August 2026. Sold 34% at 0.75R with a 4R target and had no per-stock trend filter. Replaced by v5.",
+      "metrics": { "win_pct": 64.9, "avg_r": 0.238 },
+      "entry": ["Same pattern and confirmation as v5 but with no 200-day trend filter."],
+      "exit": ["Sell 34% at +0.75R and move the stop to break-even; the rest to a 4R target."],
+      "filters": ["Same breadth gate and 5-position cap as v5."],
+      "verdict": "v5 beat it in the bake-off: 5.95 against 4.66 R a year at a common 20% drawdown, a maximum drawdown of -6.92R against -9.88R, and 4 of 4 market and era cells positive. Grafting the trend filter onto v4's own exit shape lifted the win rate but failed the 4-cell check, so it was rejected.",
+      "caveats": ["Older v4 signals still sit in the paper-trade register, so the code stays."],
+      "rejected": [],
+      "docs": []
+    },
+    {
+      "id": "logic2-v0", "name": "Logic 2 as first written", "family": "Reversal bot: the starting point", "status": "rejected",
+      "status_label": "Rejected: no edge", "universe": "Watchlist backtest",
+      "headline": "The original code, run exactly as written. It was the baseline that the later versions were built to beat.",
+      "metrics": { "trades": 82, "win_pct": 25.61, "avg_r": -0.0122, "pf": 0.977, "t_stat": -0.09 },
+      "metrics_from": { "file": "{reversal_dir}/logic2_output/variant_summary.csv", "match": { "variant": "V0_literal_original" }, "map": { "trades": "trades", "win_pct": "win_rate_pct", "avg_r": "avg_r", "pf": "profit_factor", "t_stat": "t_stat" } },
+      "entry": ["A 10-bar exact-equality low window, so the pattern almost never fired.", "The RSI filter was dead code.", "The confirmation bar was re-checked for stop and target, which is look-ahead."],
+      "exit": ["Fixed target with a break-even shift."],
+      "filters": [],
+      "verdict": "82 trades, 25.6% win rate and -0.0122R per trade: no edge. Fixing the 30-session low, applying the RSI filter and removing the look-ahead (the 'core' baseline) gave +0.2073R over 1,592 trades, and adding next-open entry, a trend filter and a regime gate eventually produced v5. The full variant table is in the Library.",
+      "caveats": [],
+      "rejected": ["The literal code.", "Entering at the confirmation close, which an end-of-day scanner can never fill."],
+      "docs": []
+    }
+  ],
+  "automation": {
+    "timezone": "Singapore time (UTC+8)",
+    "schedule": [
+      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, paper-trade update, summary page. Accumulation bot Scan_US runs at the same time.", "tag": "your PC" },
+      { "time": "08:30", "title": "Publish Technical page", "detail": "The optional tasks Trilens_Publish_AM and Trilens_Publish_PM (made by SCHEDULE_PUBLISH.bat) build the encrypted Technical bundle from the fresh scan files and pushes it to GitHub.", "tag": "your PC" },
+      { "time": "19:00", "title": "India scans", "detail": "ReversalScan_India runs scan_India.bat. Accumulation bot Scan_India runs at the same time, an hour after the NSE closes.", "tag": "your PC" },
+      { "time": "20:30", "title": "Publish Technical page", "detail": "Second daily publish, after the India scans finish.", "tag": "your PC" },
+      { "time": "All day", "title": "Fundamentals and sentiment update", "detail": "GitHub refreshes prices about every 30 minutes on weekdays, SEC filings every 3 hours, sentiment every 2 hours and company data twice a day, on free servers. Your PC does not need to be on.", "tag": "GitHub" }
+    ],
+    "flows": [
+      {
+        "title": "SCAN_NOW.bat", "file": "reversal_strategy folder",
+        "intro": "Runs the whole reversal stack for both markets on demand. Safe at any time: the scans share one price cache and take an exclusive lock, so the second simply waits for the first.",
+        "steps": [
+          { "title": "US reversal scan", "detail": "Tops the price cache up to the latest close from Yahoo, then scans every symbol for v5, v6, S1 and S3 setups on daily bars (weekly is scanned but unvalidated). Writes a dated Excel workbook and LATEST_US files.", "code": "run_daily_scan.py --market US --no-popup" },
+          { "title": "US revenue and dip scan", "detail": "Finds stocks 15-40% off their high with RSI at or below 40 and a reversal day, checks the revenue trend, and saves the day's bars to Excel and CSV for future backtests.", "code": "revenue_dip_scan.py --market US" },
+          { "title": "India reversal scan", "detail": "The same scan on the Nifty 500 half of the universe.", "code": "run_daily_scan.py --market India --no-popup" },
+          { "title": "India revenue and dip scan", "detail": "Same as the US one, with revenue from Yahoo.", "code": "revenue_dip_scan.py --market India" },
+          { "title": "Paper-trade book", "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.", "code": "paper_trade.py" },
+          { "title": "Summary page", "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.", "code": "revenue_dip_scan.py --summary --open" }
+        ]
+      },
+      {
+        "title": "SETUP_SYSTEM_TASKS.bat", "file": "reversal_strategy folder",
+        "intro": "One-time setup, run as Administrator. Windows needs admin rights to create tasks that run as SYSTEM whether or not anyone is logged in.",
+        "steps": [
+          { "title": "Create two daily tasks", "detail": "ReversalScan_US every day at 07:00 runs scan_US.bat. ReversalScan_India every day at 19:00 runs scan_India.bat. First runs were set for 29 October 2026.", "code": "setup_daily_tasks.ps1" },
+          { "title": "Task settings", "detail": "Start when available if the PC was asleep, wake the PC to run, ignore a second start if one is running, and stop after 60 minutes. Runs on battery.", "code": "" },
+          { "title": "Desktop shortcut", "detail": "Adds SCAN NOW - Revenue data to the desktop, which runs SCAN_NOW.bat.", "code": "" },
+          { "title": "Proof run", "detail": "Starts the US task once, waits up to 25 minutes, then prints the result code (0 means success) and the last lines of the US logs.", "code": "Start-ScheduledTask ReversalScan_US" },
+          { "title": "Check the clock", "detail": "The tasks use the PC's clock. If the PC is not on Singapore time, the script warns you that 07:00 and 19:00 are not Singapore times.", "code": "" }
+        ]
+      },
+      {
+        "title": "SCAN NOW - Accumulation bot.bat", "file": "Accumulation_Bot folder",
+        "intro": "Scans US and India for institutional accumulation. Which markets run is set by MARKETS in settings.json.",
+        "steps": [
+          { "title": "Find Python and packages", "detail": "Locates Python and installs yfinance, pandas, numpy, requests, lxml, tzdata and xlsxwriter if any are missing.", "code": "" },
+          { "title": "Download prices", "detail": "The first run downloads about 2 years of prices for roughly 1,450 stocks and takes 5-10 minutes. Later runs only add new bars.", "code": "accumulation_bot.py scan" },
+          { "title": "Apply the checklist", "detail": "Runs the preliminary tests, the seven points and the entry plan, then grades each stock A+ or A.", "code": "" },
+          { "title": "Write reports", "detail": "Saves latest_scan.html plus US and India pages and a CSV of the same rows, and archives the day's prices into eod_data as one Excel workbook per market per year.", "code": "reports\\latest_scan.html" },
+          { "title": "Scheduled version", "detail": "run_scheduled_scan.bat US or IN is what the Windows tasks call. Telegram alerts can be turned on in settings.json.", "code": "run_scheduled_scan.bat" }
+        ]
+      }
+    ],
+    "website": [
+      { "title": "GitHub Actions refreshes market data", "detail": "A free scheduled job on GitHub's servers fetches prices, company data, SEC Form 4 and filings, news and sentiment, and saves them as small JSON files. No paid service is involved." },
+      { "title": "Your PC publishes the Technical page", "detail": "PUBLISH.bat reads the scan folders and technical_uploads, builds the bundle, encrypts it with your password and pushes it to GitHub. Only the encrypted file leaves your computer." },
+      { "title": "GitHub Pages serves the site", "detail": "The site is a set of static files on a free address. Your phone downloads them and keeps a copy, so it also opens without a connection." }
+    ],
+    "bat_notes": {
+      "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the paper-trade update and the summary page, in that order.",
+      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, paper trade, summary. Logs to the scans folder.",
+      "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
+      "SETUP_SYSTEM_TASKS.bat": "One-time admin setup of the two daily SYSTEM tasks and the desktop shortcut, with a proof run.",
+      "REFRESH_EOD_EXCEL.bat": "Re-downloads full history (2000 to today) for all 1,003 names, rewrites the two watchlist workbooks and rebuilds eod_cache.pkl. Takes 15-20 minutes. Does not touch the live cache.",
+      "MAKE_DESKTOP_SHORTCUT.bat": "Creates the desktop shortcuts for the reversal scan.",
+      "SCAN NOW - Accumulation bot.bat": "Scans US and India for institutional accumulation and opens the summary page.",
+      "run_scheduled_scan.bat": "Called by Task Scheduler with US or IN. Skips days with no new trading bar and logs to logs\\scheduled_runs.log.",
+      "SCHEDULE - Install daily scan.bat": "Creates the two daily Accumulation bot tasks, 07:00 US and 19:00 India Singapore time.",
+      "SCHEDULE - Remove daily scan.bat": "Deletes both Accumulation bot scheduled tasks.",
+      "SETUP (run once).bat": "Installs the Python packages, creates the scheduled tasks and puts three shortcuts on the desktop.",
+      "BACKTEST - Accumulation bot.bat": "Tests the rules on 1 to 10 years of history for US or India, optionally on your own saved EOD archive.",
+      "CHECK TICKERS - Accumulation bot.bat": "Runs the full checklist on tickers you type in.",
+      "REFRESH EOD EXCEL - Accumulation bot.bat": "Updates the EOD Excel archive without running a scan."
+    }
+  },
+  "docs": [
+    { "id": "v5-spec", "path": "{reversal_dir}/V5_STRATEGY_SPEC.md", "title": "v5 + throttle: complete specification", "kind": "doc" },
+    { "id": "v6-spec", "path": "{reversal_dir}/V6_CANDIDATE_SPEC.md", "title": "v6 candidate: logic and results", "kind": "doc" },
+    { "id": "logic3-spec", "path": "{reversal_dir}/LOGIC3_DBE_SPEC.md", "title": "Logic 3: double bottom and engulfing", "kind": "doc" },
+    { "id": "acc-readme", "path": "{accumulation_dir}/README.txt", "title": "Accumulation Bot README", "kind": "text" },
+    { "id": "acc-sop", "path": "{accumulation_dir}/SOP - Accumulation Checklist.html", "title": "Accumulation checklist (SOP)", "kind": "report" },
+    { "id": "pine-s1", "path": "{reversal_dir}/pine/S1_double_bottom_engulfing.pine", "title": "TradingView script: S1 double bottom and engulfing", "kind": "text" },
+    { "id": "pine-s3", "path": "{reversal_dir}/pine/S3_range_break.pine", "title": "TradingView script: S3 range break", "kind": "text" },
+    { "id": "scans-summary", "path": "{scans_dir}/LATEST_SUMMARY.html", "title": "Latest combined scan summary", "kind": "report" },
+    { "id": "tbl-variants", "path": "{reversal_dir}/logic2_output/variant_summary.csv", "title": "Logic 2 variants V0 to R12", "kind": "table" },
+    { "id": "tbl-robust", "path": "{reversal_dir}/logic2_output/robustness_grid.csv", "title": "Logic 2 robustness grid", "kind": "table" },
+    { "id": "tbl-finalists", "path": "{reversal_dir}/S123_ROUND4_FINALISTS.xlsx", "title": "S1/S2/S3 round 4 finalists", "kind": "table" },
+    { "id": "tbl-blend", "path": "{reversal_dir}/S123_BLEND_GRID.xlsx", "title": "S1/S2/S3 blend grid", "kind": "table" },
+    { "id": "tbl-parity", "path": "{reversal_dir}/S123_PINE_PARITY_CHECK.xlsx", "title": "Python versus Pine parity check", "kind": "table" },
+    { "id": "tbl-watchlist", "path": "{reversal_dir}/watchlist_output/market_summary.csv", "title": "Retired 700-stock watchlist backtest", "kind": "table" },
+    { "id": "img-f3", "path": "{reversal_dir}/logic2_output/equity_F3_RECOMMENDED.png", "title": "Logic 2 equity curve (F3 recommended)", "kind": "image" },
+    { "id": "img-waterfall", "path": "{reversal_dir}/logic2_output/waterfall_comparison.png", "title": "Before and after: waterfall comparison", "kind": "image" },
+    { "id": "img-equity", "path": "{reversal_dir}/watchlist_output/equity_curves.png", "title": "Watchlist backtest equity curves", "kind": "image" }
+  ]
+}

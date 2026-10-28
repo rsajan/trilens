@@ -1,0 +1,18 @@
+# Never published: your password, your uploads, and the unencrypted preview copy
+config/local.json
+technical_uploads/*
+!technical_uploads/README.txt
+data/technical/bundle.local.json
+
+__pycache__/
+*.pyc
+*.log
+*.tmp
+_site/
+.venv/
+.DS_Store
+Thumbs.db
+_wip.zip
+
+# Claude Code personal settings
+.claude/settings.local.json
