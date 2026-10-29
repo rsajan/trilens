@@ -153,6 +153,7 @@ function signals(b, ctx) {
       if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No live setups right now.')); return; }
       const cols = [
         { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'context', render: (row) => row.context ? badge(CONTEXT_LABEL[row.context] || row.context, CONTEXT_KIND[row.context]) : '—' },
         { label: 'entry', align: 'r', render: (row) => cell(row.entry_level) },
         { label: 'stop', align: 'r', render: (row) => cell(row.stop_level) },
         { label: 'break-even', align: 'r', render: (row) => cell(row.breakeven_level) },
@@ -162,7 +163,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Analog setup scanner (stages 2-4)', 'weekly breakout, validated against ≥2 confirmed historical retests on the same stock, daily-bar proxy for the 4H chart'),
+    root.append(h('section', null, sectionHead('Analog setup scanner (stage 1 + stages 2-4)', 'context-gated: only stocks currently tagged a fresh breakout, then validated against ≥2 confirmed historical retests on the same stock, daily-bar proxy for the 4H chart'),
       Object.keys(sg.analog).length > 1 ? segmented(Object.keys(sg.analog).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();

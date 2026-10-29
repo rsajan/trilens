@@ -187,21 +187,23 @@
       "docs": ["context-spec"]
     },
     {
-      "id": "analog", "name": "Analog setup scanner", "family": "Weekly breakout, validated by the stock's own history, 4H trade plan (stages 2-4)", "status": "candidate",
+      "id": "analog", "name": "Analog setup scanner (stage 1 + stages 2-4)", "family": "Context gate, then weekly breakout validated by the stock's own history, 4H trade plan", "status": "candidate",
       "status_label": "First pass, not yet tuned", "universe": "1,003 names: S&P 500 + Nifty 500",
-      "headline": "For each stock, finds every prior weekly base-and-breakout in its own history, backtests how the retest actually played out each time, and only produces today's entry/stop/target plan if at least 2 of those precedents confirmed. The sequel to the context classifier above -- this is stage 2-4 of the same framework.",
+      "headline": "Combines the context classifier above with stages 2-4: for each stock currently tagged a fresh breakout, finds every prior weekly base-and-breakout in its own history, backtests how the retest actually played out each time, and only produces today's entry/stop/target plan if at least 2 of those precedents confirmed. This card is stage 1 AND stages 2-4 run together, not stage 2-4 alone.",
       "metrics": {},
       "entry": [
+        "Stage 1 (context gate): the stock's CURRENT market_context.py tag must be NEW_ATH_BREAKOUT or DOWNTREND_BREAK -- the two tags that mean the chart just broke a level today. Everything else (sideways, intact up/downtrend, deep pullback) is excluded before stages 2-4 even run.",
         "Stage 2 (weekly): a base is 5 consecutive weekly bars whose high-low range stays within 12% of the base's own low; a breakout is the next weekly bar closing above the base's high. Scanned across the stock's full weekly history, each event skips the scan past it so zones never overlap.",
         "Stage 3 (daily, per historical event): search up to 20 daily bars for the 1st bar whose low comes back within 1% of the broken level, then the first bar after that which closes back above it (confirmation). Entry = next bar's open. Stop = the retest low, discarded as noise if under 0.5% of price. The trade is then walked forward up to 60 bars to see whether it actually hit +2R or the stop first.",
-        "Stage 4 (live): only produced when the stock's MOST RECENT weekly event is currently inside its own retest window (touched the level, not yet confirmed, not yet failed, not timed out) AND at least 2 of its prior events confirmed. Target is sized off the median R actually achieved by those confirmed analogs, not assumed."
+        "Stage 4 (live): only produced when the stock's MOST RECENT weekly event is currently inside its own retest window (touched the level, not yet confirmed, not yet failed, not timed out) AND at least 2 of its prior events confirmed AND the stage-1 context gate passes. Target is sized off the median R actually achieved by those confirmed analogs, not assumed."
       ],
       "exit": ["Stop: the live retest's low.", "Break-even: +1R, the same convention v5/v6 use.", "Target: entry + (median achieved R of the confirmed historical analogs) x risk."],
       "filters": [
+        "Stage-1 context gate (NEW_ATH_BREAKOUT or DOWNTREND_BREAK) is a hard requirement, enforced in code -- analog_setup.py calls the same classify_context() function market_context.py uses, not just a run-order assumption.",
         "Hard gate: fewer than 2 CONFIRMED historical analogs (not just 2 prior base+breakout events) and the setup is not surfaced at all -- a base that occurred before but never completed its own retest isn't evidence this works for this stock.",
         "Runs daily in scan_US.bat / scan_India.bat, after the context classifier. Writes LATEST_ANALOG_<market>.json."
       ],
-      "verdict": "Transcribed from a hand-marked-up chart (MINDA CORP LTD) on 2026-10-30 and implemented directly -- no walk-forward or out-of-sample protocol behind it yet, the way v5/v6/logic3 went through. First live run: 22 US + 22 India stocks simultaneously mid-retest, which is a lot of concurrent hits for a precedent-gated setup and the main reason this is labeled a first pass.",
+      "verdict": "Transcribed from a hand-marked-up chart (MINDA CORP LTD) on 2026-10-30 and implemented directly -- no walk-forward or out-of-sample protocol behind it yet, the way v5/v6/logic3 went through. The first version ran stages 2-4 without actually checking the stage-1 context tag and surfaced 22 US + 22 India stocks; adding the real stage-1 gate (2026-10-30) cut that to 1 US (CFG) + 1 India (JSWSTEEL) on the same data -- stage 1 is doing real filtering, not a rubber stamp.",
       "caveats": [
         "The whiteboard asked for a 4H chart at stages 3-4; this project has no intraday data pipeline and free sources only cover 60-730 days, far short of what multi-year-old analogs need. Stages 3-4 run on DAILY bars instead -- a fully-automatable proxy, but it loses the finer structure a 4H chart would show inside each daily bar.",
         "Z_MIN (5 weeks), the 12% base-width cap, the 1% retest tolerance and the 2R backtest target are first-pass defaults, not tuned the way v5/v6's constants were.",
@@ -210,6 +212,47 @@
       ],
       "rejected": [],
       "docs": ["context-spec"]
+    },
+    {
+      "id": "ema20confirm", "name": "EMA20 cross + confirm 1.8R", "family": "Reversal bot: EMA20 cross, next-candle confirmation, liquidity-filtered India", "status": "shadow",
+      "status_label": "Scanned live, no live track record yet", "universe": "1,003 names: S&P 500 + Nifty 500, India narrowed to the top 250 by $-volume at scan time",
+      "headline": "Buys the next session's open when a stock's close crosses above its 20 EMA and the next candle confirms above that close, with the market healthy and the stock above its own 200-day average. Started as a chart screenshot on 2026-10-29, then tuned and validated against this project's own universe.",
+      "metrics": { "trades": 743, "per_year": 27.5, "win_pct": 46.16, "avg_r": 0.2584, "pf": 1.464, "t_stat": 5.04, "mdd_1pct": -20.09, "cagr20": 6.81, "sharpe": 0.583, "cells": "4/4", "train_avg_r": 0.265, "test_avg_r": 0.2549 },
+      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx", "sheet": "Neighbourhood", "match": { "build": "RR=1.8" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "entry": [
+        "Signal bar: close crosses above the 20 EMA (the prior close was at or below it).",
+        "Confirmation bar: the next candle closes above the signal bar's close.",
+        "Close is above the stock's own 200-day SMA.",
+        "The market's breadth gate is open: more than 50% of the whole universe trades above its own 200-day average (same gate as v5/v6, each market scored separately).",
+        "India only: the symbol is in the top 250 India names by trailing $ volume (close times volume, averaged over the last 500 bars) -- a liquidity proxy; this project has no market-cap feed.",
+        "Entry is the next session's open."
+      ],
+      "exit": [
+        "Stop: entry minus (1.25 times ATR14, plus 5 points). Risk (R) is entry minus stop.",
+        "Target: entry plus 1.8 times risk. No break-even move, trail, scale-out or time stop.",
+        "If one bar touches both stop and target, the stop is assumed.",
+        "Costs of 0.20% round trip are charged in R, same as the rest of the reversal bot."
+      ],
+      "filters": [
+        "Same breadth gate and 5-position cap as v5/v6.",
+        "India universe narrowed to the top 250 by $ volume, recomputed from trailing data at every scan, not a fixed list.",
+        "No risk throttle, unlike v5: not yet measured with one."
+      ],
+      "verdict": "Transcribed from a chart screenshot (VOLTAS LTD, 1D) on 2026-10-29 as a plain EMA20-cross-and-confirm rule with a 1:1.4 target. Unfiltered it backtested flat-to-negative (avg R -0.006 to -0.022 depending on the data snapshot, clearly negative out of sample). The decay traced almost entirely to India post-2015 (avg R -0.107) while the US side stayed stable (+0.016). v5's own trend200 + breadth>50% filters rescued it to modestly positive (avg R +0.036, t=1.06). Seven more filter ideas were then tested against the data and rejected -- see below. Narrowing India to its most liquid 250 names, widening the stop and a neighbourhood sweep of the R:R target did help: the final build (1.25xATR stop, 1.8R target, liquid-250 India) scores avg R +0.2584, t=5.04, PF 1.46, 743 trades 2000-2026, 4 of 4 market-and-era cells positive, with train (+0.265) and test (+0.255) nearly identical -- no sign of the earlier decay. Every neighbour of R:R, ATR multiplier, liquidity cut, trend length and breadth threshold in the sensitivity sweep stayed positive, which is the main reason to trust this more than the first filtered attempt.",
+      "caveats": [
+        "No live track record: this has not been through the months of paper-trading v5/v6/S1/S3 went through before being trusted. Watch it before sizing.",
+        "The liquidity cut is $ volume (close times volume), not true market capitalization -- this project has no free market-cap feed.",
+        "Rolling 3-year windows were checked separately; most are positive, but the newest ones were the softest part of the sample, so treat the most recent months as the part most likely to disappoint.",
+        "Costs, the breadth gate and the position cap are shared with v5/v6 by convention, not re-derived for this rule specifically."
+      ],
+      "rejected": [
+        "A percentage-based stop buffer (0.5% of price instead of a flat +5 points): actively harmful, t=-2.38 -- for most of this universe that buffer was far tighter than 5 points, and tight stops lost.",
+        "Confirmation-bar volume at least 1.2 times its 20-day average: average R went negative (t=-0.27).",
+        "RSI14 at least 45 on the confirmation bar: average R dropped to roughly zero (t=-0.06).",
+        "Requiring the confirmation bar to also make a higher high: no real improvement (t=0.21).",
+        "Requiring the confirmation close to clear the signal close by at least 0.15 ATR: improved the full-sample average, but only on the training years -- the post-2015 period got worse, not better."
+      ],
+      "docs": ["ema20-tbl-combo", "ema20-tbl-improvements", "ema20-tbl-decay"]
     },
     {
       "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
@@ -253,12 +296,12 @@
         "title": "SCAN_NOW.bat", "file": "reversal_strategy folder",
         "intro": "Runs the whole reversal stack for both markets on demand. Safe at any time: the scans share one price cache and take an exclusive lock, so the second simply waits for the first.",
         "steps": [
-          { "title": "US reversal scan", "detail": "Tops the price cache up to the latest close from Yahoo, then scans every symbol for v5, v6, S1 and S3 setups on daily bars (weekly is scanned but unvalidated). Writes a dated Excel workbook and LATEST_US files.", "code": "run_daily_scan.py --market US --no-popup" },
+          { "title": "US reversal scan", "detail": "Tops the price cache up to the latest close from Yahoo, then scans every symbol for v5, v6, S1, S3 and EMA20 cross + confirm setups on daily bars (weekly is scanned but unvalidated). Writes a dated Excel workbook and LATEST_US files.", "code": "run_daily_scan.py --market US --no-popup" },
           { "title": "US revenue and dip scan", "detail": "Finds stocks 15-40% off their high with RSI at or below 40 and a reversal day, checks the revenue trend, and saves the day's bars to Excel and CSV for future backtests.", "code": "revenue_dip_scan.py --market US" },
           { "title": "India reversal scan", "detail": "The same scan on the Nifty 500 half of the universe.", "code": "run_daily_scan.py --market India --no-popup" },
           { "title": "India revenue and dip scan", "detail": "Same as the US one, with revenue from Yahoo.", "code": "revenue_dip_scan.py --market India" },
           { "title": "Market context classifier (both markets)", "detail": "Tags every symbol as new-ATH breakout, inside a 300-day range, below/above its daily trendline, or a shallow/deep uptrend pullback, per MARKET_CONTEXT_FRAMEWORK.md. Writes LATEST_CONTEXT_<market>.json.", "code": "market_context.py --cache eod_cache_live.pkl --market US" },
-          { "title": "Analog setup scanner (both markets)", "detail": "Finds weekly base+breakout precedents per stock, backtests each one's retest on daily bars, and produces a live entry/stop/target plan gated on at least 2 confirmed precedents. Writes LATEST_ANALOG_<market>.json.", "code": "analog_setup.py --cache eod_cache_live.pkl --market US" },
+          { "title": "Analog setup scanner (both markets)", "detail": "Stage 1 + stages 2-4 combined: only looks for a live setup on stocks the context classifier currently tags NEW_ATH_BREAKOUT or DOWNTREND_BREAK, finds weekly base+breakout precedents per stock, backtests each one's retest on daily bars, and produces a live entry/stop/target plan gated on at least 2 confirmed precedents. Writes LATEST_ANALOG_<market>.json.", "code": "analog_setup.py --cache eod_cache_live.pkl --market US" },
           { "title": "Paper-trade book", "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.", "code": "paper_trade.py" },
           { "title": "Summary page", "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.", "code": "revenue_dip_scan.py --summary --open" }
         ]
@@ -296,7 +339,7 @@
       "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, paper trade, summary. Logs to the scans folder.",
       "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
       "market_context.py": "Structural context classifier (new ATH / 300-day range / trendline / pullback depth), run per market. Writes LATEST_CONTEXT_<market>.json to the scans folder.",
-      "analog_setup.py": "Weekly base+breakout precedent search and daily-bar retest backtest (stages 2-4), run per market. Writes LATEST_ANALOG_<market>.json to the scans folder.",
+      "analog_setup.py": "Stage-1 context gate (NEW_ATH_BREAKOUT or DOWNTREND_BREAK only) plus weekly base+breakout precedent search and daily-bar retest backtest (stages 2-4), run per market. Writes LATEST_ANALOG_<market>.json to the scans folder.",
       "SETUP_SYSTEM_TASKS.bat": "One-time admin setup of the two daily SYSTEM tasks and the desktop shortcut, with a proof run.",
       "REFRESH_EOD_EXCEL.bat": "Re-downloads full history (2000 to today) for all 1,003 names, rewrites the two watchlist workbooks and rebuilds eod_cache.pkl. Takes 15-20 minutes. Does not touch the live cache.",
       "MAKE_DESKTOP_SHORTCUT.bat": "Creates the desktop shortcuts for the reversal scan.",
@@ -328,6 +371,9 @@
     { "id": "tbl-watchlist", "path": "{reversal_dir}/watchlist_output/market_summary.csv", "title": "Retired 700-stock watchlist backtest", "kind": "table" },
     { "id": "img-f3", "path": "{reversal_dir}/logic2_output/equity_F3_RECOMMENDED.png", "title": "Logic 2 equity curve (F3 recommended)", "kind": "image" },
     { "id": "img-waterfall", "path": "{reversal_dir}/logic2_output/waterfall_comparison.png", "title": "Before and after: waterfall comparison", "kind": "image" },
-    { "id": "img-equity", "path": "{reversal_dir}/watchlist_output/equity_curves.png", "title": "Watchlist backtest equity curves", "kind": "image" }
+    { "id": "img-equity", "path": "{reversal_dir}/watchlist_output/equity_curves.png", "title": "Watchlist backtest equity curves", "kind": "image" },
+    { "id": "ema20-tbl-combo", "path": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx", "title": "EMA20 cross + confirm: full validation (by-year, by-market, rolling 3y, neighbourhood)", "kind": "table" },
+    { "id": "ema20-tbl-improvements", "path": "{reversal_dir}/EMA20_CONFIRM_IMPROVEMENTS.xlsx", "title": "EMA20 cross + confirm: filter ideas tested and rejected", "kind": "table" },
+    { "id": "ema20-tbl-decay", "path": "{reversal_dir}/EMA20_CONFIRM_DECAY_INVESTIGATION.xlsx", "title": "EMA20 cross + confirm: where the post-2015 decay lived", "kind": "table" }
   ]
 }
