@@ -37,7 +37,21 @@ export const D = {
   sentiment: () => getJSON('data/sentiment/summary.json'),
   sentimentFor: (sym) => getJSON(`data/sentiment/${fileKey(sym)}.json`),
   signals: () => getJSON('data/technical/public_signals.json'),
+  edgarIndex: () => getJSON('data/edgar/tickers.json'),
 };
+
+// Fetches an absolute URL directly (not one of our own static JSON files) and returns parsed JSON or null.
+// Used for ad-hoc lookups of companies outside the watchlist, straight from the browser.
+export async function getJSONAbsolute(url) {
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn('getJSONAbsolute failed', url, e);
+    return null;
+  }
+}
 
 // Joins market + fundamentals + sentiment + public signals into one row per ticker
 export async function loadBoard() {

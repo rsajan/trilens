@@ -14,5 +14,8 @@ _site/
 Thumbs.db
 _wip.zip
 
+# Live data (same rule as the rest of data/: GitHub Actions writes it to the data branch, not main)
+data/edgar/
+
 # Claude Code personal settings
 .claude/settings.local.json

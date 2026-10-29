@@ -6,5 +6,6 @@ rem If Yahoo ever blocks those servers, run this once a day instead: it fetches 
 call tools\_py.bat || exit /b 1
 %PY% -m pip install --quiet --disable-pip-version-check -r pipeline\requirements.txt
 %PY% tools\push_data.py %*
+if /i "%~1"=="/quiet" exit /b %errorlevel%
 echo.
 pause

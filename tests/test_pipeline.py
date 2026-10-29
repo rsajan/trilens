@@ -102,6 +102,12 @@ class Edgar(unittest.TestCase):
     def test_edgar_symbol(self):
         self.assertEqual(ed.edgar_symbol("brk.b"), "BRK-B")
 
+    def test_cik_map_and_ticker_index(self):
+        raw = {"0": {"cik_str": 320193, "ticker": "aapl", "title": "Apple Inc."}, "1": {"cik_str": 1045810, "ticker": "nvda", "title": "NVIDIA CORP"}}
+        self.assertEqual(ed.cik_map(raw), {"AAPL": 320193, "NVDA": 1045810})
+        rows = ed.ticker_index(raw)
+        self.assertEqual(rows, [{"t": "AAPL", "c": 320193, "n": "Apple Inc."}, {"t": "NVDA", "c": 1045810, "n": "NVIDIA CORP"}])
+
 
 class News(unittest.TestCase):
     def test_parse_rss(self):

@@ -22,7 +22,8 @@ def main() -> int:
             os.environ.setdefault(k, loc[k])
     from pipeline import run as pr
 
-    jobs = sys.argv[1] if len(sys.argv) > 1 else "all"
+    args = [a for a in sys.argv[1:] if not a.startswith("/")]
+    jobs = args[0] if args else "all"
     say(f"Fetching: {jobs}  (this takes a few minutes)")
     pr.main(["--jobs", jobs])
     slug = repo_slug()

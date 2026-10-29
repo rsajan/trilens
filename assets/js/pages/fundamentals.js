@@ -13,6 +13,10 @@ const VIEWS = [
 
 export async function render(ctx) {
   const first = ctx.params[0];
+  if (first === 'lookup') {
+    const { renderLookup } = await import('./lookup.js');
+    return renderLookup(ctx, ctx.params[1]);
+  }
   if (first && !first.startsWith('tape-')) {
     const { renderCompany } = await import('./company.js');
     return renderCompany(ctx, first, ctx.params[1] || 'overview');
@@ -34,6 +38,11 @@ async function companies(body) {
   if (!rows.length) { body.append(noDataPanel()); return; }
   let q = '', mk = 'ALL', sort = 'name';
   const list = h('div', { class: 'ledger' });
+  const extList = h('div', { class: 'ledger' });
+  const extBox = h('div', { class: 'section', style: { marginTop: '18px', display: 'none' } },
+    sectionHead('Other US companies', 'live from SEC EDGAR — filings and profile only, no price'), extList);
+  const inWatchlist = new Set(rows.map((r) => r.symbol));
+  let edgarRows = null;
   const sorters = {
     name: (a, b) => a.symbol.localeCompare(b.symbol),
     cap: (a, b) => (b.market_cap ?? 0) - (a.market_cap ?? 0),
@@ -41,11 +50,33 @@ async function companies(body) {
     earn: (a, b) => (a.next_earnings || '9999').localeCompare(b.next_earnings || '9999'),
     insider: (a, b) => (b.insider_net_90d ?? -1e18) - (a.insider_net_90d ?? -1e18),
   };
+  async function paintExt(ql) {
+    if (!ql || ql.length < 2) { extBox.style.display = 'none'; return; }
+    if (!edgarRows) {
+      const idx = await D.edgarIndex();
+      edgarRows = idx?.rows || [];
+    }
+    if (ql !== q.trim().toLowerCase()) return; // query moved on while we were loading the index
+    const starts = [], has = [];
+    for (const r of edgarRows) {
+      if (inWatchlist.has(r.t)) continue;
+      const sym = r.t.toLowerCase(), name = (r.n || '').toLowerCase();
+      if (sym.startsWith(ql)) starts.push(r);
+      else if (name.includes(ql)) has.push(r);
+      if (starts.length >= 30) break;
+    }
+    const matches = [...starts, ...has].slice(0, 12);
+    extBox.style.display = matches.length ? '' : 'none';
+    extList.replaceChildren(...matches.map((r) => h('a', { class: 'lrow', href: `#/fundamentals/lookup/${encodeURIComponent(r.t)}` },
+      h('div', { class: 'who' }, h('div', { class: 'sym ell' }, r.t), h('div', { class: 'name ell' }, r.n || '')),
+      h('span', { class: 'tiny muted', style: { flex: 'none' } }, 'SEC lookup'))));
+  }
   function paint() {
     const ql = q.trim().toLowerCase();
     const items = rows.filter((r) => (mk === 'ALL' || r.market === mk) && (!ql || r.symbol.toLowerCase().includes(ql) || (r.name || '').toLowerCase().includes(ql) || (r.sector || '').toLowerCase().includes(ql))).sort(sorters[sort]);
     list.replaceChildren(...items.map(fundRow));
     if (!items.length) list.append(h('div', { class: 'empty' }, h('b', null, 'No match'), 'Try a different name, symbol or sector.'));
+    paintExt(ql);
   }
   const input = h('input', { class: 'field', type: 'search', placeholder: 'Search symbol, company or sector', 'aria-label': 'Search companies', autocomplete: 'off', onInput: debounce((e) => { q = e.target.value; paint(); }) });
   body.append(
@@ -56,6 +87,7 @@ async function companies(body) {
         h('select', { class: 'field', style: { width: 'auto', height: '36px', padding: '0 10px' }, 'aria-label': 'Sort companies', onChange: (e) => { sort = e.target.value; paint(); } },
           h('option', { value: 'name' }, 'Symbol'), h('option', { value: 'cap' }, 'Market value'), h('option', { value: 'move' }, 'Today’s move'), h('option', { value: 'earn' }, 'Next earnings'), h('option', { value: 'insider' }, 'Insider buying')))),
     list,
+    extBox,
     h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'The F, T and S badges are the three lenses. ', h('button', { class: 'chip', style: { height: '28px', padding: '0 10px', fontSize: '13px' }, onClick: lensExplainer }, 'How they work')));
   paint();
 }

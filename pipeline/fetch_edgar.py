@@ -136,14 +136,34 @@ def _sec_get(url: str, ua: str):
     return r
 
 
-def cik_map(ua: str) -> dict[str, int]:
+def fetch_company_tickers(ua: str) -> dict:
     r = _sec_get("https://www.sec.gov/files/company_tickers.json", ua)
     if not r:
         return {}
     try:
-        return {v["ticker"].upper(): int(v["cik_str"]) for v in r.json().values()}
+        return r.json()
     except Exception:
         return {}
+
+
+def cik_map(raw: dict) -> dict[str, int]:
+    try:
+        return {v["ticker"].upper(): int(v["cik_str"]) for v in raw.values()}
+    except Exception:
+        return {}
+
+
+def ticker_index(raw: dict) -> list[dict]:
+    """Trimmed rows for the site's universal company search (data/edgar/tickers.json):
+    every ticker SEC knows, not just the watchlist, so Fundamentals can look up any US company."""
+    rows = []
+    for v in raw.values():
+        try:
+            rows.append({"t": v["ticker"].upper(), "c": int(v["cik_str"]), "n": (v.get("title") or "").strip()})
+        except Exception:
+            continue
+    rows.sort(key=lambda r: r["t"])
+    return rows
 
 
 def edgar_symbol(sym: str) -> str:
@@ -189,9 +209,11 @@ def run(tickers: list[dict], cfg: dict) -> dict:
     if not ua or "@" not in ua:
         log.warning("EDGAR skipped: set the SEC_USER_AGENT secret to your name and email")
         return {"skipped": "no sec_user_agent"}
-    m = cik_map(ua)
-    if not m:
+    raw = fetch_company_tickers(ua)
+    if not raw:
         raise RuntimeError("could not load the SEC ticker list")
+    m = cik_map(raw)
+    write_json(DATA / "edgar" / "tickers.json", {"generated_at": now_iso(), "rows": ticker_index(raw)})
     ok, bad = 0, []
     for tk in tickers:
         sym = tk["symbol"]
