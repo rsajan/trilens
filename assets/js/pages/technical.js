@@ -121,6 +121,29 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.context && Object.keys(sg.context).length) {
+    let cur = Object.keys(sg.context)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.context[cur];
+      const counts = r.tag_counts || {};
+      const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...CONTEXT_TAGS.filter((t) => counts[t]).map((t) => badge(`${counts[t]} ${CONTEXT_LABEL[t]}`, CONTEXT_KIND[t])));
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(chips, h('div', { class: 'empty' }, 'No actionable context signals today.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'context', render: (row) => badge(CONTEXT_LABEL[row.context] || row.context, CONTEXT_KIND[row.context]) },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'detail', render: (row) => contextDetail(row) },
+      ];
+      box.replaceChildren(chips, dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Market context classifier', sg.context[cur]?.asof ? `data through ${sg.context[cur].asof} · ${sg.context[cur].universe} scanned` : ''),
+      Object.keys(sg.context).length > 1 ? segmented(Object.keys(sg.context).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;
@@ -129,6 +152,17 @@ function cell(v) {
   if (v == null || v === '') return '—';
   if (typeof v === 'number') return Number.isInteger(v) || Math.abs(v) >= 1000 ? fmt.int(v) : fmt.num(v, Math.abs(v) < 1 ? 3 : 2);
   return String(v);
+}
+
+// Tags from market_context.py / MARKET_CONTEXT_FRAMEWORK.md, in decision-tree order.
+const CONTEXT_TAGS = ['NEW_ATH_BREAKOUT', 'DOWNTREND_BREAK', 'UPTREND_PULLBACK_SMALL', 'UPTREND_PULLBACK_DEEP', 'DOWNTREND_INTACT', 'RANGE_CORRECTION_300D', 'UNCLASSIFIED'];
+const CONTEXT_LABEL = { NEW_ATH_BREAKOUT: 'new ATH', DOWNTREND_BREAK: 'downtrend break', UPTREND_PULLBACK_SMALL: 'small pullback', UPTREND_PULLBACK_DEEP: 'deep pullback', DOWNTREND_INTACT: 'downtrend', RANGE_CORRECTION_300D: '300d range', UNCLASSIFIED: 'unclassified' };
+const CONTEXT_KIND = { NEW_ATH_BREAKOUT: 'gain', DOWNTREND_BREAK: 'gain', UPTREND_PULLBACK_SMALL: 'gain', UPTREND_PULLBACK_DEEP: 'loss', DOWNTREND_INTACT: 'loss', RANGE_CORRECTION_300D: 'outline', UNCLASSIFIED: 'outline' };
+function contextDetail(row) {
+  if (row.context === 'NEW_ATH_BREAKOUT') return row.prior_ath_bars_ago != null ? `prior high stood ${fmt.int(row.prior_ath_bars_ago)} bars` : '—';
+  if (row.context === 'DOWNTREND_BREAK') return row.trendline_value != null ? `trendline ${cell(row.trendline_value)}` : '—';
+  if (row.context === 'UPTREND_PULLBACK_SMALL' || row.context === 'UPTREND_PULLBACK_DEEP') return row.retracement_pct != null ? `${fmt.num(row.retracement_pct, 1)}% retracement` : '—';
+  return '—';
 }
 
 const CHECKS = ['A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7'];

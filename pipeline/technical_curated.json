@@ -164,6 +164,29 @@
       "docs": []
     },
     {
+      "id": "context", "name": "Market context classifier", "family": "Structural pre-filter: what is this stock's chart doing right now", "status": "candidate",
+      "status_label": "Classifier, not a signal", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Tags every stock with one of six structural states -- new ATH breakout, inside a 300-day sideways range, below or above its daily trendline, or pulling back shallow vs. deep inside an uptrend -- before any entry logic is applied to it. Not a buy/sell signal on its own.",
+      "metrics": {},
+      "entry": [
+        "New ATH: today's close exceeds the full-history close high, and that prior high had stood for at least 60 bars (a base, not a level set last week).",
+        "300-day range: no new ATH, and net price progress over the last 300 sessions is under half the range's own width (sideways, not trending).",
+        "Trendline direction: fit a line through the last 3 confirmed swing highs (descending) or swing lows (ascending), a standard causal fractal -- a swing point only confirms 5 bars after it happens, so there is no lookahead.",
+        "Descending trendline: BELOW it is DOWNTREND_INTACT, a close back ABOVE it is DOWNTREND_BREAK.",
+        "Ascending trendline: retracement = (most recent swing high minus today's close) / (that high minus the swing low before it). <=50% is UPTREND_PULLBACK_SMALL, >50% is UPTREND_PULLBACK_DEEP.",
+        "No match (too few confirmed swing points, or neither trendline direction qualifies) is UNCLASSIFIED."
+      ],
+      "exit": ["Not applicable -- this assigns a context tag, it does not open or close positions."],
+      "filters": [
+        "Evaluated top to bottom, first match wins: NEW_ATH_BREAKOUT, then RANGE_CORRECTION_300D, then the trendline read.",
+        "Runs daily in scan_US.bat / scan_India.bat and writes LATEST_CONTEXT_<market>.json to the scans folder; only the actionable tags (new ATH, downtrend break, small/deep pullback) ship rows to this page -- the sideways and unclassified buckets, usually 70-80% of the universe, show as counts only."
+      ],
+      "verdict": "Reconstructed from a whiteboard sketch on 2026-10-30 and implemented directly -- no backtest behind the tag boundaries yet (the 50% RANGE_PROGRESS_RATIO and the 50% retracement split are textbook defaults, not fitted to this project's own data the way v5/v6 were). Use it to decide which existing bot's signals are worth acting on today, not as a standalone edge.",
+      "caveats": ["RANGE_CORRECTION_300D caught 78% of the US+India universe on the first live run -- the sideways-progress threshold likely needs tightening once checked against known cases.", "A retracement over 100% (seen live on a handful of names) means price broke below the swing low that started the up-leg -- the ascending trendline is stale, treat UPTREND_PULLBACK_DEEP with a >100% figure as a broken trend, not a deep dip.", "Classifies structure only; carries no opinion on entry price, stop or size."],
+      "rejected": [],
+      "docs": ["context-spec"]
+    },
+    {
       "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
       "status_label": "Retired 2026-08-07", "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "The live pick until 7 August 2026. Sold 34% at 0.75R with a 4R target and had no per-stock trend filter. Replaced by v5.",
@@ -194,9 +217,9 @@
   "automation": {
     "timezone": "Singapore time (UTC+8)",
     "schedule": [
-      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, paper-trade update, summary page. Accumulation bot Scan_US runs at the same time.", "tag": "your PC" },
+      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, paper-trade update, summary page. Accumulation bot Scan_US runs at the same time.", "tag": "your PC" },
       { "time": "08:30", "title": "Publish Technical page", "detail": "The optional tasks Trilens_Publish_AM and Trilens_Publish_PM (made by SCHEDULE_PUBLISH.bat) build the encrypted Technical bundle from the fresh scan files and pushes it to GitHub.", "tag": "your PC" },
-      { "time": "19:00", "title": "India scans", "detail": "ReversalScan_India runs scan_India.bat. Accumulation bot Scan_India runs at the same time, an hour after the NSE closes.", "tag": "your PC" },
+      { "time": "19:00", "title": "India scans", "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India runs at the same time, an hour after the NSE closes.", "tag": "your PC" },
       { "time": "20:30", "title": "Publish Technical page", "detail": "Second daily publish, after the India scans finish.", "tag": "your PC" },
       { "time": "All day", "title": "Fundamentals and sentiment update", "detail": "GitHub refreshes prices about every 30 minutes on weekdays, SEC filings every 3 hours, sentiment every 2 hours and company data twice a day, on free servers. Your PC does not need to be on.", "tag": "GitHub" }
     ],
@@ -209,6 +232,7 @@
           { "title": "US revenue and dip scan", "detail": "Finds stocks 15-40% off their high with RSI at or below 40 and a reversal day, checks the revenue trend, and saves the day's bars to Excel and CSV for future backtests.", "code": "revenue_dip_scan.py --market US" },
           { "title": "India reversal scan", "detail": "The same scan on the Nifty 500 half of the universe.", "code": "run_daily_scan.py --market India --no-popup" },
           { "title": "India revenue and dip scan", "detail": "Same as the US one, with revenue from Yahoo.", "code": "revenue_dip_scan.py --market India" },
+          { "title": "Market context classifier (both markets)", "detail": "Tags every symbol as new-ATH breakout, inside a 300-day range, below/above its daily trendline, or a shallow/deep uptrend pullback, per MARKET_CONTEXT_FRAMEWORK.md. Writes LATEST_CONTEXT_<market>.json.", "code": "market_context.py --cache eod_cache_live.pkl --market US" },
           { "title": "Paper-trade book", "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.", "code": "paper_trade.py" },
           { "title": "Summary page", "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.", "code": "revenue_dip_scan.py --summary --open" }
         ]
@@ -242,9 +266,10 @@
       { "title": "GitHub Pages serves the site", "detail": "The site is a set of static files on a free address. Your phone downloads them and keeps a copy, so it also opens without a connection." }
     ],
     "bat_notes": {
-      "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the paper-trade update and the summary page, in that order.",
-      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, paper trade, summary. Logs to the scans folder.",
+      "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the paper-trade update and the summary page, in that order.",
+      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, paper trade, summary. Logs to the scans folder.",
       "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
+      "market_context.py": "Structural context classifier (new ATH / 300-day range / trendline / pullback depth), run per market. Writes LATEST_CONTEXT_<market>.json to the scans folder.",
       "SETUP_SYSTEM_TASKS.bat": "One-time admin setup of the two daily SYSTEM tasks and the desktop shortcut, with a proof run.",
       "REFRESH_EOD_EXCEL.bat": "Re-downloads full history (2000 to today) for all 1,003 names, rewrites the two watchlist workbooks and rebuilds eod_cache.pkl. Takes 15-20 minutes. Does not touch the live cache.",
       "MAKE_DESKTOP_SHORTCUT.bat": "Creates the desktop shortcuts for the reversal scan.",
@@ -262,6 +287,7 @@
     { "id": "v5-spec", "path": "{reversal_dir}/V5_STRATEGY_SPEC.md", "title": "v5 + throttle: complete specification", "kind": "doc" },
     { "id": "v6-spec", "path": "{reversal_dir}/V6_CANDIDATE_SPEC.md", "title": "v6 candidate: logic and results", "kind": "doc" },
     { "id": "logic3-spec", "path": "{reversal_dir}/LOGIC3_DBE_SPEC.md", "title": "Logic 3: double bottom and engulfing", "kind": "doc" },
+    { "id": "context-spec", "path": "{reversal_dir}/MARKET_CONTEXT_FRAMEWORK.md", "title": "Market context classifier: framework and definitions", "kind": "doc" },
     { "id": "acc-readme", "path": "{accumulation_dir}/README.txt", "title": "Accumulation Bot README", "kind": "text" },
     { "id": "acc-sop", "path": "{accumulation_dir}/SOP - Accumulation Checklist.html", "title": "Accumulation checklist (SOP)", "kind": "report" },
     { "id": "pine-s1", "path": "{reversal_dir}/pine/S1_double_bottom_engulfing.pine", "title": "TradingView script: S1 double bottom and engulfing", "kind": "text" },

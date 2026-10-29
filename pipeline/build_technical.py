@@ -483,6 +483,39 @@ def read_revenue(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Market context classifier
+# Row-level detail is only worth shipping for the actionable tags (see
+# MARKET_CONTEXT_FRAMEWORK.md section 4) -- the sideways/unclassified buckets
+# dominate by count (typically 70-80% of the universe) and are "wait and
+# see", so they're surfaced as counts only, not 400+ rows of nothing to do.
+CONTEXT_ACTIONABLE_TAGS = ["NEW_ATH_BREAKOUT", "DOWNTREND_BREAK", "UPTREND_PULLBACK_DEEP", "UPTREND_PULLBACK_SMALL"]
+CONTEXT_ROW_COLS = ["symbol", "close", "context", "retracement_pct", "trendline_value", "prior_ath_bars_ago",
+                    "pressing_upper_band", "range_high", "range_low"]
+
+
+def read_context(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_CONTEXT_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            if r.get("context") not in CONTEXT_ACTIONABLE_TAGS:
+                continue
+            rec = {}
+            for k in CONTEXT_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if not isinstance(r[k], bool) else r[k]
+            recs.append(rec)
+        recs.sort(key=lambda r: (CONTEXT_ACTIONABLE_TAGS.index(r["context"]), -(r.get("retracement_pct") or 0)))
+        out[mk] = {"records": recs, "tag_counts": j.get("tag_counts") or {}, "universe": j.get("universe"),
+                   "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ results
 def downsample(xs, ys, n=520):
     if len(xs) <= n:
@@ -660,7 +693,8 @@ def main(argv=None) -> int:
                 s["metrics"] = {**s.get("metrics", {}), **fresh}
         strategies.append(s)
 
-    signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D)}
+    signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
+              "context": read_context(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
