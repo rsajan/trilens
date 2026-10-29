@@ -144,6 +144,29 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.analog && Object.keys(sg.analog).length) {
+    let cur = Object.keys(sg.analog)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.analog[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No live setups right now.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'entry', align: 'r', render: (row) => cell(row.entry_level) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop_level) },
+        { label: 'break-even', align: 'r', render: (row) => cell(row.breakeven_level) },
+        { label: 'target', align: 'r', render: (row) => cell(row.take_profit_level) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        { label: 'analogs', align: 'r', render: (row) => `${row.n_analogs_confirmed ?? '—'}/${row.n_analogs ?? '—'}` },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Analog setup scanner (stages 2-4)', 'weekly breakout, validated against ≥2 confirmed historical retests on the same stock, daily-bar proxy for the 4H chart'),
+      Object.keys(sg.analog).length > 1 ? segmented(Object.keys(sg.analog).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;

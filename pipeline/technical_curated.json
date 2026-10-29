@@ -187,6 +187,31 @@
       "docs": ["context-spec"]
     },
     {
+      "id": "analog", "name": "Analog setup scanner", "family": "Weekly breakout, validated by the stock's own history, 4H trade plan (stages 2-4)", "status": "candidate",
+      "status_label": "First pass, not yet tuned", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "For each stock, finds every prior weekly base-and-breakout in its own history, backtests how the retest actually played out each time, and only produces today's entry/stop/target plan if at least 2 of those precedents confirmed. The sequel to the context classifier above -- this is stage 2-4 of the same framework.",
+      "metrics": {},
+      "entry": [
+        "Stage 2 (weekly): a base is 5 consecutive weekly bars whose high-low range stays within 12% of the base's own low; a breakout is the next weekly bar closing above the base's high. Scanned across the stock's full weekly history, each event skips the scan past it so zones never overlap.",
+        "Stage 3 (daily, per historical event): search up to 20 daily bars for the 1st bar whose low comes back within 1% of the broken level, then the first bar after that which closes back above it (confirmation). Entry = next bar's open. Stop = the retest low, discarded as noise if under 0.5% of price. The trade is then walked forward up to 60 bars to see whether it actually hit +2R or the stop first.",
+        "Stage 4 (live): only produced when the stock's MOST RECENT weekly event is currently inside its own retest window (touched the level, not yet confirmed, not yet failed, not timed out) AND at least 2 of its prior events confirmed. Target is sized off the median R actually achieved by those confirmed analogs, not assumed."
+      ],
+      "exit": ["Stop: the live retest's low.", "Break-even: +1R, the same convention v5/v6 use.", "Target: entry + (median achieved R of the confirmed historical analogs) x risk."],
+      "filters": [
+        "Hard gate: fewer than 2 CONFIRMED historical analogs (not just 2 prior base+breakout events) and the setup is not surfaced at all -- a base that occurred before but never completed its own retest isn't evidence this works for this stock.",
+        "Runs daily in scan_US.bat / scan_India.bat, after the context classifier. Writes LATEST_ANALOG_<market>.json."
+      ],
+      "verdict": "Transcribed from a hand-marked-up chart (MINDA CORP LTD) on 2026-10-30 and implemented directly -- no walk-forward or out-of-sample protocol behind it yet, the way v5/v6/logic3 went through. First live run: 22 US + 22 India stocks simultaneously mid-retest, which is a lot of concurrent hits for a precedent-gated setup and the main reason this is labeled a first pass.",
+      "caveats": [
+        "The whiteboard asked for a 4H chart at stages 3-4; this project has no intraday data pipeline and free sources only cover 60-730 days, far short of what multi-year-old analogs need. Stages 3-4 run on DAILY bars instead -- a fully-automatable proxy, but it loses the finer structure a 4H chart would show inside each daily bar.",
+        "Z_MIN (5 weeks), the 12% base-width cap, the 1% retest tolerance and the 2R backtest target are first-pass defaults, not tuned the way v5/v6's constants were.",
+        "Per-symbol only: a stock with a short or quiet history may never clear the 2-confirmed-analog gate, regardless of how good today's setup looks.",
+        "No position sizing, portfolio cap or regime gate -- unlike v5/v6/logic3, nothing here limits how many of these 44 names could be taken at once."
+      ],
+      "rejected": [],
+      "docs": ["context-spec"]
+    },
+    {
       "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
       "status_label": "Retired 2026-08-07", "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "The live pick until 7 August 2026. Sold 34% at 0.75R with a 4R target and had no per-stock trend filter. Replaced by v5.",
@@ -217,7 +242,7 @@
   "automation": {
     "timezone": "Singapore time (UTC+8)",
     "schedule": [
-      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, paper-trade update, summary page. Accumulation bot Scan_US runs at the same time.", "tag": "your PC" },
+      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, paper-trade update, summary page. Accumulation bot Scan_US runs at the same time.", "tag": "your PC" },
       { "time": "08:30", "title": "Publish Technical page", "detail": "The optional tasks Trilens_Publish_AM and Trilens_Publish_PM (made by SCHEDULE_PUBLISH.bat) build the encrypted Technical bundle from the fresh scan files and pushes it to GitHub.", "tag": "your PC" },
       { "time": "19:00", "title": "India scans", "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India runs at the same time, an hour after the NSE closes.", "tag": "your PC" },
       { "time": "20:30", "title": "Publish Technical page", "detail": "Second daily publish, after the India scans finish.", "tag": "your PC" },
@@ -233,6 +258,7 @@
           { "title": "India reversal scan", "detail": "The same scan on the Nifty 500 half of the universe.", "code": "run_daily_scan.py --market India --no-popup" },
           { "title": "India revenue and dip scan", "detail": "Same as the US one, with revenue from Yahoo.", "code": "revenue_dip_scan.py --market India" },
           { "title": "Market context classifier (both markets)", "detail": "Tags every symbol as new-ATH breakout, inside a 300-day range, below/above its daily trendline, or a shallow/deep uptrend pullback, per MARKET_CONTEXT_FRAMEWORK.md. Writes LATEST_CONTEXT_<market>.json.", "code": "market_context.py --cache eod_cache_live.pkl --market US" },
+          { "title": "Analog setup scanner (both markets)", "detail": "Finds weekly base+breakout precedents per stock, backtests each one's retest on daily bars, and produces a live entry/stop/target plan gated on at least 2 confirmed precedents. Writes LATEST_ANALOG_<market>.json.", "code": "analog_setup.py --cache eod_cache_live.pkl --market US" },
           { "title": "Paper-trade book", "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.", "code": "paper_trade.py" },
           { "title": "Summary page", "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.", "code": "revenue_dip_scan.py --summary --open" }
         ]
@@ -266,10 +292,11 @@
       { "title": "GitHub Pages serves the site", "detail": "The site is a set of static files on a free address. Your phone downloads them and keeps a copy, so it also opens without a connection." }
     ],
     "bat_notes": {
-      "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the paper-trade update and the summary page, in that order.",
-      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, paper trade, summary. Logs to the scans folder.",
+      "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the analog setup scanner, the paper-trade update and the summary page, in that order.",
+      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, paper trade, summary. Logs to the scans folder.",
       "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
       "market_context.py": "Structural context classifier (new ATH / 300-day range / trendline / pullback depth), run per market. Writes LATEST_CONTEXT_<market>.json to the scans folder.",
+      "analog_setup.py": "Weekly base+breakout precedent search and daily-bar retest backtest (stages 2-4), run per market. Writes LATEST_ANALOG_<market>.json to the scans folder.",
       "SETUP_SYSTEM_TASKS.bat": "One-time admin setup of the two daily SYSTEM tasks and the desktop shortcut, with a proof run.",
       "REFRESH_EOD_EXCEL.bat": "Re-downloads full history (2000 to today) for all 1,003 names, rewrites the two watchlist workbooks and rebuilds eod_cache.pkl. Takes 15-20 minutes. Does not touch the live cache.",
       "MAKE_DESKTOP_SHORTCUT.bat": "Creates the desktop shortcuts for the reversal scan.",

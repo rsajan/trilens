@@ -516,6 +516,31 @@ def read_context(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Analog setup scanner (stages 2-4)
+ANALOG_ROW_COLS = ["symbol", "breakout_date", "entry_level", "stop_level", "breakeven_level", "take_profit_level",
+                   "risk_pct", "target_r_used", "n_analogs", "n_analogs_confirmed", "n_analogs_failed"]
+
+
+def read_analog(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_ANALOG_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in ANALOG_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if not isinstance(r[k], bool) else r[k]
+            recs.append(rec)
+        recs.sort(key=lambda r: -(r.get("n_analogs_confirmed") or 0))
+        out[mk] = {"records": recs, "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ results
 def downsample(xs, ys, n=520):
     if len(xs) <= n:
@@ -694,7 +719,7 @@ def main(argv=None) -> int:
         strategies.append(s)
 
     signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
-              "context": read_context(D)}
+              "context": read_context(D), "analog": read_analog(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
