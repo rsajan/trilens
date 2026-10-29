@@ -1,10 +1,10 @@
 // Trilens service worker: app shell works offline; data is network-first with a saved fallback.
-const VERSION = 'trilens-v2';
+const VERSION = 'trilens-v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
   'assets/js/main.js',
-  'assets/js/lib/dom.js', 'assets/js/lib/data.js', 'assets/js/lib/store.js', 'assets/js/lib/charts.js', 'assets/js/lib/md.js', 'assets/js/lib/crypto.js', 'assets/js/lib/ui.js',
+  'assets/js/lib/dom.js', 'assets/js/lib/data.js', 'assets/js/lib/store.js', 'assets/js/lib/charts.js', 'assets/js/lib/md.js', 'assets/js/lib/crypto.js', 'assets/js/lib/ui.js', 'assets/js/lib/pins.js',
   'assets/js/pages/overview.js', 'assets/js/pages/fundamentals.js', 'assets/js/pages/company.js', 'assets/js/pages/technical.js', 'assets/js/pages/sentiment.js', 'assets/js/pages/lookup.js',
   'assets/fonts/bricolage.woff2', 'assets/fonts/plex-400.woff2', 'assets/fonts/plex-500.woff2', 'assets/fonts/plex-600.woff2',
   'assets/icons/icon.svg', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/apple-touch-icon.png',

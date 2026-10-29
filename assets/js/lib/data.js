@@ -38,6 +38,7 @@ export const D = {
   sentimentFor: (sym) => getJSON(`data/sentiment/${fileKey(sym)}.json`),
   signals: () => getJSON('data/technical/public_signals.json'),
   edgarIndex: () => getJSON('data/edgar/tickers.json'),
+  indiaIndex: () => getJSON('data/india/tickers.json'),
 };
 
 // Fetches an absolute URL directly (not one of our own static JSON files) and returns parsed JSON or null.

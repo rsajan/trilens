@@ -2,6 +2,7 @@ import { h, icon, fmt, badge, lensRow, debounce, extLink } from '../lib/dom.js';
 import { loadBoard, D } from '../lib/data.js';
 import { pageHead, sectionHead, chipGroup, segmented, feedItem, noDataPanel, lensExplainer } from '../lib/ui.js';
 import { insiderToFeed } from './overview.js';
+import { listPins, togglePin, hrefFor } from '../lib/pins.js';
 
 const VIEWS = [
   { id: 'companies', label: 'Companies' },
@@ -16,6 +17,10 @@ export async function render(ctx) {
   if (first === 'lookup') {
     const { renderLookup } = await import('./lookup.js');
     return renderLookup(ctx, ctx.params[1]);
+  }
+  if (first === 'india') {
+    const { renderIndiaLookup } = await import('./lookup.js');
+    return renderIndiaLookup(ctx, ctx.params[1]);
   }
   if (first && !first.startsWith('tape-')) {
     const { renderCompany } = await import('./company.js');
@@ -33,16 +38,68 @@ export async function render(ctx) {
   return root;
 }
 
+// One universal-search block: loads its index on first real query, filters by symbol prefix
+// or name match, excludes anything already on the watchlist, links to a lookup page.
+function externalSearchBox({ title, sub, loadIndex, getSym, getName, linkFor, tagLabel }, inWatchlist) {
+  const listEl = h('div', { class: 'ledger' });
+  const box = h('div', { class: 'section', style: { marginTop: '18px', display: 'none' } }, sectionHead(title, sub), listEl);
+  let rows = null;
+  return {
+    el: box,
+    async paint(ql, stillCurrent) {
+      if (!ql || ql.length < 2) { box.style.display = 'none'; return; }
+      if (!rows) rows = (await loadIndex())?.rows || [];
+      if (!stillCurrent()) return;
+      const starts = [], has = [];
+      for (const r of rows) {
+        const sym = getSym(r);
+        if (inWatchlist.has(sym.toUpperCase())) continue;
+        const name = (getName(r) || '').toLowerCase();
+        if (sym.toLowerCase().startsWith(ql)) starts.push(r);
+        else if (name.includes(ql)) has.push(r);
+        if (starts.length >= 30) break;
+      }
+      const matches = [...starts, ...has].slice(0, 12);
+      box.style.display = matches.length ? '' : 'none';
+      listEl.replaceChildren(...matches.map((r) => h('a', { class: 'lrow', href: linkFor(r) },
+        h('div', { class: 'who' }, h('div', { class: 'sym ell' }, getSym(r)), h('div', { class: 'name ell' }, getName(r) || '')),
+        h('span', { class: 'tiny muted', style: { flex: 'none' } }, tagLabel))));
+    },
+  };
+}
+
+function pinnedSection() {
+  const pins = listPins();
+  if (!pins.length) return null;
+  const list = h('div', { class: 'ledger' });
+  const box = h('div', { class: 'section', style: { marginBottom: '18px' } }, sectionHead('Pinned', 'saved on this device only'), list);
+  const paint = () => {
+    const cur = listPins();
+    if (!cur.length) { box.remove(); return; }
+    list.replaceChildren(...cur.map((p) => h('a', { class: 'lrow', href: hrefFor(p) },
+      h('div', { class: 'who' }, h('div', { class: 'sym ell' }, p.sym), h('div', { class: 'name ell' }, p.name || '')),
+      h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Unpin ${p.sym}`, style: { flex: 'none' }, onClick: (e) => { e.preventDefault(); togglePin(p.sym, p.name, p.kind); paint(); } }, icon('dash')))));
+  };
+  paint();
+  return box;
+}
+
 async function companies(body) {
   const { rows } = await loadBoard();
   if (!rows.length) { body.append(noDataPanel()); return; }
   let q = '', mk = 'ALL', sort = 'name';
   const list = h('div', { class: 'ledger' });
-  const extList = h('div', { class: 'ledger' });
-  const extBox = h('div', { class: 'section', style: { marginTop: '18px', display: 'none' } },
-    sectionHead('Other US companies', 'live from SEC EDGAR — filings and profile only, no price'), extList);
-  const inWatchlist = new Set(rows.map((r) => r.symbol));
-  let edgarRows = null;
+  const inWatchlist = new Set(rows.map((r) => r.symbol.toUpperCase()));
+  const usBox = externalSearchBox({
+    title: 'Other US companies', sub: 'live from SEC EDGAR — filings and profile only, no price',
+    loadIndex: D.edgarIndex, getSym: (r) => r.t, getName: (r) => r.n, tagLabel: 'SEC lookup',
+    linkFor: (r) => `#/fundamentals/lookup/${encodeURIComponent(r.t)}`,
+  }, inWatchlist);
+  const inBox = externalSearchBox({
+    title: 'Other India companies', sub: 'Nifty Total Market + Microcap 250 — profile only, no price',
+    loadIndex: D.indiaIndex, getSym: (r) => r.s, getName: (r) => r.n, tagLabel: 'NSE lookup',
+    linkFor: (r) => `#/fundamentals/india/${encodeURIComponent(r.s)}`,
+  }, inWatchlist);
   const sorters = {
     name: (a, b) => a.symbol.localeCompare(b.symbol),
     cap: (a, b) => (b.market_cap ?? 0) - (a.market_cap ?? 0),
@@ -50,35 +107,18 @@ async function companies(body) {
     earn: (a, b) => (a.next_earnings || '9999').localeCompare(b.next_earnings || '9999'),
     insider: (a, b) => (b.insider_net_90d ?? -1e18) - (a.insider_net_90d ?? -1e18),
   };
-  async function paintExt(ql) {
-    if (!ql || ql.length < 2) { extBox.style.display = 'none'; return; }
-    if (!edgarRows) {
-      const idx = await D.edgarIndex();
-      edgarRows = idx?.rows || [];
-    }
-    if (ql !== q.trim().toLowerCase()) return; // query moved on while we were loading the index
-    const starts = [], has = [];
-    for (const r of edgarRows) {
-      if (inWatchlist.has(r.t)) continue;
-      const sym = r.t.toLowerCase(), name = (r.n || '').toLowerCase();
-      if (sym.startsWith(ql)) starts.push(r);
-      else if (name.includes(ql)) has.push(r);
-      if (starts.length >= 30) break;
-    }
-    const matches = [...starts, ...has].slice(0, 12);
-    extBox.style.display = matches.length ? '' : 'none';
-    extList.replaceChildren(...matches.map((r) => h('a', { class: 'lrow', href: `#/fundamentals/lookup/${encodeURIComponent(r.t)}` },
-      h('div', { class: 'who' }, h('div', { class: 'sym ell' }, r.t), h('div', { class: 'name ell' }, r.n || '')),
-      h('span', { class: 'tiny muted', style: { flex: 'none' } }, 'SEC lookup'))));
-  }
   function paint() {
     const ql = q.trim().toLowerCase();
     const items = rows.filter((r) => (mk === 'ALL' || r.market === mk) && (!ql || r.symbol.toLowerCase().includes(ql) || (r.name || '').toLowerCase().includes(ql) || (r.sector || '').toLowerCase().includes(ql))).sort(sorters[sort]);
     list.replaceChildren(...items.map(fundRow));
     if (!items.length) list.append(h('div', { class: 'empty' }, h('b', null, 'No match'), 'Try a different name, symbol or sector.'));
-    paintExt(ql);
+    const stillCurrent = () => q.trim().toLowerCase() === ql;
+    usBox.paint(ql, stillCurrent);
+    inBox.paint(ql, stillCurrent);
   }
   const input = h('input', { class: 'field', type: 'search', placeholder: 'Search symbol, company or sector', 'aria-label': 'Search companies', autocomplete: 'off', onInput: debounce((e) => { q = e.target.value; paint(); }) });
+  const pinned = pinnedSection();
+  if (pinned) body.append(pinned);
   body.append(
     h('div', { class: 'search' }, icon('search'), input),
     h('div', { class: 'row between wrap', style: { gap: '8px 14px', margin: '12px 0 4px' } },
@@ -87,7 +127,8 @@ async function companies(body) {
         h('select', { class: 'field', style: { width: 'auto', height: '36px', padding: '0 10px' }, 'aria-label': 'Sort companies', onChange: (e) => { sort = e.target.value; paint(); } },
           h('option', { value: 'name' }, 'Symbol'), h('option', { value: 'cap' }, 'Market value'), h('option', { value: 'move' }, 'Today’s move'), h('option', { value: 'earn' }, 'Next earnings'), h('option', { value: 'insider' }, 'Insider buying')))),
     list,
-    extBox,
+    usBox.el,
+    inBox.el,
     h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'The F, T and S badges are the three lenses. ', h('button', { class: 'chip', style: { height: '28px', padding: '0 10px', fontSize: '13px' }, onClick: lensExplainer }, 'How they work')));
   paint();
 }

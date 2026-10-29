@@ -19,6 +19,7 @@ import pandas as pd  # noqa: E402
 from pipeline import build_technical as bt  # noqa: E402
 from pipeline import fetch_edgar as ed  # noqa: E402
 from pipeline import fetch_fundamentals as ff  # noqa: E402
+from pipeline import fetch_india_index as fi  # noqa: E402
 from pipeline import fetch_news as fn  # noqa: E402
 from pipeline import fetch_quotes as fq  # noqa: E402
 from pipeline import fetch_sentiment as fs  # noqa: E402
@@ -202,9 +203,14 @@ class YahooTransforms(unittest.TestCase):
         self.assertEqual(a["target"]["n"], 23)
 
     def test_stats_and_empty(self):
-        s = ff.stats_from_info({"trailingPE": 51.84, "revenueGrowth": 0.201, "dividendRate": 0.4, "profitMargins": 0.092}, 200.0)
+        s = ff.stats_from_info({"trailingPE": 51.84, "revenueGrowth": 0.201, "dividendRate": 0.4, "profitMargins": 0.092,
+                                 "bookValue": 668.05, "priceToBook": 1.76, "pegRatio": 0.82, "totalDebt": 7140000000}, 200.0)
         self.assertEqual(s["revenue_growth"], 20.1)
         self.assertEqual(s["div_yield"], 0.2)
+        self.assertEqual(s["book_value"], 668.05)
+        self.assertEqual(s["price_to_book"], 1.76)
+        self.assertEqual(s["peg_ratio"], 0.82)
+        self.assertEqual(s["total_debt"], 7140000000)
         self.assertEqual(ff.analysts_from({}, None, None, None, None), {})
         self.assertEqual(ff.earnings_from(None, None, None), {})
 
@@ -218,6 +224,21 @@ class YahooTransforms(unittest.TestCase):
         q = fq.quote_from_closes([100.0, 101.0, 103.02])
         self.assertEqual(q["change_pct"], 2.0)
         self.assertIsNone(fq.quote_from_closes([100.0]))
+
+
+class IndiaIndex(unittest.TestCase):
+    def test_face_value_map(self):
+        csv_text = "SYMBOL,NAME OF COMPANY, SERIES, DATE OF LISTING, PAID UP VALUE, MARKET LOT, ISIN NUMBER, FACE VALUE\n" \
+                   "RELIANCE,Reliance Industries Limited,EQ,29-NOV-1995,10,1,INE002A01018,10\n"
+        self.assertEqual(fi.face_value_map(csv_text), {"RELIANCE": "10"})
+
+    def test_build_rows_dedupes_across_lists(self):
+        a = "Company Name,Industry,Symbol,Series,ISIN Code\nReliance Industries Ltd.,Energy,RELIANCE,EQ,X\nTCS Ltd.,IT,TCS,EQ,Y\n"
+        b = "Company Name,Industry,Symbol,Series,ISIN Code\nReliance Industries Ltd.,Energy,RELIANCE,EQ,X\nInfosys Ltd.,IT,INFY,EQ,Z\n"
+        rows = fi.build_rows([a, b], {"RELIANCE": "10", "TCS": "1"})
+        self.assertEqual([r["s"] for r in rows], ["INFY", "RELIANCE", "TCS"])
+        self.assertEqual(rows[1], {"s": "RELIANCE", "n": "Reliance Industries Ltd.", "ind": "Energy", "fv": "10"})
+        self.assertIsNone(rows[0]["fv"])
 
 
 class Model(unittest.TestCase):

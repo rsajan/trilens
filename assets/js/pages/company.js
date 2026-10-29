@@ -115,6 +115,11 @@ function overview(co, { ccy, row }) {
     ['Debt to equity', fmt.num(st.debt_equity, 0)],
     ['Short interest', st.short_pct_float != null ? `${fmt.pct(st.short_pct_float, 1, false)} of float` : '—'],
     ['Held by insiders', st.held_insiders_pct != null ? fmt.pct(st.held_insiders_pct, 1, false) : '—'],
+    ['Book value', st.book_value != null ? fmt.money(st.book_value, ccy) : '—'],
+    ['Price to book', fmt.num(st.price_to_book)],
+    ['PEG ratio', fmt.num(st.peg_ratio)],
+    ['Total debt', st.total_debt != null ? fmt.moneyC(st.total_debt, ccy) : '—'],
+    ...(st.face_value ? [['Face value', fmt.money(Number(st.face_value), ccy, 2)]] : []),
   ])));
   if (co.about) wrap.append(h('div', null, h('h3', { style: { marginBottom: '6px' } }, 'About'), h('p', { class: 'soft', style: { maxWidth: '70ch' } }, co.about), co.website ? extLink(co.website.replace(/^https?:\/\//, ''), co.website, 'small muted') : null));
   return wrap;

@@ -52,6 +52,8 @@ def stats_from_info(info: dict, last: float | None) -> dict:
         "roe": _pct(info.get("returnOnEquity")), "debt_equity": _f(info.get("debtToEquity"), 1),
         "short_pct_float": _pct(info.get("shortPercentOfFloat")),
         "held_insiders_pct": _pct(info.get("heldPercentInsiders")), "held_institutions_pct": _pct(info.get("heldPercentInstitutions")),
+        "book_value": _f(info.get("bookValue")), "price_to_book": _f(info.get("priceToBook")),
+        "peg_ratio": _f(info.get("pegRatio")), "total_debt": _f(info.get("totalDebt"), 0),
     }
 
 
@@ -201,7 +203,7 @@ def _try(fn, default=None):
         return default
 
 
-def fetch_company(sym: str, name_hint: str, market: str, prev: dict | None) -> dict | None:
+def fetch_company(sym: str, name_hint: str, market: str, prev: dict | None, face_values: dict | None = None) -> dict | None:
     import yfinance as yf
 
     t = yf.Ticker(sym)
@@ -256,6 +258,10 @@ def fetch_company(sym: str, name_hint: str, market: str, prev: dict | None) -> d
         "holders": holders_from(_try(lambda: t.major_holders), _try(lambda: t.institutional_holders)),
         "actions": actions_from(_try(lambda: t.dividends), _try(lambda: t.splits)),
     }
+    if market == "IN" and face_values:
+        fv = face_values.get(sym.split(".")[0].upper())
+        if fv is not None:
+            co["stats"]["face_value"] = fv
     yfnews = news_from_yf(_try(lambda: t.news))
     # carry over sections that other jobs own, and any section Yahoo failed to give us this time
     p = prev or {}
@@ -273,6 +279,8 @@ def fetch_company(sym: str, name_hint: str, market: str, prev: dict | None) -> d
 
 
 def run(tickers: list[dict], limit: int | None = None) -> dict:
+    india_idx = read_json(DATA / "india" / "tickers.json", {}) or {}
+    face_values = {r["s"]: r.get("fv") for r in (india_idx.get("rows") or []) if r.get("fv")}
     ok, bad = 0, []
     for i, tk in enumerate(tickers[:limit] if limit else tickers):
         sym = tk["symbol"]
@@ -281,7 +289,7 @@ def run(tickers: list[dict], limit: int | None = None) -> dict:
         if prev and prev.get("demo"):
             prev = None
         try:
-            co = fetch_company(sym, tk.get("name", ""), tk["market"], prev)
+            co = fetch_company(sym, tk.get("name", ""), tk["market"], prev, face_values)
         except Exception as e:
             log.warning("%s failed: %s", sym, e)
             co = None

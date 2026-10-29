@@ -84,6 +84,11 @@ def main(argv=None) -> int:
                 fetch_quotes.run(symbols, cfg.get("indices", []))
             elif job == "fundamentals":
                 from . import fetch_fundamentals
+                try:
+                    from . import fetch_india_index
+                    fetch_india_index.run()
+                except Exception as e:
+                    log.warning("india index failed: %s", e)
                 fetch_fundamentals.run(tickers)
             elif job == "edgar":
                 from . import fetch_edgar
