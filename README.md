@@ -33,7 +33,7 @@ The first refresh takes about ten minutes. Until then the site shows sample data
 - **Fundamentals and Sentiment update by themselves.** Prices every 30 minutes while the US and India markets are open, filings and news every 3 hours, sentiment every 2 hours, company data twice a day.
 - **Technical updates when you run `PUBLISH.bat`**, because that page is built from files on your PC. Double-click `SCHEDULE_PUBLISH.bat` once and Windows will do it for you at 08:30 and 20:30, after your 07:00 and 19:00 scans. Check that your PC clock is on Singapore time.
 - **Add anything to the Technical Library** by dropping Markdown, Word, PDF, CSV, Excel, HTML, image or text files into `technical_uploads`, then run `PUBLISH.bat`.
-- **Change the stocks you follow** by editing `config/watchlist.json` (India tickers end in `.NS`), then double-click `PUSH_CHANGES.bat`. Keep the list to about 40 names or fewer so the free servers finish in time.
+- **Change the stocks you follow** by editing `config/watchlist.json` (India tickers end in `.NS`), then double-click `PUSH_CHANGES.bat`. Keep the list to about 150 names or fewer so the free servers finish in time. Searching a company that is not on the list still works (SEC EDGAR for US, NSE's list for India) but shows profile and filings only, with an "Add to watchlist" option on that page if you want the full view.
 - **Test on your PC first** with `PREVIEW.bat`. It builds the Technical page and opens the site at `localhost:8080`.
 
 ## Privacy: what is public and what is not

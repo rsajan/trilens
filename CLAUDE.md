@@ -38,7 +38,8 @@ Set `PYTHONUTF8=1` when running Python by hand. `tools\_py.bat` does this for th
 
 - Each data job fails on its own and keeps the last good files. `run.py` removes sample data only after a job succeeds. Keep it that way: the site must never go blank.
 - Put parsing in pure functions that take raw text or DataFrames, and test them with small fixtures. The build sandbox cannot reach market-data hosts, so the live fetchers have only been checked this way. When touching a fetcher, say what was and was not tested.
-- Yahoo is rate limited. Prefer bulk calls and keep the watchlist near 40 names or fewer. SEC EDGAR needs a User-Agent with a name and email (`SEC_USER_AGENT` secret, or `sec_user_agent` in `config/local.json`).
+- Yahoo is rate limited. Prefer bulk calls and keep the watchlist near 150 names or fewer. SEC EDGAR needs a User-Agent with a name and email (`SEC_USER_AGENT` secret, or `sec_user_agent` in `config/local.json`).
+- The Fundamentals search also covers companies outside the watchlist (SEC's full ticker list for US, NSE's Nifty Total Market list for India), built by `pipeline/fetch_edgar.py` and `pipeline/fetch_india_index.py` into `data/edgar/` and `data/india/` (both git-ignored - GitHub Actions writes them like the rest of live `data/`, same as `data/fundamentals/`). Those pages fetch live from `data.sec.gov` (CORS-open) for US; NSE's own API is not CORS-open and is not used. Never add a workaround for that.
 - Adding a JS, CSS, font or icon file to the site means adding it to `SHELL` in `sw.js` and bumping `VERSION`, or phones keep serving the old app.
 - Keep pages light for a phone: no large dependencies, tables scroll inside their own container, touch targets about 44px.
 - Sentiment is a rough gauge. The score uses shrinkage, `100*(bull-bear)/(n+5)`. Do not present a score from a handful of posts as meaningful.
