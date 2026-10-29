@@ -130,6 +130,15 @@ await boot();
 route();
 
 // ---------- service worker (offline + install) ----------
+// The new worker takes over as soon as it finishes installing (sw.js calls skipWaiting +
+// clients.claim), but the page already open at that moment keeps running on whatever it loaded
+// with. Without this, a deploy looks "stuck on the old version" until a second manual refresh.
+// Reload once, automatically, the moment a new worker actually takes control.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (sessionStorage.getItem('trilens:sw-reloaded')) return;
+    sessionStorage.setItem('trilens:sw-reloaded', '1');
+    location.reload();
+  });
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
