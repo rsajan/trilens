@@ -1,7 +1,6 @@
 // Shared UI pieces used by more than one page.
 import { h, icon, fmt, lensRow, sheet, extLink, badge, toDate, LENS_NAMES, lensBadge } from './dom.js';
 import { sparkline } from './charts.js';
-import { isPinned, togglePin } from './pins.js';
 
 export function pageHead(title, sub, right) {
   return h('div', { class: 'page-head' }, h('div', null, h('h1', null, title), sub ? h('p', null, sub) : null), right || null);
@@ -110,14 +109,6 @@ export function noDataPanel() {
 }
 
 export function sourceLink(text, url) { return extLink(text, url); }
-
-export function pinButton(sym, name, kind) {
-  const set = (btn, on) => { btn.textContent = on ? '★ Pinned' : '+ Pin'; btn.classList.toggle('primary', on); };
-  const btn = h('button', { class: 'btn', type: 'button', style: { minHeight: '38px', padding: '0 16px' } });
-  set(btn, isPinned(sym));
-  btn.addEventListener('click', () => set(btn, togglePin(sym, name, kind)));
-  return btn;
-}
 export { badge, toDate, LENS_NAMES };
 
 /** Simple responsive table. cols: [{label, align:'r', nw:true, render:(row)=>node|string}] */

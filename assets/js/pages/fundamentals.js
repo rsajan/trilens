@@ -2,7 +2,6 @@ import { h, icon, fmt, badge, lensRow, debounce, extLink } from '../lib/dom.js';
 import { loadBoard, D } from '../lib/data.js';
 import { pageHead, sectionHead, chipGroup, segmented, feedItem, noDataPanel, lensExplainer } from '../lib/ui.js';
 import { insiderToFeed } from './overview.js';
-import { listPins, togglePin, hrefFor } from '../lib/pins.js';
 
 const VIEWS = [
   { id: 'companies', label: 'Companies' },
@@ -68,22 +67,6 @@ function externalSearchBox({ title, sub, loadIndex, getSym, getName, linkFor, ta
   };
 }
 
-function pinnedSection() {
-  const pins = listPins();
-  if (!pins.length) return null;
-  const list = h('div', { class: 'ledger' });
-  const box = h('div', { class: 'section', style: { marginBottom: '18px' } }, sectionHead('Pinned', 'saved on this device only'), list);
-  const paint = () => {
-    const cur = listPins();
-    if (!cur.length) { box.remove(); return; }
-    list.replaceChildren(...cur.map((p) => h('a', { class: 'lrow', href: hrefFor(p) },
-      h('div', { class: 'who' }, h('div', { class: 'sym ell' }, p.sym), h('div', { class: 'name ell' }, p.name || '')),
-      h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Unpin ${p.sym}`, style: { flex: 'none' }, onClick: (e) => { e.preventDefault(); togglePin(p.sym, p.name, p.kind); paint(); } }, icon('dash')))));
-  };
-  paint();
-  return box;
-}
-
 async function companies(body) {
   const { rows } = await loadBoard();
   if (!rows.length) { body.append(noDataPanel()); return; }
@@ -117,8 +100,6 @@ async function companies(body) {
     inBox.paint(ql, stillCurrent);
   }
   const input = h('input', { class: 'field', type: 'search', placeholder: 'Search symbol, company or sector', 'aria-label': 'Search companies', autocomplete: 'off', onInput: debounce((e) => { q = e.target.value; paint(); }) });
-  const pinned = pinnedSection();
-  if (pinned) body.append(pinned);
   body.append(
     h('div', { class: 'search' }, icon('search'), input),
     h('div', { class: 'row between wrap', style: { gap: '8px 14px', margin: '12px 0 4px' } },

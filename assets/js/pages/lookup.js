@@ -2,32 +2,34 @@
 // Fetched live, straight from the browser, from SEC EDGAR's public data.sec.gov API (no key, CORS-open).
 // No price, analyst or sentiment data here: those sources need a server-side fetch, which only runs for
 // the watchlist. This page is filings and company profile only, and says so.
-import { h, icon, extLink } from '../lib/dom.js';
+import { h, icon, extLink, sheet } from '../lib/dom.js';
 import { D, getJSONAbsolute } from '../lib/data.js';
-import { feedItem, sectionHead, pinButton } from '../lib/ui.js';
+import { feedItem, sectionHead } from '../lib/ui.js';
 
 // Manual "add to watchlist" - this static site has no backend to write config/watchlist.json
-// itself, so this gives a copyable line plus a direct link to edit that file on GitHub (works
-// from a phone: GitHub's own editor commits straight to main, which republishes the site).
-function addToWatchlistBox(entry) {
+// itself, so this opens a sheet with a copyable line plus a direct link to edit that file on
+// GitHub (works from a phone: GitHub's own editor commits straight to main, which republishes
+// the site). It only happens if the owner chooses to, by tapping this button.
+function addToWatchlistButton(entry) {
   const line = JSON.stringify(entry);
-  const copyBtn = h('button', { class: 'btn', type: 'button', style: { minHeight: '34px', padding: '0 14px', flex: 'none' } }, 'Copy');
-  copyBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(line);
-      copyBtn.textContent = 'Copied';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-    } catch {
-      copyBtn.textContent = 'Select the text and copy it';
-    }
-  });
-  return h('div', { class: 'section', style: { marginTop: '22px' } },
-    sectionHead('Add to watchlist', 'manual - for the full price, earnings, analyst and sentiment view'),
-    h('p', { class: 'soft small', style: { marginBottom: '10px' } }, 'This only happens if you choose to: paste the line below into the "tickers" list in config/watchlist.json, then push. Quickest from a phone is GitHub’s own editor, which commits straight to the live site.'),
-    h('div', { class: 'row', style: { gap: '10px', alignItems: 'center', flexWrap: 'wrap' } },
-      h('pre', { class: 'txt', style: { flex: '1 1 auto' } }, line),
-      copyBtn),
-    h('div', { style: { marginTop: '10px' } }, extLink('Open config/watchlist.json on GitHub', 'https://github.com/rsajan/trilens/edit/main/config/watchlist.json', 'btn')));
+  return h('button', { class: 'btn primary', type: 'button', style: { minHeight: '38px', padding: '0 16px' }, onClick: () => {
+    const copyBtn = h('button', { class: 'btn', type: 'button', style: { minHeight: '34px', padding: '0 14px', flex: 'none' } }, 'Copy');
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(line);
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+      } catch {
+        copyBtn.textContent = 'Select the text and copy it';
+      }
+    });
+    sheet('Add to watchlist',
+      h('p', { class: 'soft small' }, 'This only happens if you choose to: paste the line below into the "tickers" list in config/watchlist.json, then push. Quickest from a phone is GitHub’s own editor, which commits straight to the live site. It then gets the full price, earnings, analyst and sentiment view.'),
+      h('div', { class: 'row', style: { gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginTop: '10px' } },
+        h('pre', { class: 'txt', style: { flex: '1 1 auto' } }, line),
+        copyBtn),
+      h('div', { style: { marginTop: '14px' } }, extLink('Open config/watchlist.json on GitHub', 'https://github.com/rsajan/trilens/edit/main/config/watchlist.json', 'btn primary')));
+  } }, 'Add to watchlist');
 }
 
 function filingsFromRecent(recent, cik, limit = 60) {
@@ -80,13 +82,11 @@ export async function renderLookup(ctx, symParam) {
         h('div', { class: 'soft' }, sub.name || row.n),
         h('div', { class: 'tiny muted', style: { marginTop: '2px' } }, [sub.sicDescription, [...new Set(sub.exchanges || [])].join(', ')].filter(Boolean).join(', '))),
       h('div', { class: 'right', style: { display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' } },
-        pinButton(sym, sub.name || row.n, 'us'),
+        addToWatchlistButton({ symbol: sym, name: sub.name || row.n }),
         extLink('View on sec.gov', `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=&dateb=&owner=include&count=40`, 'btn'))),
     h('div', { class: 'banner', style: { marginTop: '14px' } }, icon('info'), h('div', null,
       h('b', null, 'Live SEC lookup. '),
-      `${sym} is not in your curated watchlist, so there is no price, analyst view or sentiment here — only what SEC EDGAR reports, fetched just now. `,
-      'Add it to config/watchlist.json for the full view.')),
-    addToWatchlistBox({ symbol: sym, name: sub.name || row.n }),
+      `${sym} is not in your curated watchlist, so there is no price, analyst view or sentiment here — only what SEC EDGAR reports, fetched just now.`)),
     h('div', { class: 'section', style: { marginTop: '22px' } }, sectionHead('Recent filings'),
       filings.length ? h('div', { class: 'feed' }, filings.map((f) => feedItem(f))) : h('div', { class: 'empty' }, 'No filings found.')));
   box.replaceChildren(wrap);
@@ -122,12 +122,10 @@ export async function renderIndiaLookup(ctx, symParam) {
         h('h1', null, sym),
         h('div', { class: 'soft' }, row.n),
         h('div', { class: 'tiny muted', style: { marginTop: '2px' } }, [row.ind, row.fv ? `Face value ₹${row.fv}` : null].filter(Boolean).join(', '))),
-      h('div', { class: 'right' }, pinButton(sym, row.n, 'in'))),
+      h('div', { class: 'right' }, addToWatchlistButton({ symbol: `${sym}.NS`, name: row.n }))),
     h('div', { class: 'banner', style: { marginTop: '14px' } }, icon('info'), h('div', null,
       h('b', null, 'NSE list lookup. '),
-      `${sym} is not in your curated watchlist. NSE’s live price and shareholding data blocks automated browser requests, so there is nothing more to fetch here — only what Trilens’s free static company list already has. `,
-      'Add it to config/watchlist.json for the full, data-backed view (price, P/E, earnings, sentiment).')),
-    addToWatchlistBox({ symbol: `${sym}.NS`, name: row.n }),
+      `${sym} is not in your curated watchlist. NSE’s live price and shareholding data blocks automated browser requests, so there is nothing more to fetch here — only what Trilens’s free static company list already has.`)),
     h('div', { class: 'section', style: { marginTop: '22px' } }, sectionHead('Open elsewhere'),
       h('div', { class: 'ledger' },
         extRow('NSE quote page', `https://www.nseindia.com/get-quotes/equity?symbol=${encodeURIComponent(sym)}`),
