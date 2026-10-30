@@ -100,7 +100,7 @@ function signals(b, ctx) {
         ? h('iframe', { class: 'report-frame', sandbox: '', srcdoc: r.html, title: `Reversal bot ${cur}` })
         : h('pre', { class: 'txt' }, r.text || 'No report found.'));
     };
-    root.append(h('section', null, sectionHead('Reversal bot: v5, v6, S1 and S3', sg.reversal[cur]?.asof ? `data through ${sg.reversal[cur].asof}` : ''),
+    root.append(h('section', null, sectionHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', sg.reversal[cur]?.asof ? `data through ${sg.reversal[cur].asof}` : ''),
       Object.keys(sg.reversal).length > 1 ? segmented(Object.keys(sg.reversal).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
