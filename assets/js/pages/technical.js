@@ -168,6 +168,29 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.basebreakout && Object.keys(sg.basebreakout).length) {
+    let cur = Object.keys(sg.basebreakout)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.basebreakout[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base+breakout candidates.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'context', render: (row) => row.context ? badge(CONTEXT_LABEL[row.context] || row.context, CONTEXT_KIND[row.context]) : '—' },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'breakout', render: (row) => row.breakout_date ? `${row.breakout_date} (${row.weeks_ago ?? '—'}w ago)` : '—' },
+        { label: 'zone', render: (row) => row.zone_low != null && row.zone_high != null ? `${cell(row.zone_low)}–${cell(row.zone_high)}` : '—' },
+        { label: 'width', align: 'r', render: (row) => row.zone_width_pct != null ? fmt.pct(row.zone_width_pct, 1, false) : '—' },
+        { label: 'prior events', align: 'r', render: (row) => cell(row.n_prior_events) },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Base + breakout scanner (stage 1 + stage 2)', 'the wider candidate list: every weekly base-and-breakout within the last 8 weeks on a stock currently tagged a fresh breakout -- no retest backtest or precedent gate yet'),
+      Object.keys(sg.basebreakout).length > 1 ? segmented(Object.keys(sg.basebreakout).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;
