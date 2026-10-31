@@ -261,6 +261,31 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.dbpyramid && Object.keys(sg.dbpyramid).length) {
+    let cur = Object.keys(sg.dbpyramid)[0];
+    const box = h('div');
+    const DBP_STATE = { full: ['full pyramid', 'gain'], confirmed: ['confirmed breakout', 'gain'], watch: ['watch (EMA reclaim only)', 'outline'] };
+    const paint = () => {
+      const r = sg.dbpyramid[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No live double-bottom pyramid setups.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'state', render: (row) => { const [lbl, kind] = DBP_STATE[row.state] || [row.state, 'outline']; return badge(lbl, kind); } },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'avg entry', align: 'r', render: (row) => cell(row.avg_entry) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        { label: 'days since EMA reclaim', align: 'r', render: (row) => cell(row.days_since_entry1) },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Double-bottom pyramid scanner', 'Watch = EMA20 reclaim only (historically the weak tranche, ~6% win rate alone). Confirmed = closed back above the base high. Full pyramid = breakout plus a held retest -- historically the strong tranche, 74% win rate / +0.38R in the 2000-2026 backtest. See the Strategies tab.'),
+      Object.keys(sg.dbpyramid).length > 1 ? segmented(Object.keys(sg.dbpyramid).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;

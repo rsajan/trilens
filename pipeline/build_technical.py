@@ -858,7 +858,8 @@ def main(argv=None) -> int:
 
     signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
               "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
-              "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D)}
+              "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
+              "dbpyramid": read_dbpyramid(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

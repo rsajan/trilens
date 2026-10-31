@@ -306,16 +306,67 @@
         "No live track record: this has not been through the months of paper-trading v5/v6/S1/S3 went through before being trusted. Watch it before sizing.",
         "The liquidity cut is $ volume (close times volume), not true market capitalization -- this project has no free market-cap feed.",
         "Rolling 3-year windows were checked separately; most are positive, but the newest ones were the softest part of the sample, so treat the most recent months as the part most likely to disappoint.",
-        "Costs, the breadth gate and the position cap are shared with v5/v6 by convention, not re-derived for this rule specifically."
+        "Costs, the breadth gate and the position cap are shared with v5/v6 by convention, not re-derived for this rule specifically.",
+        "2026-10-30 multi-timeframe study (see the two cards below and the MTF spec doc): waiting for an hourly intraday breakout before taking this daily entry was tested and made results WORSE (avg R +0.412 on the subset that eventually confirmed intraday, if bought blind at the open, vs +0.136 if you wait for that confirmation and chase the higher price). Keep entering at the next day's open exactly as written above."
       ],
       "rejected": [
         "A percentage-based stop buffer (0.5% of price instead of a flat +5 points): actively harmful, t=-2.38 -- for most of this universe that buffer was far tighter than 5 points, and tight stops lost.",
         "Confirmation-bar volume at least 1.2 times its 20-day average: average R went negative (t=-0.27).",
         "RSI14 at least 45 on the confirmation bar: average R dropped to roughly zero (t=-0.06).",
         "Requiring the confirmation bar to also make a higher high: no real improvement (t=0.21).",
-        "Requiring the confirmation close to clear the signal close by at least 0.15 ATR: improved the full-sample average, but only on the training years -- the post-2015 period got worse, not better."
+        "Requiring the confirmation close to clear the signal close by at least 0.15 ATR: improved the full-sample average, but only on the training years -- the post-2015 period got worse, not better.",
+        "Gating this daily entry on weekly-timeframe trend alignment (weekly close > weekly EMA20): only filtered ~5% of trades and made the survivors slightly worse (t 5.01->4.42, PF 1.49->1.43) -- the existing 200-day trend filter already captures most of this.",
+        "Waiting for an hourly intraday breakout above the entry day's opening range before buying: avg R dropped from +0.412 (blind open entry on the same eventually-confirming subset) to +0.136 -- chasing the confirmed price gives back more than the confirmation is worth."
       ],
-      "docs": ["ema20-tbl-combo", "ema20-tbl-improvements", "ema20-tbl-decay"]
+      "docs": ["ema20-tbl-combo", "ema20-tbl-improvements", "ema20-tbl-decay", "ema20-mtf-spec"]
+    },
+    {
+      "id": "ema20confirmwk", "name": "EMA20 cross + confirm, weekly", "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, run on weekly bars", "status": "validated",
+      "status_label": "Validated 2026-10-30, not yet scanned live", "universe": "1,003 names: S&P 500 + Nifty 500, resampled to weekly (week ending Friday)",
+      "headline": "The same EMA20-cross-and-confirm rule as the daily build, run on weekly candles instead: a weekly close crosses above the weekly 20 EMA, the next week confirms above that close, the weekly trend and market breadth must be healthy. A real but weaker secondary edge -- daily stays the primary system.",
+      "metrics": { "trades": 356, "per_year": 13.2, "win_pct": 44.38, "avg_r": 0.2228, "pf": 1.393, "t_stat": 3.02, "mdd_1pct": -27.46, "cagr20": 1.92, "sharpe": 0.288, "cells": "4/4", "train_avg_r": 0.343, "test_avg_r": 0.145 },
+      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx", "sheet": "Summary", "row": 0, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "entry": [
+        "Signal bar: weekly close crosses above the weekly 20 EMA (about 100 trading days).",
+        "Confirmation bar: the next week's close is above the signal week's close.",
+        "Close is above a 40-week SMA (about 200 trading days -- the same /5 scaling this project already uses for weekly breadth, see logic2_scanner.build_regime).",
+        "The market's weekly breadth gate is open: more than 50% of the universe above its own 40-week average, computed on weekly bars.",
+        "Entry is the next week's open. No India liquidity cut (not yet tested on weekly)."
+      ],
+      "exit": [
+        "Stop: entry minus (1.25 times weekly ATR14, plus 5 points) -- same constants as the daily build.",
+        "Target: entry plus 1.8 times risk. Costs 0.20% round trip, same model as every other build here."
+      ],
+      "filters": ["Same breadth-gate convention as v5/v6/daily EMA20confirm, computed on weekly bars.", "5-position concurrency cap, same as the rest of the reversal bot."],
+      "verdict": "This rule had never been backtested on weekly bars before 2026-10-30 (run_daily_scan.py's own weekly section for v1/v5 has carried a 'not validated' warning for months). It is now validated: 356 trades 2000-2026, t=3.02, PF 1.39, 4 of 4 market-and-era cells positive. It is real but clearly weaker than daily -- the TEST-era t-stat is only 1.54 (barely above noise) and 2025 alone lost -14.84R in the by-year table. Tested as a filter ON TOP of the daily rule (requiring weekly trend alignment for daily entries) and that combination was REJECTED (see the daily card's rejected list) -- weekly works as its own separate, smaller system, not as a daily filter.",
+      "caveats": [
+        "No live scanner yet -- this is a backtest validation only, not wired into run_daily_scan.py's daily output. Treat it the way the project treats a new idea before it earns a scanner: prove it further before building the live plumbing.",
+        "Much thinner evidence than daily: about 13-14 trades a year across the whole 1,003-name universe, so a live track record will take a long time to say anything.",
+        "2024-2026 was weak on both this and the daily build in the same window -- treat it as one shared regime signal, not two separate problems (see the MTF spec doc)."
+      ],
+      "rejected": ["See the daily card's rejected list -- the weekly rule has not had its own separate filter-idea sweep yet, only the cross-timeframe test described there."],
+      "docs": ["ema20-tbl-weekly", "ema20-mtf-spec"]
+    },
+    {
+      "id": "ema20confirmhr", "name": "EMA20 cross + confirm, hourly (pilot)", "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, literally transplanted to hourly bars", "status": "rejected",
+      "status_label": "Pilot tested 2026-10-30: no edge found", "universe": "~77 liquid names (top ~40 US + ~40 India by trailing $-volume), ~2.2 years of hourly bars (yfinance's live serving window, not this project's 2000-2026 archive)",
+      "headline": "The same EMA20-cross-and-confirm rule, unchanged, run on hourly candles. Does not work as a literal timeframe transplant: the flat +5-point stop buffer and the 0.20% round-trip cost, both tuned for daily price ranges, dominate the much smaller hourly ATR. Kept here as a documented negative result, not a live or shadow build.",
+      "metrics": { "trades": 755, "win_pct": 38.94, "avg_r": -0.026, "pf": 0.962, "t_stat": -0.52, "cells": "1/4" },
+      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx", "sheet": "Summary", "row": 0, "map": { "trades": "trades", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "cells": ["cells", "{}/4"] } },
+      "entry": ["Identical rule to the daily build (EMA20 cross + next-bar confirm + trend filter), just evaluated on hourly bars instead of daily.", "Trend filter scaled by trading hours/day (about 6.5 US, 6.25 India) to approximate the daily rule's 200-session filter.", "No breadth gate: the ~77-symbol pilot pool is too small to build a meaningful market-wide breadth signal."],
+      "exit": ["Stop: entry minus (1.25 times hourly ATR14, plus 5 points) -- same constants as daily, NOT rescaled for hourly noise.", "Target: entry plus 1.8 times risk. Same 0.20% round-trip cost model as daily."],
+      "filters": ["None beyond the trend filter -- this is the literal transplant, deliberately not yet redesigned for the timeframe."],
+      "verdict": "755 trades over a ~2.2-year pilot come back net negative: avg R -0.026, PF 0.96, only 1 of 4 market-x-half-sample cells positive. A sweep of the stop width (ATR_MULT 1.25 to 4.0) found a tempting peak at 3.0x (t=3.0, PF 1.44), but its neighbours (2.5x: t=0.39, 3.5x: t=1.37, 4.0x: t=-0.15) are all much weaker -- a fitted cliff on a 285-trade sample, not a plateau, by this project's own neighbourhood-sweep standard (see the daily card's verdict). Separately, using hourly bars only to time the ENTRY of an already-confirmed daily signal (wait for an intraday breakout, then buy) was also tested and made the daily rule worse, not better (see the daily card's caveats). Do not trade hourly with this rule in either form yet.",
+      "caveats": [
+        "Short sample: ~2.9 years is the most yfinance serves for 1h bars, nowhere near the daily/weekly rule's 26-year, 2000-2026 evidence.",
+        "Small pool: ~77 names vs the full 1,003-name universe, and no breadth gate.",
+        "If a standalone hourly system is wanted later: needs a cost model fit for hourly turnover, an ATR-only stop (drop the flat +5 points), and several years more data before any parameter is trusted -- not a rescaled copy of the daily rule."
+      ],
+      "rejected": [
+        "ATR_MULT swept from 1.25 to 4.0 at RR=1.8: only 3.0 looked good, and it is a cliff, not a plateau (see verdict) -- not adopted.",
+        "Hourly-breakout entry timing on top of the daily signal: avg R dropped from +0.412 (blind open entry) to +0.136 (waiting for the breakout) on the matched subset -- not adopted."
+      ],
+      "docs": ["ema20-tbl-hourly", "ema20-tbl-entrytiming", "ema20-mtf-spec"]
     },
     {
       "id": "bbladder", "name": "BB Ladder: trough + ascending ladder + breakout", "family": "Bollinger Band bottom-fish: lower-band touch, failed-rally ladder, basis-reclaim breakout", "status": "validated",
@@ -387,6 +438,45 @@
         "Reporting drawdown from the first pass of the grid sweep: that version concatenated each symbol's trades in symbol order instead of sorting the whole trade list by actual date, which understated drawdown by up to 3x. Caught by spot-checking the top candidates against a correctly-dated recomputation before anything was trusted."
       ],
       "docs": ["mtf-dashboard"]
+    },
+    {
+      "id": "dbpyramid", "name": "Double-bottom pyramid (RSI divergence + trendline + EMA20 + breakout + retest)", "family": "Scaled-in reversal: EMA20 reclaim, then confirmed breakout, then a held retest", "status": "candidate",
+      "status_label": "Backtested 2026-10-31, scanned live from 2026-11-01, no live track record yet", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Started from a trader's own 6-step annotated chart (RSI divergence, a double bottom or inverse head-and-shoulders, a broken descending trendline, an EMA20 reclaim, a break of structure, then a breakout-and-retest), coded into exact rules, backtested on 26 years of daily EOD data, then live-scanned daily. The backtest's own biggest finding: the first tranche alone is a false start two-thirds of the time -- see Verdict.",
+      "metrics": { "trades": 886, "per_year": 34.1, "win_pct": 50.2, "avg_r": 0.071, "pf": 1.14 },
+      "entry": [
+        "Pattern: two swing lows (3-bar fractal) 10-180 bars apart, the second within -15%/+4% of the first, separated by a base peak at least 8% above the first low.",
+        "Filter 1, RSI divergence: RSI14 at the second low is higher than RSI14 at the first low (classic bullish divergence).",
+        "Filter 2, trendline break: close above the line connecting the swing high before the first low and the base peak, when that line is descending (if no such line exists, this filter is skipped for that pattern).",
+        "Tranche 1 (25%): first close above the 20 EMA at or after the trendline break.",
+        "Tranche 2 (25%): first close above the base peak after tranche 1 fires -- the chart's 'close above previous LH and make HH'.",
+        "Tranche 3 (50%): after tranche 2, price pulls back to within 3% of the base peak and closes back above it within 5 bars -- the chart's 'breakout and retrace at same level'.",
+        "Live scanner only surfaces a pattern whose tranche-1 EMA reclaim happened in the last 20 trading days, and drops it the moment the stop is breached, so the page never shows a stale or already-invalidated setup."
+      ],
+      "exit": [
+        "Stop: 1% below the second swing low. Trades where that stop is under 2% of the entry price are skipped entirely -- a sub-2% stop is a real risk-sizing problem, not just a backtest edge case: the first version of this backtest let a handful of these through, and the resulting divide-by-near-zero R-multiples (one hit +128R) accounted for more than 100% of the whole backtest's reported profit before the floor was added.",
+        "Target: the base peak plus the pattern's own height (peak minus first low), the standard double-bottom measured move.",
+        "Time stop: 252 trading bars. No break-even move, trail or scale-out modelled.",
+        "No commissions or slippage modelled."
+      ],
+      "filters": [
+        "2008 and 2020 excluded from the backtest by request (crisis years treated as outliers, not representative of normal conditions).",
+        "One position per symbol; no portfolio cap, regime gate or risk throttle yet -- unlike v5/v6/logic3, nothing here limits how many of these could fire at once.",
+        "The live scanner uses yfinance split/dividend-adjusted prices; the backtest used raw (unadjusted) Close/High/Low with a same-day >50% move filter to catch bad prints, so a handful of backtested Indian-market patterns may be bonus-issue artifacts that the live scanner, on adjusted data, will not reproduce."
+      ],
+      "verdict": "886 trades, 2000-2026 ex 2008/2020, 1,003 names: win rate 50.2%, avg R +0.07, profit factor 1.14 -- barely better than breakeven taken as specified, and in India the lifetime drawdown (-52R) dwarfs the lifetime gain (+12R). But splitting by how far each pattern actually got changes the picture completely: patterns that stalled at tranche 1 (33% of all setups, EMA reclaim only, breakout never came) won just 6.4% of the time at -0.52R average -- pure value destruction. Patterns that reached a confirmed breakout (tranche 2 or 3, 67% of setups) won 72.1% of the time at +0.365R average, profit factor 2.36. Treating the EMA reclaim as a watch-alert rather than a funded entry, and only sizing once the breakout confirms, is therefore the single highest-leverage change to this strategy. A second finding: the edge is heavily front-loaded -- pre-2018 confirmed-breakout trades scored +0.40R (PF 2.58); 2018-2026 confirmed-breakout trades scored only +0.10R (PF 1.25) overall, and were a net loser in the US subsample alone (avg R -0.11, PF 0.80, n=22 -- a small sample, a warning sign rather than proof).",
+      "caveats": [
+        "No walk-forward or train/test split was run -- unlike v5/v6/logic3/mtf, this has not been through the full honest protocol yet (select on early years, confirm once on held-out later years never touched during selection).",
+        "The exit rules (stop/target/time-stop) were not specified by the original chart annotations and were chosen by whoever coded this -- a different, equally reasonable choice of exits could score differently.",
+        "The retest requirement (tranche 3) adds only a little over just trading the confirmed breakout alone (+0.38R blended full-pyramid vs +0.16R breakout-only-no-retest in the raw trade split) -- decide deliberately whether waiting for it is worth missing fast breakouts that never pull back.",
+        "Post-2018 performance, especially in the US, is materially weaker than the lifetime average and should not be assumed to carry forward; re-validate on a rolling recent window before sizing real money.",
+        "No live track record yet. Watch it the way ema20confirm, v6 and the MTF strategy are being watched before sizing real money."
+      ],
+      "rejected": [
+        "Trusting the first run's headline number (avg R +0.25, looked profitable): 6 of 927 trades had a stop sitting within 2% (one within 0.1%) of entry, blowing their R-multiples up to +18R/+30R/+128R; those 6 trades alone summed to more than the entire backtest's total profit. Rejected in favor of a hard minimum-stop-distance floor (see Exit), after which the honest number is +0.07R, not +0.25R.",
+        "Sizing tranche-1-only trades at their nominal 25% weight: for R-multiple comparability every trade in this backtest is renormalized to 100% of whatever tranches actually filled, so a tranche-1-only trade's -0.52R average overstates its real portfolio impact (it was only ever a 25% position) -- a straight read of the Verdict's numbers should account for that before concluding tranche 1 alone is this costly in real equity terms."
+      ],
+      "docs": []
     },
     {
       "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
@@ -514,6 +604,10 @@
     { "id": "ema20-tbl-combo", "path": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx", "title": "EMA20 cross + confirm: full validation (by-year, by-market, rolling 3y, neighbourhood)", "kind": "table" },
     { "id": "ema20-tbl-improvements", "path": "{reversal_dir}/EMA20_CONFIRM_IMPROVEMENTS.xlsx", "title": "EMA20 cross + confirm: filter ideas tested and rejected", "kind": "table" },
     { "id": "ema20-tbl-decay", "path": "{reversal_dir}/EMA20_CONFIRM_DECAY_INVESTIGATION.xlsx", "title": "EMA20 cross + confirm: where the post-2015 decay lived", "kind": "table" },
+    { "id": "ema20-mtf-spec", "path": "{reversal_dir}/EMA20_CONFIRM_MTF_SPEC.md", "title": "EMA20 cross + confirm: multi-timeframe (hourly/daily/weekly) study, 2026-10-30", "kind": "doc" },
+    { "id": "ema20-tbl-weekly", "path": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx", "title": "EMA20 cross + confirm: weekly-timeframe validation", "kind": "table" },
+    { "id": "ema20-tbl-hourly", "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx", "title": "EMA20 cross + confirm: hourly pilot backtest (no edge found)", "kind": "table" },
+    { "id": "ema20-tbl-entrytiming", "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_ENTRY_TIMING.xlsx", "title": "EMA20 cross + confirm: hourly entry-timing refinement test (rejected)", "kind": "table" },
     { "id": "bbladder-spec", "path": "{reversal_dir}/BB_LADDER_SPEC.md", "title": "BB Ladder: trough + ascending ladder + breakout -- complete specification", "kind": "doc" },
     { "id": "bbladder-validation", "path": "G:/trading/new back test/BB_LADDER_VALIDATION.xlsx", "title": "BB Ladder: honest protocol validation (train/test + walk-forward)", "kind": "table" },
     { "id": "bbladder-results-daily", "path": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx", "title": "BB Ladder: daily lever sweep and trade list", "kind": "table" },
