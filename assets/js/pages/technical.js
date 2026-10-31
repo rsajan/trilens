@@ -275,6 +275,80 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.breakretest && Object.keys(sg.breakretest).length) {
+    let curMk = Object.keys(sg.breakretest)[0];
+    const box = h('div');
+    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', 'NO_TRADE': 'loss' };
+    const paint = () => {
+      const r = sg.breakretest[curMk];
+      const strat = r.strategies || {};
+      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
+      let curStrat = names[0];
+      const inner = h('div');
+      const paintInner = () => {
+        const s = strat[curStrat] || {};
+        const recs = s.records || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} break-and-retest cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
+          { label: 'pattern', render: (row) => (row.pattern || '—').replace(/_/g, ' ') },
+          { label: 'score', render: (row) => badge(`${row.grade} (${row.total_score})`, GRADE_KIND[row.grade] || 'outline') },
+          { label: 'entry (L1 / L2)', align: 'r', render: (row) => `${cell(row.entry_level1_aggressive)} / ${cell(row.entry_level2_conservative)}` },
+          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
+          { label: 'R:R', align: 'r', render: (row) => row.rr_multiple != null ? `${fmt.num(row.rr_multiple, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      };
+      box.replaceChildren(
+        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
+        h('div', { style: { height: '10px' } }), inner);
+      paintInner();
+    };
+    root.append(h('section', null, sectionHead('Break & Retest Master Framework (C.E.S.T)', 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'),
+      Object.keys(sg.breakretest).length > 1 ? segmented(Object.keys(sg.breakretest).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (sg.pbmtf && Object.keys(sg.pbmtf).length) {
+    let curMk = Object.keys(sg.pbmtf)[0];
+    const box = h('div');
+    const DEC_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Enter: 'gain', 'Full Position': 'gain', 'Small Position': 'outline', 'Half Position': 'outline', Watchlist: 'outline', Monitor: 'outline', Watch: 'outline', Pass: 'loss', 'No Trade': 'loss', Skip: 'loss' };
+    const decCell = (score, label) => label ? badge(`${label} (${score})`, DEC_KIND[label] || 'outline') : cell(score);
+    const paint = () => {
+      const r = sg.pbmtf[curMk] || {};
+      let curView = (r.signals || []).length ? 'signals' : 'watchlist';
+      const inner = h('div');
+      const paintInner = () => {
+        const recs = r[curView] || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, curView === 'signals' ? 'No symbol passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired) today.' : 'No symbol has a clear daily trend today.')); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+          { label: 'weekly', render: (row) => decCell(row.weekly_score, row.weekly_decision) },
+          { label: 'daily', render: (row) => decCell(row.daily_score, row.daily_decision) },
+          { label: 'hourly', render: (row) => decCell(row.hourly_score, row.hourly_decision) },
+          { label: 'alignment', align: 'r', render: (row) => badge(`${row.alignment_score}`, row.take_trade ? 'gain' : 'outline') },
+          { label: 'size', align: 'r', render: (row) => row.position_size_R ? `${fmt.num(row.position_size_R, 2)}R` : '—' },
+          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+          { label: 'T1 / T2', align: 'r', render: (row) => row.target_1_5R != null ? `${cell(row.target_1_5R)} / ${cell(row.target_2R)}` : '—' },
+          { label: 'RR vs. swing', align: 'r', render: (row) => row.rr_to_prior_swing != null ? `${fmt.num(row.rr_to_prior_swing, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+      };
+      box.replaceChildren(
+        h('div', { class: 'row between wrap', style: { gap: '8px', marginBottom: '10px' } },
+          segmented([{ id: 'signals', label: `Signals (${(r.signals || []).length})` }, { id: 'watchlist', label: `Watchlist (${(r.watchlist || []).length})` }], curView, (v) => { curView = v; paintInner(); }),
+          h('span', { class: 'tiny muted' }, r.universe ? `${r.hourly_covered ?? '—'}/${r.universe} with hourly data · data through ${r.asof || '—'}` : '')),
+        inner);
+      paintInner();
+    };
+    root.append(h('section', null, sectionHead('Pullback-Retest MTF Swing Strategy (Weekly → Daily → Hourly)', 'Long only -- the short side is disabled after the backtest showed it loses money. Signals = passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired now). Watchlist = every symbol with a clear daily trend, scored on all 3 timeframes either way. See the Strategies tab for the backtest.'),
+      Object.keys(sg.pbmtf).length > 1 ? segmented(Object.keys(sg.pbmtf).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (sg.dbe && Object.keys(sg.dbe).length) {
     let cur = Object.keys(sg.dbe)[0];
     const box = h('div');

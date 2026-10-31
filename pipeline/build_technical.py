@@ -674,6 +674,65 @@ def read_msr(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: EMA-VCP Positional Strategy (Weekly/Daily/Hourly/Combined)
+EMA_VCP_ROW_COLS = ["symbol", "close", "stop", "risk_pct", "pivot", "weekly_score", "daily_score",
+                     "volume_score", "hourly_score", "total_score", "grade", "breakout_confirmed", "elite_vdu"]
+
+
+def read_ema_vcp(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_EMA_VCP_{mk}.json")
+        if not j:
+            continue
+        strategies = {}
+        for name, sv in (j.get("strategies") or {}).items():
+            recs = []
+            for r in sv.get("rows", []):
+                rec = {}
+                for k in EMA_VCP_ROW_COLS:
+                    if k in r and r[k] is not None:
+                        rec[k] = num(r[k]) if k not in ("symbol", "grade", "breakout_confirmed", "elite_vdu") else r[k]
+                recs.append(rec)
+            strategies[name] = {"records": recs}
+        out[mk] = {"strategies": strategies, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "breadth": j.get("breadth"), "market_ok": j.get("market_ok"),
+                   "config": j.get("config")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: Break & Retest Master Framework (C.E.S.T, Hourly/Daily/Weekly)
+BREAKRETEST_ROW_COLS = ["symbol", "direction", "pattern", "date", "close", "entry_level1_aggressive",
+                         "entry_level2_conservative", "stop", "target", "risk_pct", "rr_multiple",
+                         "total_score", "grade", "section_A_trend", "section_B_breakout", "section_C_retest",
+                         "section_D_mtf", "section_E_rr"]
+
+
+def read_breakretest(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_BREAKRETEST_{mk}.json")
+        if not j:
+            continue
+        strategies = {}
+        for name, sv in (j.get("strategies") or {}).items():
+            recs = []
+            for r in sv.get("rows", []):
+                rec = {}
+                for k in BREAKRETEST_ROW_COLS:
+                    if k in r and r[k] is not None:
+                        rec[k] = num(r[k]) if k not in ("symbol", "direction", "pattern", "date", "grade") else r[k]
+                recs.append(rec)
+            strategies[name] = {"records": recs, "min_score": sv.get("min_score")}
+        out[mk] = {"strategies": strategies, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Logic 3 DBE (double bottom + engulfing) live feed
 DBE_ROW_COLS = ["symbol", "state", "bars_ago", "date", "b1_date", "b2_date", "gap",
                 "trigger", "entry", "stop", "target", "risk_pct", "vol_ok", "last_close"]
@@ -698,6 +757,43 @@ def read_dbe(D: Dirs) -> dict:
         recs.sort(key=lambda r: (DBE_STATE_ORDER.get(r.get("state"), 9),
                                   r.get("bars_ago") if r.get("bars_ago") is not None else 999))
         out[mk] = {"records": recs, "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: Pullback-Retest MTF Swing Strategy (Weekly/Daily/Hourly scorecards + alignment)
+PBMTF_ROW_COLS = ["symbol", "direction", "weekly_score", "weekly_decision", "daily_score", "daily_decision",
+                  "hourly_score", "hourly_decision", "alignment_score", "three_way_aligned", "take_trade",
+                  "position_size_R", "close", "atr_hourly", "stop", "risk_pct", "target_1_5R", "target_2R",
+                  "target_prior_swing", "rr_to_prior_swing", "position_size_shares", "daily_date", "hourly_bar"]
+
+
+def read_pbmtf(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_PBMTF_{mk}.json")
+        if not j:
+            continue
+
+        def recs_of(rows):
+            out_rows = []
+            for r in rows:
+                rec = {}
+                for k in PBMTF_ROW_COLS:
+                    if k in r and r[k] is not None:
+                        rec[k] = num(r[k]) if k not in ("symbol", "direction", "weekly_decision", "daily_decision",
+                                                          "hourly_decision", "three_way_aligned", "take_trade",
+                                                          "daily_date", "hourly_bar") else r[k]
+                out_rows.append(rec)
+            out_rows.sort(key=lambda r: -(r.get("alignment_score") or 0))
+            return out_rows
+
+        out[mk] = {
+            "signals": recs_of(j.get("signals", [])), "watchlist": recs_of(j.get("watchlist", [])),
+            "universe": j.get("universe"), "hourly_covered": j.get("hourly_covered"),
+            "asof": j.get("data_through"), "run_at": j.get("run_at"),
+        }
     return out
 
 
@@ -889,7 +985,8 @@ def main(argv=None) -> int:
     signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
               "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
-              "dbpyramid": read_dbpyramid(D), "msr": read_msr(D)}
+              "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
+              "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

@@ -2,10 +2,25 @@
   "_note": "Hand-written from the spec files and script comments in the reversal_strategy and Accumulation_Bot folders. Metrics marked metrics_from are refreshed from the Excel workbooks every time PUBLISH.bat runs; everything else is edited here.",
   "strategies": [
     {
-      "id": "v5", "name": "v5 + risk throttle", "family": "Reversal bot: doji or hammer at a 30-day low", "status": "live",
+      "id": "v5",
+      "name": "v5 + risk throttle",
+      "family": "Reversal bot: doji or hammer at a 30-day low",
+      "status": "live",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Buys a confirmed reversal off a 30-session low, only when the market is healthy and the stock is above its 200-day average. About 8 signals a year across the whole universe.",
-      "metrics": { "trades": 222, "per_year": 8.2, "win_pct": 60.36, "avg_r": 0.3449, "pf": 1.839, "t_stat": 3.78, "mdd_1pct": -6.79, "cagr20": 4.94, "cells": "4/4", "train_avg_r": 0.3249, "test_avg_r": 0.3688 },
+      "metrics": {
+        "trades": 222,
+        "per_year": 8.2,
+        "win_pct": 60.36,
+        "avg_r": 0.3449,
+        "pf": 1.839,
+        "t_stat": 3.78,
+        "mdd_1pct": -6.79,
+        "cagr20": 4.94,
+        "cells": "4/4",
+        "train_avg_r": 0.3249,
+        "test_avg_r": 0.3688
+      },
       "entry": [
         "Pattern bar: its low is the lowest low of the last 30 sessions.",
         "The pattern bar is a doji (body no more than 10% of its range) or a strict hammer (body at least 5% of range, lower wick at least 2.5 times the body, upper wick no more than half the body, close in the top quarter).",
@@ -31,15 +46,40 @@
         "Use it as an overlay: about 0.5% of the account per trade, 0.25% when the throttle is on."
       ],
       "verdict": "Chosen under the strictest protocol: selected on 2000-2015, confirmed on an untouched 2016-2026 half, positive in all 4 market and era cells. Without the throttle the drawdown is -9.55% and growth at a 20% drawdown budget is 4.68%. It is too sparse to carry an account alone, so it works as an overlay that is almost uncorrelated with long equity exposure (+0.06).",
-      "caveats": ["The universe uses today's index members projected backward, so older years read optimistically.", "The breadth gate is directionally right but not calibrated.", "Weekly-timeframe signals are scanned but were never backtested and are labelled unvalidated."],
-      "rejected": ["Resistance-becomes-support filter: no stable edge (t about 0.65) and the sign flips at looser settings.", "Tighter position caps, breadth thresholds and stop-width limits: they cut drawdown only by trading less.", "Releasing the break-even stop: better on the full sample but splits 7.20% and 2.56% across halves, so it is fitted.", "Ranking symbols by past performance: split-half correlation of 0.18 is noise.", "Win rate as an objective: across 1,344 configs it correlates negatively with total profit (r = -0.21)."],
-      "docs": ["v5-spec"]
+      "caveats": [
+        "The universe uses today's index members projected backward, so older years read optimistically.",
+        "The breadth gate is directionally right but not calibrated.",
+        "Weekly-timeframe signals are scanned but were never backtested and are labelled unvalidated."
+      ],
+      "rejected": [
+        "Resistance-becomes-support filter: no stable edge (t about 0.65) and the sign flips at looser settings.",
+        "Tighter position caps, breadth thresholds and stop-width limits: they cut drawdown only by trading less.",
+        "Releasing the break-even stop: better on the full sample but splits 7.20% and 2.56% across halves, so it is fitted.",
+        "Ranking symbols by past performance: split-half correlation of 0.18 is noise.",
+        "Win rate as an objective: across 1,344 configs it correlates negatively with total profit (r = -0.21)."
+      ],
+      "docs": [
+        "v5-spec"
+      ]
     },
     {
-      "id": "v6", "name": "v6 shadow build", "family": "Reversal bot: shorter lookback", "status": "shadow",
+      "id": "v6",
+      "name": "v6 shadow build",
+      "family": "Reversal bot: shorter lookback",
+      "status": "shadow",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "v5 with an 11-session swing low, an RSI floor of 30 and an EMA200 trend filter. Tracked live next to v5 so the two can be compared on real signals.",
-      "metrics": { "trades": 584, "per_year": 21.6, "win_pct": 59.8, "avg_r": 0.302, "t_stat": 5.43, "cagr20": 7.67, "cells": "4/4", "train_avg_r": 0.258, "test_avg_r": 0.354 },
+      "metrics": {
+        "trades": 584,
+        "per_year": 21.6,
+        "win_pct": 59.8,
+        "avg_r": 0.302,
+        "t_stat": 5.43,
+        "cagr20": 7.67,
+        "cells": "4/4",
+        "train_avg_r": 0.258,
+        "test_avg_r": 0.354
+      },
       "entry": [
         "Pattern bar: its low is the lowest low of the last 11 sessions (v5 uses 30).",
         "Same doji or strict hammer shape rules as v5.",
@@ -48,19 +88,73 @@
         "Close above the 200-day EMA (v5 uses the 200-day SMA).",
         "Volume at least 1.3 times the 20-day average. Entry at the next session's open."
       ],
-      "exit": ["Same as v5: stop at the pattern low, half off at +1R with the stop to entry, the rest at +4R.", "No trailing or time stop. Costs 0.20% round trip."],
-      "filters": ["Same breadth gate and 5-position cap as v5.", "No risk throttle: it was measured on v6 and lowered return at equal drawdown."],
+      "exit": [
+        "Same as v5: stop at the pattern low, half off at +1R with the stop to entry, the rest at +4R.",
+        "No trailing or time stop. Costs 0.20% round trip."
+      ],
+      "filters": [
+        "Same breadth gate and 5-position cap as v5.",
+        "No risk throttle: it was measured on v6 and lowered return at equal drawdown."
+      ],
       "verdict": "2.6 times the trade frequency of v5 with growth at a 20% drawdown budget of 7.67% against v5's 4.68%, and the hold-out average R (0.354) above the training half (0.258). It has not yet been through v5's full select-early, confirm-late protocol, so v5 stays the live pick.",
-      "caveats": ["Its raw drawdown at 1% risk is larger than v5's because it holds more trades at once, so size it smaller."],
-      "rejected": ["Waiting 20-30 bars after the swing low before confirming (Reading A): no edge out of sample (hold-out average R -0.0008, t = 1.77).", "RSI at least 30 alone, or an any-of-EMA20/50/200 trend filter alone, on the 30-bar window: both lowered growth at a common drawdown.", "The any-EMA trend filter is the weakest element tested, because the close is above the 20-day EMA most of the time."],
-      "docs": ["v6-spec"]
+      "caveats": [
+        "Its raw drawdown at 1% risk is larger than v5's because it holds more trades at once, so size it smaller."
+      ],
+      "rejected": [
+        "Waiting 20-30 bars after the swing low before confirming (Reading A): no edge out of sample (hold-out average R -0.0008, t = 1.77).",
+        "RSI at least 30 alone, or an any-of-EMA20/50/200 trend filter alone, on the 30-bar window: both lowered growth at a common drawdown.",
+        "The any-EMA trend filter is the weakest element tested, because the close is above the 20-day EMA most of the time."
+      ],
+      "docs": [
+        "v6-spec"
+      ]
     },
     {
-      "id": "logic3", "name": "Logic 3: double bottom and engulfing", "family": "Double bottom, bullish engulfing, EMA cross, breakout", "status": "validated",
-      "status_label": "Validated, not live", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "logic3",
+      "name": "Logic 3: double bottom and engulfing",
+      "family": "Double bottom, bullish engulfing, EMA cross, breakout",
+      "status": "validated",
+      "status_label": "Validated, not live",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "A second low near the first, a bullish engulfing candle, then a breakout above the latest bullish candle. The only build that has passed the full honest protocol, but not yet put into live scanning. Scored with 2008 and 2020 excluded, the owner's standing convention for this backtest.",
-      "metrics": { "trades": 574, "per_year": 23.0, "win_pct": 51.57, "avg_r": 0.5223, "pf": 2.052, "t_stat": 8.34, "mdd_1pct": -14.93, "cagr20": 15.18, "sharpe": 0.937, "cells": "4/4", "train_avg_r": 0.6004, "test_avg_r": 0.4293 },
-      "metrics_from": { "file": "G:\\trading\\new back test\\LOGIC3_SKIP0820_RESULTS.xlsx", "sheet": "summary", "match": { "variant": "VALIDATED" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "metrics": {
+        "trades": 574,
+        "per_year": 23.0,
+        "win_pct": 51.57,
+        "avg_r": 0.5223,
+        "pf": 2.052,
+        "t_stat": 8.34,
+        "mdd_1pct": -14.93,
+        "cagr20": 15.18,
+        "sharpe": 0.937,
+        "cells": "4/4",
+        "train_avg_r": 0.6004,
+        "test_avg_r": 0.4293
+      },
+      "metrics_from": {
+        "file": "G:\\trading\\new back test\\LOGIC3_SKIP0820_RESULTS.xlsx",
+        "sheet": "summary",
+        "match": {
+          "variant": "VALIDATED"
+        },
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
       "entry": [
         "A big downtrend into the first bottom: the 40-bar high minus the low is at least 3 ATR and at least 5%, with EMA5 below EMA20 and the close below EMA50.",
         "A second bottom 1 to 9 candles later within 0.5 ATR of the first, with a bounce of at least 0.5 ATR between them. Adjacent lows (tweezer bottoms) are accepted.",
@@ -69,74 +163,313 @@
         "The double bottom retraces 38.2% to 61.8% of the prior 90-bar up-leg.",
         "A buy-stop rests above the high of the most recent bullish candle for up to 5 bars, and breakout volume must be at least 1.2 times its 20-day average."
       ],
-      "exit": ["Stop: 0.5 ATR below the lower of the two bottoms. Skip the trade if risk is over 15% of price.", "Target: 2.0R. No break-even move, trail, scale-out or time stop.", "If one bar touches both stop and target, the stop is assumed.", "Costs of 0.20% round trip."],
-      "filters": ["One position per symbol and at most 8 open at once.", "Size it through the same risk throttle as v5 and v6; its monthly correlation to v6 is only +0.14."],
+      "exit": [
+        "Stop: 0.5 ATR below the lower of the two bottoms. Skip the trade if risk is over 15% of price.",
+        "Target: 2.0R. No break-even move, trail, scale-out or time stop.",
+        "If one bar touches both stop and target, the stop is assumed.",
+        "Costs of 0.20% round trip."
+      ],
+      "filters": [
+        "One position per symbol and at most 8 open at once.",
+        "Size it through the same risk throttle as v5 and v6; its monthly correlation to v6 is only +0.14."
+      ],
       "verdict": "768 configurations were tested with the grid fixed in advance. Selected on 2000-2015 only and run once on 2016-2026 it returned +0.4253R (a 23% haircut from the +0.5487R selection value, still t = 4.66). A walk-forward from 2010, re-selecting each year, returned +0.4202R over 409 trades using only 5 distinct configs in 19 years. Losing years: 2 of 27. With 2008 and 2020 excluded from scoring (the owner's standing convention for this backtest), the edge gets stronger, not weaker (avg R 0.4929 to 0.5223) -- the other four configs tested the same way (spec, TUNED, TUNED2, TUNED3) mostly got WORSE once those two crash years were dropped, which is the honest signal that this build's edge isn't a crash-reversal artifact the way theirs partly are. This re-scored the chosen config; it did not re-run the TRAIN-only selection itself with those years excluded, which is the next thing to do before sizing real risk on the difference.",
-      "caveats": ["Entry timing is worth about half the edge. Entering at the next open instead of on the intraday buy-stop roughly halves growth, so this needs a resting stop order. Check the fill assumption on real intraday data first.", "The universe is survivorship-biased.", "At about 23 trades a year the live sample takes months to say anything, so paper trade it alongside v5 and v6.", "2008 and 2020 are excluded from every metric above by dropping the trades that exit in those years, not by deleting price bars -- see the 2008/2020 write-up for the full before/after comparison."],
-      "rejected": ["Any break-even move: the single worst change on the board (+0.75R costs -0.107R).", "3.0R target: strong on training (0.472) and gone on test (0.240).", "Breadth gate on this setup: 0.251 on training, 0.125 on test.", "Lows within 0.30 ATR, a cross within 3 bars, or engulfing strictly after the second bottom: all fitted to training.", "Dragonfly doji as a required bottom shape: only 19 trades.", "Fibonacci zone as a sizing tilt or a ranking rule: no gain in compounding.", "ATR trailing stops and an 8-bar breakout window."],
-      "docs": ["logic3-spec", "logic3-skip0820-summary"]
+      "caveats": [
+        "Entry timing is worth about half the edge. Entering at the next open instead of on the intraday buy-stop roughly halves growth, so this needs a resting stop order. Check the fill assumption on real intraday data first.",
+        "The universe is survivorship-biased.",
+        "At about 23 trades a year the live sample takes months to say anything, so paper trade it alongside v5 and v6.",
+        "2008 and 2020 are excluded from every metric above by dropping the trades that exit in those years, not by deleting price bars -- see the 2008/2020 write-up for the full before/after comparison."
+      ],
+      "rejected": [
+        "Any break-even move: the single worst change on the board (+0.75R costs -0.107R).",
+        "3.0R target: strong on training (0.472) and gone on test (0.240).",
+        "Breadth gate on this setup: 0.251 on training, 0.125 on test.",
+        "Lows within 0.30 ATR, a cross within 3 bars, or engulfing strictly after the second bottom: all fitted to training.",
+        "Dragonfly doji as a required bottom shape: only 19 trades.",
+        "Fibonacci zone as a sizing tilt or a ranking rule: no gain in compounding.",
+        "ATR trailing stops and an 8-bar breakout window."
+      ],
+      "docs": [
+        "logic3-spec",
+        "logic3-skip0820-summary"
+      ]
     },
     {
-      "id": "s1", "name": "S1: double bottom and engulfing (frozen build)", "family": "Three-strategy study S1/S2/S3", "status": "shadow",
+      "id": "s1",
+      "name": "S1: double bottom and engulfing (frozen build)",
+      "family": "Three-strategy study S1/S2/S3",
+      "status": "shadow",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Big downtrend, then a double bottom 10-20 candles apart, a bullish engulfing candle, an EMA5 cross above EMA20, and a break of the recent candle's high. Scanned live and paper-traded.",
-      "metrics": { "trades": 370, "per_year": 13.7, "win_pct": 49.46, "avg_r": 0.7054, "pf": 2.361, "t_stat": 7.74, "mdd_1pct": -12.6, "cagr20": 15.26, "sharpe": 0.826, "cells": "4/4", "train_avg_r": 0.7748, "test_avg_r": 0.6163 },
-      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S1 tuned" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
-      "entry": ["Big downtrend into the first bottom, then a double bottom 10 to 20 candles apart with lows within 0.5 ATR.", "A bullish engulfing candle with volume at least 1.2 times the prior bar's.", "EMA5 closes above EMA20.", "A buy-stop above the recent candle's high; the actual fill price is what gets recorded."],
-      "exit": ["Stop below the double bottom with a 0.10 ATR buffer; skip if risk is over 15%.", "Target: 2.5R. No break-even, trail or scale-out.", "Costs 0.20% round trip."],
-      "filters": ["Not capped or throttled in the paper-trade book. The study pooled it at 12 positions, so live per-trade R is comparable but portfolio return reads slightly high."],
+      "metrics": {
+        "trades": 370,
+        "per_year": 13.7,
+        "win_pct": 49.46,
+        "avg_r": 0.7054,
+        "pf": 2.361,
+        "t_stat": 7.74,
+        "mdd_1pct": -12.6,
+        "cagr20": 15.26,
+        "sharpe": 0.826,
+        "cells": "4/4",
+        "train_avg_r": 0.7748,
+        "test_avg_r": 0.6163
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx",
+        "sheet": "Summary",
+        "match": {
+          "build": "S1 tuned"
+        },
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
+      "entry": [
+        "Big downtrend into the first bottom, then a double bottom 10 to 20 candles apart with lows within 0.5 ATR.",
+        "A bullish engulfing candle with volume at least 1.2 times the prior bar's.",
+        "EMA5 closes above EMA20.",
+        "A buy-stop above the recent candle's high; the actual fill price is what gets recorded."
+      ],
+      "exit": [
+        "Stop below the double bottom with a 0.10 ATR buffer; skip if risk is over 15%.",
+        "Target: 2.5R. No break-even, trail or scale-out.",
+        "Costs 0.20% round trip."
+      ],
+      "filters": [
+        "Not capped or throttled in the paper-trade book. The study pooled it at 12 positions, so live per-trade R is comparable but portfolio return reads slightly high."
+      ],
       "verdict": "The table shows the 'S1 tuned' research row, ranked first on the training years. In the 2010-2026 walk-forward the live frozen build was expected to win about 45.4% of trades at +0.56R. The hold-out half is weaker than training (0.62R against 0.77R) but clearly positive.",
-      "caveats": ["Fills happen intraday on a buy-stop, so the same execution risk as Logic 3 applies."],
-      "rejected": ["The checklist as first written (S1 spec): +0.2267R, about a third of the tuned result.", "Entering at the next open instead of on the stop: +0.57R against +0.71R."],
+      "caveats": [
+        "Fills happen intraday on a buy-stop, so the same execution risk as Logic 3 applies."
+      ],
+      "rejected": [
+        "The checklist as first written (S1 spec): +0.2267R, about a third of the tuned result.",
+        "Entering at the next open instead of on the stop: +0.57R against +0.71R."
+      ],
       "docs": []
     },
     {
-      "id": "s2", "name": "S2: trend, Fibonacci pullback, dragonfly doji", "family": "Three-strategy study S1/S2/S3", "status": "retired",
-      "status_label": "Not carried forward", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "s2",
+      "name": "S2: trend, Fibonacci pullback, dragonfly doji",
+      "family": "Three-strategy study S1/S2/S3",
+      "status": "retired",
+      "status_label": "Not carried forward",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "An uptrend, a retracement into the 50-61.8% Fibonacci band, then a dragonfly doji. Buys the next open. The weakest of the three and left out of the live blend.",
-      "metrics": { "trades": 610, "per_year": 22.6, "win_pct": 41.15, "avg_r": 0.1661, "pf": 1.264, "t_stat": 2.77, "mdd_1pct": -18.93, "cagr20": 3.68, "sharpe": 0.413, "cells": "4/4", "train_avg_r": 0.2425, "test_avg_r": 0.0886 },
-      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S2 robust" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
-      "entry": ["An uptrend in the first half of the window.", "A retracement into the 50% to 61.8% Fibonacci band.", "A dragonfly doji, then buy at the next open."],
-      "exit": ["Structural stop and an R-multiple target, with the same 0.20% costs as the other studies."],
-      "filters": ["Shared portfolio cap and cost model with S1 and S3."],
+      "metrics": {
+        "trades": 610,
+        "per_year": 22.6,
+        "win_pct": 41.15,
+        "avg_r": 0.1661,
+        "pf": 1.264,
+        "t_stat": 2.77,
+        "mdd_1pct": -18.93,
+        "cagr20": 3.68,
+        "sharpe": 0.413,
+        "cells": "4/4",
+        "train_avg_r": 0.2425,
+        "test_avg_r": 0.0886
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx",
+        "sheet": "Summary",
+        "match": {
+          "build": "S2 robust"
+        },
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
+      "entry": [
+        "An uptrend in the first half of the window.",
+        "A retracement into the 50% to 61.8% Fibonacci band.",
+        "A dragonfly doji, then buy at the next open."
+      ],
+      "exit": [
+        "Structural stop and an R-multiple target, with the same 0.20% costs as the other studies."
+      ],
+      "filters": [
+        "Shared portfolio cap and cost model with S1 and S3."
+      ],
       "verdict": "The 'robust' version is the only S2 with a positive hold-out, and that edge is nearly gone (test average R 0.0886, t = 1.04). The tuned version scored 0.0588 on the test years.",
-      "caveats": ["Not part of the recommended blend."],
-      "rejected": ["The checklist as written: +0.2622R but only 173 trades and t = 2.31."],
+      "caveats": [
+        "Not part of the recommended blend."
+      ],
+      "rejected": [
+        "The checklist as written: +0.2622R but only 173 trades and t = 2.31."
+      ],
       "docs": []
     },
     {
-      "id": "s3", "name": "S3: range break (frozen build)", "family": "Three-strategy study S1/S2/S3", "status": "shadow",
+      "id": "s3",
+      "name": "S3: range break (frozen build)",
+      "family": "Three-strategy study S1/S2/S3",
+      "status": "shadow",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Price ranges at one level for 10-15 candles, then closes outside the zone. Buys the next open on an upside break. Long only, 2R target.",
-      "metrics": { "trades": 694, "per_year": 25.7, "win_pct": 45.24, "avg_r": 0.3136, "pf": 1.55, "t_stat": 5.54, "mdd_1pct": -17.08, "cagr20": 8.87, "sharpe": 0.607, "cells": "4/4", "train_avg_r": 0.3486, "test_avg_r": 0.2594 },
-      "metrics_from": { "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx", "sheet": "Summary", "match": { "build": "S3 tuned" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
-      "entry": ["Price holds the same level for 10 to 15 candles, forming a tight zone.", "A close outside the upper edge of the zone.", "Buy the next session's open."],
-      "exit": ["Target: 2.0R from a structural stop.", "No break-even, trail or scale-out. Costs 0.20% round trip."],
-      "filters": ["Long only. The both-directions version at 1:1 scored +0.0357R and was dropped."],
+      "metrics": {
+        "trades": 694,
+        "per_year": 25.7,
+        "win_pct": 45.24,
+        "avg_r": 0.3136,
+        "pf": 1.55,
+        "t_stat": 5.54,
+        "mdd_1pct": -17.08,
+        "cagr20": 8.87,
+        "sharpe": 0.607,
+        "cells": "4/4",
+        "train_avg_r": 0.3486,
+        "test_avg_r": 0.2594
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/S123_FINAL_REPORT.xlsx",
+        "sheet": "Summary",
+        "match": {
+          "build": "S3 tuned"
+        },
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
+      "entry": [
+        "Price holds the same level for 10 to 15 candles, forming a tight zone.",
+        "A close outside the upper edge of the zone.",
+        "Buy the next session's open."
+      ],
+      "exit": [
+        "Target: 2.0R from a structural stop.",
+        "No break-even, trail or scale-out. Costs 0.20% round trip."
+      ],
+      "filters": [
+        "Long only. The both-directions version at 1:1 scored +0.0357R and was dropped."
+      ],
       "verdict": "Holds up on the hold-out half (test 0.2594, t = 2.87) and in both markets. A higher-frequency variant ('S3 freq', 849 trades) scored 11.1% growth at a 20% drawdown budget on the test years.",
-      "caveats": ["Edge is smaller in the US (+0.33R) than in India (+0.23R on fewer trades)."],
-      "rejected": ["Both directions at 1:1: no edge (t = 1.41)."],
+      "caveats": [
+        "Edge is smaller in the US (+0.33R) than in India (+0.23R on fewer trades)."
+      ],
+      "rejected": [
+        "Both directions at 1:1: no edge (t = 1.41)."
+      ],
       "docs": []
     },
     {
-      "id": "blend", "name": "S1 + S3 blend (cap 12)", "family": "Three-strategy study S1/S2/S3", "status": "validated",
-      "status_label": "Recommended blend", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "blend",
+      "name": "S1 + S3 blend (cap 12)",
+      "family": "Three-strategy study S1/S2/S3",
+      "status": "validated",
+      "status_label": "Recommended blend",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Run S1 tuned and S3 frequent together with up to 12 positions open. The headline figure is in-sample; the clean out-of-sample figure from 2010 is lower and is the one to plan around.",
-      "metrics": { "trades": 923, "per_year": 54.3, "win_pct": 43.88, "avg_r": 0.3358, "pf": 1.575, "t_stat": 6.52, "mdd_1pct": -26.91, "cagr20": 12.36, "sharpe": 0.708, "cells": "4/4" },
-      "metrics_from": { "file": "{reversal_dir}/S123_WALKFORWARD.xlsx", "sheet": "FROZEN Summary", "row": 0, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"] } },
-      "entry": ["Signals come from the S1 and S3 detectors described above.", "Both run on the same price cache and the same cost model."],
-      "exit": ["Each leg keeps its own exits: S1 at 2.5R, S3 at 2.0R."],
-      "filters": ["Up to 12 positions open across both strategies (14 at the peak in the walk-forward).", "The three strategies' returns correlate only about 0.19 with each other."],
+      "metrics": {
+        "trades": 923,
+        "per_year": 54.3,
+        "win_pct": 43.88,
+        "avg_r": 0.3358,
+        "pf": 1.575,
+        "t_stat": 6.52,
+        "mdd_1pct": -26.91,
+        "cagr20": 12.36,
+        "sharpe": 0.708,
+        "cells": "4/4"
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/S123_WALKFORWARD.xlsx",
+        "sheet": "FROZEN Summary",
+        "row": 0,
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ]
+        }
+      },
+      "entry": [
+        "Signals come from the S1 and S3 detectors described above.",
+        "Both run on the same price cache and the same cost model."
+      ],
+      "exit": [
+        "Each leg keeps its own exits: S1 at 2.5R, S3 at 2.0R."
+      ],
+      "filters": [
+        "Up to 12 positions open across both strategies (14 at the peak in the walk-forward).",
+        "The three strategies' returns correlate only about 0.19 with each other."
+      ],
       "verdict": "The numbers shown are the frozen 2010-2026 out-of-sample run: 923 trades, +0.3358R, 12.36% growth at a 20% drawdown budget, drawdown -26.9% at 1% risk. The in-sample 'recommended' blend scored 16.86% (+0.4131R, t = 9.1, hold-out 0.3887), and the annually re-fitted walk-forward scored 11.41%. Plan around the lower, honest numbers.",
-      "caveats": ["The worst recent stretch: 2025 was -9.4% and 2026 is -5.6% to date in the walk-forward.", "Drawdown at 1% risk is large; size down to about 0.7-0.9% per trade for a 20% drawdown."],
-      "rejected": ["Annual re-selection of settings (11.41%) did worse than freezing the 2010 settings (13.13%), so constant re-tuning is not helping."],
+      "caveats": [
+        "The worst recent stretch: 2025 was -9.4% and 2026 is -5.6% to date in the walk-forward.",
+        "Drawdown at 1% risk is large; size down to about 0.7-0.9% per trade for a 20% drawdown."
+      ],
+      "rejected": [
+        "Annual re-selection of settings (11.41%) did worse than freezing the 2010 settings (13.13%), so constant re-tuning is not helping."
+      ],
       "docs": []
     },
     {
-      "id": "accumulation", "name": "Accumulation Bot v2.3", "family": "Smart-money swing breakout, US and India", "status": "live",
+      "id": "accumulation",
+      "name": "Accumulation Bot v2.3",
+      "family": "Smart-money swing breakout, US and India",
+      "status": "live",
       "universe": "S&P 500, S&P 400 and Nasdaq-100; Nifty 500",
       "headline": "Finds stocks that institutions appear to be accumulating, then waits for a tight-base breakout on heavy volume in a confirmed market uptrend. Quality first: few trades, high win rate.",
-      "metrics": { "trades": 67, "per_year": 2.7, "win_pct": 64, "avg_r": 0.6, "pf": 2.64 },
+      "metrics": {
+        "trades": 67,
+        "per_year": 2.7,
+        "win_pct": 64,
+        "avg_r": 0.6,
+        "pf": 2.64
+      },
       "entry": [
         "A. Preliminary: price over $5, daily dollar volume over $20M, tight spread, earnings date known, and SPY or QQQ in an uptrend.",
         "B. Seven points: price trend, moving-average alignment, relative strength (RS line near its 6-month high and the industry group in the top 30%), up/down volume and accumulation days (shown as support only in version 2), a tight base no deeper than 12%, and sound fundamentals.",
@@ -144,29 +477,66 @@
         "Breakout volume at least 1.75 times the 20-day average. Grade A+ needs 2 times or more.",
         "Only buys when the market regime reads Confirmed uptrend (the buy gate)."
       ],
-      "exit": ["Stop below the base; move to break-even at +1.5R; trail the 21-day EMA; time stop at 60 days.", "Size: 1% account risk per trade (A+ takes 100% of that, A takes 75%), at most 8 positions and 20% in one name."],
-      "filters": ["India uses the same rules on the Nifty 500 with rupee thresholds (price over Rs 50, turnover over Rs 20 crore).", "Days with no new trading bar are skipped automatically."],
+      "exit": [
+        "Stop below the base; move to break-even at +1.5R; trail the 21-day EMA; time stop at 60 days.",
+        "Size: 1% account risk per trade (A+ takes 100% of that, A takes 75%), at most 8 positions and 20% in one name."
+      ],
+      "filters": [
+        "India uses the same rules on the Nifty 500 with rupee thresholds (price over Rs 50, turnover over Rs 20 crore).",
+        "Days with no new trading bar are skipped automatically."
+      ],
       "verdict": "Version 2 raised the win rate from 55% to 64% and profit per trade from +0.28R to +0.60R against version 1, on 200 large caps from 2001 to 2026. A+ only: 40 trades, 68% win, +0.74R, profit factor 3.33.",
-      "caveats": ["That test used a hand-picked list of today's winners with rules chosen on the same data, so confirm on the full universe and paper trade before sizing up.", "The India rules were tuned on US data. Run the backtest on IN first.", "Fundamentals, earnings dates, spreads and institutional data have no free point-in-time history, so they only apply to the live scan, not the backtest."],
-      "rejected": ["Version 1's looser rules (50th-percentile industry, up/down volume and accumulation days required, 1.5 times volume)."],
-      "docs": ["acc-readme", "acc-sop"]
+      "caveats": [
+        "That test used a hand-picked list of today's winners with rules chosen on the same data, so confirm on the full universe and paper trade before sizing up.",
+        "The India rules were tuned on US data. Run the backtest on IN first.",
+        "Fundamentals, earnings dates, spreads and institutional data have no free point-in-time history, so they only apply to the live scan, not the backtest."
+      ],
+      "rejected": [
+        "Version 1's looser rules (50th-percentile industry, up/down volume and accumulation days required, 1.5 times volume)."
+      ],
+      "docs": [
+        "acc-readme",
+        "acc-sop"
+      ]
     },
     {
-      "id": "revdip", "name": "Revenue trend and price dip", "family": "Screen: growing revenue, oversold price", "status": "candidate",
-      "status_label": "Watch list only", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "revdip",
+      "name": "Revenue trend and price dip",
+      "family": "Screen: growing revenue, oversold price",
+      "status": "candidate",
+      "status_label": "Watch list only",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Looks for companies with a rising revenue record whose share price has dipped 15-40% from its 52-week high and just turned up. Use it as a watch list, not for sizing trades.",
       "metrics": {},
-      "entry": ["Close is 15% to 40% below its 52-week high.", "RSI14 was at or below 40 within the last 3 sessions, and today is a reversal day (close up and RSI up).", "The market gate: the equal-weight index of that market must be above its 200-day average, otherwise signals are blocked.", "Revenue over the last 5 fiscal years is positive: CAGR above zero and at least 3 of 4 yearly changes up. US uses SEC EDGAR when a contact is set in revenue_dip_config.json, otherwise Yahoo; India uses Yahoo."],
-      "exit": ["Stop: 2.5 times ATR14, clipped to 5-12% below the close.", "Trail the stop to the highest close minus 3 ATR.", "Exit after 80 trading days.", "Risk 0.75% of equity per trade, position at most 12% of equity."],
-      "filters": ["Revenue is fetched only for stocks with a dip signal or in the dip zone, then cached for 14 days."],
+      "entry": [
+        "Close is 15% to 40% below its 52-week high.",
+        "RSI14 was at or below 40 within the last 3 sessions, and today is a reversal day (close up and RSI up).",
+        "The market gate: the equal-weight index of that market must be above its 200-day average, otherwise signals are blocked.",
+        "Revenue over the last 5 fiscal years is positive: CAGR above zero and at least 3 of 4 yearly changes up. US uses SEC EDGAR when a contact is set in revenue_dip_config.json, otherwise Yahoo; India uses Yahoo."
+      ],
+      "exit": [
+        "Stop: 2.5 times ATR14, clipped to 5-12% below the close.",
+        "Trail the stop to the highest close minus 3 ATR.",
+        "Exit after 80 trading days.",
+        "Risk 0.75% of equity per trade, position at most 12% of equity."
+      ],
+      "filters": [
+        "Revenue is fetched only for stocks with a dip signal or in the dip zone, then cached for 14 days."
+      ],
       "verdict": "Tested on 200 US stocks from 2001 to 2026 (today's survivors). With the market filter and ATR exits it earned about 11% a year with a -23% worst drawdown, but did not beat simply holding those stocks. With a stock list chosen only from past data it earned about 5% a year. The revenue filter itself has not been tested yet.",
-      "caveats": ["Screening output only. Do not size real trades from it yet."],
+      "caveats": [
+        "Screening output only. Do not size real trades from it yet."
+      ],
       "rejected": [],
       "docs": []
     },
     {
-      "id": "context", "name": "Market context classifier", "family": "Structural pre-filter: what is this stock's chart doing right now", "status": "candidate",
-      "status_label": "Classifier, not a signal", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "context",
+      "name": "Market context classifier",
+      "family": "Structural pre-filter: what is this stock's chart doing right now",
+      "status": "candidate",
+      "status_label": "Classifier, not a signal",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Tags every stock with one of six structural states -- new ATH breakout, inside a 300-day sideways range, below or above its daily trendline, or pulling back shallow vs. deep inside an uptrend -- before any entry logic is applied to it. Not a buy/sell signal on its own.",
       "metrics": {},
       "entry": [
@@ -177,19 +547,31 @@
         "Ascending trendline: retracement = (most recent swing high minus today's close) / (that high minus the swing low before it). <=50% is UPTREND_PULLBACK_SMALL, >50% is UPTREND_PULLBACK_DEEP.",
         "No match (too few confirmed swing points, or neither trendline direction qualifies) is UNCLASSIFIED."
       ],
-      "exit": ["Not applicable -- this assigns a context tag, it does not open or close positions."],
+      "exit": [
+        "Not applicable -- this assigns a context tag, it does not open or close positions."
+      ],
       "filters": [
         "Evaluated top to bottom, first match wins: NEW_ATH_BREAKOUT, then RANGE_CORRECTION_300D, then the trendline read.",
         "Runs daily in scan_US.bat / scan_India.bat and writes LATEST_CONTEXT_<market>.json to the scans folder; only the actionable tags (new ATH, downtrend break, small/deep pullback) ship rows to this page -- the sideways and unclassified buckets, usually 70-80% of the universe, show as counts only."
       ],
       "verdict": "Reconstructed from a whiteboard sketch on 2026-10-30 and implemented directly -- no backtest behind the tag boundaries yet (the 50% RANGE_PROGRESS_RATIO and the 50% retracement split are textbook defaults, not fitted to this project's own data the way v5/v6 were). Use it to decide which existing bot's signals are worth acting on today, not as a standalone edge.",
-      "caveats": ["RANGE_CORRECTION_300D caught 78% of the US+India universe on the first live run -- the sideways-progress threshold likely needs tightening once checked against known cases.", "A retracement over 100% (seen live on a handful of names) means price broke below the swing low that started the up-leg -- the ascending trendline is stale, treat UPTREND_PULLBACK_DEEP with a >100% figure as a broken trend, not a deep dip.", "Classifies structure only; carries no opinion on entry price, stop or size."],
+      "caveats": [
+        "RANGE_CORRECTION_300D caught 78% of the US+India universe on the first live run -- the sideways-progress threshold likely needs tightening once checked against known cases.",
+        "A retracement over 100% (seen live on a handful of names) means price broke below the swing low that started the up-leg -- the ascending trendline is stale, treat UPTREND_PULLBACK_DEEP with a >100% figure as a broken trend, not a deep dip.",
+        "Classifies structure only; carries no opinion on entry price, stop or size."
+      ],
       "rejected": [],
-      "docs": ["context-spec"]
+      "docs": [
+        "context-spec"
+      ]
     },
     {
-      "id": "analog", "name": "Analog setup scanner (stage 1 + stages 2-4)", "family": "Context gate, then weekly breakout validated by the stock's own history, 4H trade plan", "status": "candidate",
-      "status_label": "First pass, not yet tuned", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "analog",
+      "name": "Analog setup scanner (stage 1 + stages 2-4)",
+      "family": "Context gate, then weekly breakout validated by the stock's own history, 4H trade plan",
+      "status": "candidate",
+      "status_label": "First pass, not yet tuned",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Combines the context classifier above with stages 2-4: for each stock currently tagged a fresh breakout, finds every prior weekly base-and-breakout in its own history, backtests how the retest actually played out each time, and only produces today's entry/stop/target plan if at least 2 of those precedents confirmed. This card is stage 1 AND stages 2-4 run together, not stage 2-4 alone.",
       "metrics": {},
       "entry": [
@@ -198,7 +580,11 @@
         "Stage 3 (daily, per historical event): search up to 20 daily bars for the 1st bar whose low comes back within 1% of the broken level, then the first bar after that which closes back above it (confirmation). Entry = next bar's open. Stop = the retest low, discarded as noise if under 0.5% of price. The trade is then walked forward up to 60 bars to see whether it actually hit +2R or the stop first.",
         "Stage 4 (live): only produced when the stock's MOST RECENT weekly event is currently inside its own retest window (touched the level, not yet confirmed, not yet failed, not timed out) AND at least 2 of its prior events confirmed AND the stage-1 context gate passes. Target is sized off the median R actually achieved by those confirmed analogs, not assumed."
       ],
-      "exit": ["Stop: the live retest's low.", "Break-even: +1R, the same convention v5/v6 use.", "Target: entry + (median achieved R of the confirmed historical analogs) x risk."],
+      "exit": [
+        "Stop: the live retest's low.",
+        "Break-even: +1R, the same convention v5/v6 use.",
+        "Target: entry + (median achieved R of the confirmed historical analogs) x risk."
+      ],
       "filters": [
         "Stage-1 context gate (NEW_ATH_BREAKOUT or DOWNTREND_BREAK) is a hard requirement, enforced in code -- analog_setup.py calls the same classify_context() function market_context.py uses, not just a run-order assumption.",
         "Hard gate: fewer than 2 CONFIRMED historical analogs (not just 2 prior base+breakout events) and the setup is not surfaced at all -- a base that occurred before but never completed its own retest isn't evidence this works for this stock.",
@@ -212,11 +598,17 @@
         "No position sizing, portfolio cap or regime gate -- unlike v5/v6/logic3, nothing here limits how many of these 44 names could be taken at once."
       ],
       "rejected": [],
-      "docs": ["context-spec"]
+      "docs": [
+        "context-spec"
+      ]
     },
     {
-      "id": "basebreakout", "name": "Base + breakout scanner (stage 1 + stage 2)", "family": "Context gate, then weekly base-and-breakout detection only -- no backtest", "status": "candidate",
-      "status_label": "Wider candidate list, not a signal", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "basebreakout",
+      "name": "Base + breakout scanner (stage 1 + stage 2)",
+      "family": "Context gate, then weekly base-and-breakout detection only -- no backtest",
+      "status": "candidate",
+      "status_label": "Wider candidate list, not a signal",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "The wider screen between the context classifier and the analog scanner: every stock currently tagged a fresh breakout (stage 1) that also has a weekly base-and-breakout within the last 8 weeks (stage 2) -- no retest backtest, no entry/stop/target math, no 2-confirmed-analog gate. Shows what's forming before precedent-validation narrows it down to a trade plan.",
       "metrics": {},
       "entry": [
@@ -224,7 +616,9 @@
         "Stage 2 (weekly): a base is 5 consecutive weekly bars whose high-low range stays within 12% of the base's own low; a breakout is the next weekly bar closing above the base's high. Scanned across the stock's full weekly history, each event skips the scan past it so zones never overlap.",
         "Recency filter: only the stock's MOST RECENT weekly base+breakout counts, and only if it happened within the last 8 weekly bars -- otherwise it's old history, not a current candidate."
       ],
-      "exit": ["Not applicable -- this is a detection screen, not a trade plan. See the analog scanner above for actual entry/stop/target levels once a setup has enough validated history."],
+      "exit": [
+        "Not applicable -- this is a detection screen, not a trade plan. See the analog scanner above for actual entry/stop/target levels once a setup has enough validated history."
+      ],
       "filters": [
         "Both the stage-1 context gate and the stage-2 base+breakout detection are shared code with the context classifier and the analog scanner (classify_context(), find_base_breakout_events()).",
         "No MIN_ANALOGS gate here -- that's what makes this list wider than the analog scanner's. Cross-reference against the analog scanner card to see which of these already have validated precedent.",
@@ -237,13 +631,30 @@
         "Per-symbol only, like the analog scanner: no position sizing, portfolio cap or regime gate."
       ],
       "rejected": [],
-      "docs": ["context-spec"]
+      "docs": [
+        "context-spec"
+      ]
     },
     {
-      "id": "weinstein", "name": "Weinstein Stage-2 scanner (30-week MA bull market bottom)", "family": "Weekly: Stage 1 base then Stage 2 breakout, read off the 30-week MA", "status": "validated",
-      "status_label": "Backtested, scanned live", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "weinstein",
+      "name": "Weinstein Stage-2 scanner (30-week MA bull market bottom)",
+      "family": "Weekly: Stage 1 base then Stage 2 breakout, read off the 30-week MA",
+      "status": "validated",
+      "status_label": "Backtested, scanned live",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Stan Weinstein's stage analysis on a single 30-week MA: the average has to have been falling, then flatten into a base, before a weekly close back above it (with the MA itself turning up and volume confirming) counts as a Stage-2 breakout. Transcribed from five reference weekly charts with arrows marking the MA's turn, then backtested on this project's own 1,003-name universe.",
-      "metrics": { "trades": 650, "per_year": 26.1, "win_pct": 34.46, "avg_r": 0.8776, "pf": 4.816, "t_stat": 4.34, "mdd_1pct": -15.20, "cagr20": 30.43, "sharpe": 0.536, "cells": "4/4" },
+      "metrics": {
+        "trades": 650,
+        "per_year": 26.1,
+        "win_pct": 34.46,
+        "avg_r": 0.8776,
+        "pf": 4.816,
+        "t_stat": 4.34,
+        "mdd_1pct": -15.2,
+        "cagr20": 30.43,
+        "sharpe": 0.536,
+        "cells": "4/4"
+      },
       "entry": [
         "Stage 1 base: the 30-week MA was net lower than it was a year (52 weeks) before the base started, then flattened -- at most 3% drift over the 10 weeks right before the breakout.",
         "Stage 2 cross: a weekly close above the 30-week MA, with the prior week's close at or below it -- a fresh cross, not price already extended above.",
@@ -274,14 +685,57 @@
         "Fixed 4R target instead of the MA-cross stage exit: cut total return nearly in half (556R to 291R) -- the edge lives in a small number of trades that run for over a year.",
         "Excluding 2008 AND 2020 entries as 'crash years': nets negative vs. the unfiltered rule, because 2020's entries were the best cohort in the dataset, not a risk to avoid."
       ],
-      "docs": ["weinstein-stage2-spec", "weinstein-backtest-2026-10-30"]
+      "docs": [
+        "weinstein-stage2-spec",
+        "weinstein-backtest-2026-10-30"
+      ]
     },
     {
-      "id": "ema20confirm", "name": "EMA20 cross + confirm 1.8R", "family": "Reversal bot: EMA20 cross, next-candle confirmation, liquidity-filtered India", "status": "shadow",
-      "status_label": "Scanned live, no live track record yet", "universe": "1,003 names: S&P 500 + Nifty 500, India narrowed to the top 250 by $-volume at scan time",
+      "id": "ema20confirm",
+      "name": "EMA20 cross + confirm 1.8R",
+      "family": "Reversal bot: EMA20 cross, next-candle confirmation, liquidity-filtered India",
+      "status": "shadow",
+      "status_label": "Scanned live, no live track record yet",
+      "universe": "1,003 names: S&P 500 + Nifty 500, India narrowed to the top 250 by $-volume at scan time",
       "headline": "Buys the next session's open when a stock's close crosses above its 20 EMA and the next candle confirms above that close, with the market healthy and the stock above its own 200-day average. Started as a chart screenshot on 2026-10-29, then tuned and validated against this project's own universe.",
-      "metrics": { "trades": 743, "per_year": 27.5, "win_pct": 46.16, "avg_r": 0.2584, "pf": 1.464, "t_stat": 5.04, "mdd_1pct": -20.09, "cagr20": 6.81, "sharpe": 0.583, "cells": "4/4", "train_avg_r": 0.265, "test_avg_r": 0.2549 },
-      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx", "sheet": "Neighbourhood", "match": { "build": "RR=1.8" }, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "metrics": {
+        "trades": 743,
+        "per_year": 27.5,
+        "win_pct": 46.16,
+        "avg_r": 0.2584,
+        "pf": 1.464,
+        "t_stat": 5.04,
+        "mdd_1pct": -20.09,
+        "cagr20": 6.81,
+        "sharpe": 0.583,
+        "cells": "4/4",
+        "train_avg_r": 0.265,
+        "test_avg_r": 0.2549
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx",
+        "sheet": "Neighbourhood",
+        "match": {
+          "build": "RR=1.8"
+        },
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
       "entry": [
         "Signal bar: close crosses above the 20 EMA (the prior close was at or below it).",
         "Confirmation bar: the next candle closes above the signal bar's close.",
@@ -318,14 +772,57 @@
         "Gating this daily entry on weekly-timeframe trend alignment (weekly close > weekly EMA20): only filtered ~5% of trades and made the survivors slightly worse (t 5.01->4.42, PF 1.49->1.43) -- the existing 200-day trend filter already captures most of this.",
         "Waiting for an hourly intraday breakout above the entry day's opening range before buying: avg R dropped from +0.412 (blind open entry on the same eventually-confirming subset) to +0.136 -- chasing the confirmed price gives back more than the confirmation is worth."
       ],
-      "docs": ["ema20-tbl-combo", "ema20-tbl-improvements", "ema20-tbl-decay", "ema20-mtf-spec"]
+      "docs": [
+        "ema20-tbl-combo",
+        "ema20-tbl-improvements",
+        "ema20-tbl-decay",
+        "ema20-mtf-spec"
+      ]
     },
     {
-      "id": "ema20confirmwk", "name": "EMA20 cross + confirm, weekly", "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, run on weekly bars", "status": "validated",
-      "status_label": "Validated 2026-10-30, not yet scanned live", "universe": "1,003 names: S&P 500 + Nifty 500, resampled to weekly (week ending Friday)",
+      "id": "ema20confirmwk",
+      "name": "EMA20 cross + confirm, weekly",
+      "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, run on weekly bars",
+      "status": "validated",
+      "status_label": "Validated 2026-10-30, not yet scanned live",
+      "universe": "1,003 names: S&P 500 + Nifty 500, resampled to weekly (week ending Friday)",
       "headline": "The same EMA20-cross-and-confirm rule as the daily build, run on weekly candles instead: a weekly close crosses above the weekly 20 EMA, the next week confirms above that close, the weekly trend and market breadth must be healthy. A real but weaker secondary edge -- daily stays the primary system.",
-      "metrics": { "trades": 356, "per_year": 13.2, "win_pct": 44.38, "avg_r": 0.2228, "pf": 1.393, "t_stat": 3.02, "mdd_1pct": -27.46, "cagr20": 1.92, "sharpe": 0.288, "cells": "4/4", "train_avg_r": 0.343, "test_avg_r": 0.145 },
-      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx", "sheet": "Summary", "row": 0, "map": { "trades": "trades", "per_year": "per_yr", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "metrics": {
+        "trades": 356,
+        "per_year": 13.2,
+        "win_pct": 44.38,
+        "avg_r": 0.2228,
+        "pf": 1.393,
+        "t_stat": 3.02,
+        "mdd_1pct": -27.46,
+        "cagr20": 1.92,
+        "sharpe": 0.288,
+        "cells": "4/4",
+        "train_avg_r": 0.343,
+        "test_avg_r": 0.145
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx",
+        "sheet": "Summary",
+        "row": 0,
+        "map": {
+          "trades": "trades",
+          "per_year": "per_yr",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
       "entry": [
         "Signal bar: weekly close crosses above the weekly 20 EMA (about 100 trading days).",
         "Confirmation bar: the next week's close is above the signal week's close.",
@@ -337,25 +834,68 @@
         "Stop: entry minus (1.25 times weekly ATR14, plus 5 points) -- same constants as the daily build.",
         "Target: entry plus 1.8 times risk. Costs 0.20% round trip, same model as every other build here."
       ],
-      "filters": ["Same breadth-gate convention as v5/v6/daily EMA20confirm, computed on weekly bars.", "5-position concurrency cap, same as the rest of the reversal bot."],
+      "filters": [
+        "Same breadth-gate convention as v5/v6/daily EMA20confirm, computed on weekly bars.",
+        "5-position concurrency cap, same as the rest of the reversal bot."
+      ],
       "verdict": "This rule had never been backtested on weekly bars before 2026-10-30 (run_daily_scan.py's own weekly section for v1/v5 has carried a 'not validated' warning for months). It is now validated: 356 trades 2000-2026, t=3.02, PF 1.39, 4 of 4 market-and-era cells positive. It is real but clearly weaker than daily -- the TEST-era t-stat is only 1.54 (barely above noise) and 2025 alone lost -14.84R in the by-year table. Tested as a filter ON TOP of the daily rule (requiring weekly trend alignment for daily entries) and that combination was REJECTED (see the daily card's rejected list) -- weekly works as its own separate, smaller system, not as a daily filter.",
       "caveats": [
         "No live scanner yet -- this is a backtest validation only, not wired into run_daily_scan.py's daily output. Treat it the way the project treats a new idea before it earns a scanner: prove it further before building the live plumbing.",
         "Much thinner evidence than daily: about 13-14 trades a year across the whole 1,003-name universe, so a live track record will take a long time to say anything.",
         "2024-2026 was weak on both this and the daily build in the same window -- treat it as one shared regime signal, not two separate problems (see the MTF spec doc)."
       ],
-      "rejected": ["See the daily card's rejected list -- the weekly rule has not had its own separate filter-idea sweep yet, only the cross-timeframe test described there."],
-      "docs": ["ema20-tbl-weekly", "ema20-mtf-spec"]
+      "rejected": [
+        "See the daily card's rejected list -- the weekly rule has not had its own separate filter-idea sweep yet, only the cross-timeframe test described there."
+      ],
+      "docs": [
+        "ema20-tbl-weekly",
+        "ema20-mtf-spec"
+      ]
     },
     {
-      "id": "ema20confirmhr", "name": "EMA20 cross + confirm, hourly (pilot)", "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, literally transplanted to hourly bars", "status": "rejected",
-      "status_label": "Pilot tested 2026-10-30: no edge found", "universe": "~77 liquid names (top ~40 US + ~40 India by trailing $-volume), ~2.2 years of hourly bars (yfinance's live serving window, not this project's 2000-2026 archive)",
+      "id": "ema20confirmhr",
+      "name": "EMA20 cross + confirm, hourly (pilot)",
+      "family": "Reversal bot: same rule as EMA20 cross + confirm 1.8R, literally transplanted to hourly bars",
+      "status": "rejected",
+      "status_label": "Pilot tested 2026-10-30: no edge found",
+      "universe": "~77 liquid names (top ~40 US + ~40 India by trailing $-volume), ~2.2 years of hourly bars (yfinance's live serving window, not this project's 2000-2026 archive)",
       "headline": "The same EMA20-cross-and-confirm rule, unchanged, run on hourly candles. Does not work as a literal timeframe transplant: the flat +5-point stop buffer and the 0.20% round-trip cost, both tuned for daily price ranges, dominate the much smaller hourly ATR. Kept here as a documented negative result, not a live or shadow build.",
-      "metrics": { "trades": 755, "win_pct": 38.94, "avg_r": -0.026, "pf": 0.962, "t_stat": -0.52, "cells": "1/4" },
-      "metrics_from": { "file": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx", "sheet": "Summary", "row": 0, "map": { "trades": "trades", "win_pct": "win_pct", "avg_r": "avg_r", "pf": "PF", "t_stat": "t_stat", "cells": ["cells", "{}/4"] } },
-      "entry": ["Identical rule to the daily build (EMA20 cross + next-bar confirm + trend filter), just evaluated on hourly bars instead of daily.", "Trend filter scaled by trading hours/day (about 6.5 US, 6.25 India) to approximate the daily rule's 200-session filter.", "No breadth gate: the ~77-symbol pilot pool is too small to build a meaningful market-wide breadth signal."],
-      "exit": ["Stop: entry minus (1.25 times hourly ATR14, plus 5 points) -- same constants as daily, NOT rescaled for hourly noise.", "Target: entry plus 1.8 times risk. Same 0.20% round-trip cost model as daily."],
-      "filters": ["None beyond the trend filter -- this is the literal transplant, deliberately not yet redesigned for the timeframe."],
+      "metrics": {
+        "trades": 755,
+        "win_pct": 38.94,
+        "avg_r": -0.026,
+        "pf": 0.962,
+        "t_stat": -0.52,
+        "cells": "1/4"
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx",
+        "sheet": "Summary",
+        "row": 0,
+        "map": {
+          "trades": "trades",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "pf": "PF",
+          "t_stat": "t_stat",
+          "cells": [
+            "cells",
+            "{}/4"
+          ]
+        }
+      },
+      "entry": [
+        "Identical rule to the daily build (EMA20 cross + next-bar confirm + trend filter), just evaluated on hourly bars instead of daily.",
+        "Trend filter scaled by trading hours/day (about 6.5 US, 6.25 India) to approximate the daily rule's 200-session filter.",
+        "No breadth gate: the ~77-symbol pilot pool is too small to build a meaningful market-wide breadth signal."
+      ],
+      "exit": [
+        "Stop: entry minus (1.25 times hourly ATR14, plus 5 points) -- same constants as daily, NOT rescaled for hourly noise.",
+        "Target: entry plus 1.8 times risk. Same 0.20% round-trip cost model as daily."
+      ],
+      "filters": [
+        "None beyond the trend filter -- this is the literal transplant, deliberately not yet redesigned for the timeframe."
+      ],
       "verdict": "755 trades over a ~2.2-year pilot come back net negative: avg R -0.026, PF 0.96, only 1 of 4 market-x-half-sample cells positive. A sweep of the stop width (ATR_MULT 1.25 to 4.0) found a tempting peak at 3.0x (t=3.0, PF 1.44), but its neighbours (2.5x: t=0.39, 3.5x: t=1.37, 4.0x: t=-0.15) are all much weaker -- a fitted cliff on a 285-trade sample, not a plateau, by this project's own neighbourhood-sweep standard (see the daily card's verdict). Separately, using hourly bars only to time the ENTRY of an already-confirmed daily signal (wait for an intraday breakout, then buy) was also tested and made the daily rule worse, not better (see the daily card's caveats). Do not trade hourly with this rule in either form yet.",
       "caveats": [
         "Short sample: ~2.9 years is the most yfinance serves for 1h bars, nowhere near the daily/weekly rule's 26-year, 2000-2026 evidence.",
@@ -366,14 +906,57 @@
         "ATR_MULT swept from 1.25 to 4.0 at RR=1.8: only 3.0 looked good, and it is a cliff, not a plateau (see verdict) -- not adopted.",
         "Hourly-breakout entry timing on top of the daily signal: avg R dropped from +0.412 (blind open entry) to +0.136 (waiting for the breakout) on the matched subset -- not adopted."
       ],
-      "docs": ["ema20-tbl-hourly", "ema20-tbl-entrytiming", "ema20-mtf-spec"]
+      "docs": [
+        "ema20-tbl-hourly",
+        "ema20-tbl-entrytiming",
+        "ema20-mtf-spec"
+      ]
     },
     {
-      "id": "bbladder", "name": "BB Ladder: trough + ascending ladder + breakout", "family": "Bollinger Band bottom-fish: lower-band touch, failed-rally ladder, basis-reclaim breakout", "status": "validated",
-      "status_label": "Validated, not live", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "bbladder",
+      "name": "BB Ladder: trough + ascending ladder + breakout",
+      "family": "Bollinger Band bottom-fish: lower-band touch, failed-rally ladder, basis-reclaim breakout",
+      "status": "validated",
+      "status_label": "Validated, not live",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Buys a breakout above a ladder of rising, rejected rally highs that formed after price touched the lower Bollinger Band. Transcribed from a hand-annotated chart on 2026-10-31; the one lever the honest protocol kept is requiring the breakout bar's close, not just its high, back above the Bollinger basis.",
-      "metrics": { "trades": 305, "per_year": 11.7, "win_pct": 53.11, "avg_r": 0.5698, "pf": 2.188, "t_stat": 6.64, "mdd_1pct": -17.24, "cagr20": 7.12, "sharpe": 0.593, "cells": "4/4", "train_avg_r": 0.7196, "test_avg_r": 0.4493 },
-      "metrics_from": { "file": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx", "sheet": "variants", "match": { "variant": "+ reclaim basis on breakout bar" }, "map": { "trades": "trades", "win_pct": "win_pct", "avg_r": "avg_r", "t_stat": "t_stat", "pf": "PF", "mdd_1pct": "mdd_at_1pct", "cagr20": "cagr_at_20dd", "sharpe": "sharpe", "cells": ["cells_of_4", "{}/4"], "train_avg_r": "TRAIN_avgR", "test_avg_r": "TEST_avgR" } },
+      "metrics": {
+        "trades": 305,
+        "per_year": 11.7,
+        "win_pct": 53.11,
+        "avg_r": 0.5698,
+        "pf": 2.188,
+        "t_stat": 6.64,
+        "mdd_1pct": -17.24,
+        "cagr20": 7.12,
+        "sharpe": 0.593,
+        "cells": "4/4",
+        "train_avg_r": 0.7196,
+        "test_avg_r": 0.4493
+      },
+      "metrics_from": {
+        "file": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx",
+        "sheet": "variants",
+        "match": {
+          "variant": "+ reclaim basis on breakout bar"
+        },
+        "map": {
+          "trades": "trades",
+          "win_pct": "win_pct",
+          "avg_r": "avg_r",
+          "t_stat": "t_stat",
+          "pf": "PF",
+          "mdd_1pct": "mdd_at_1pct",
+          "cagr20": "cagr_at_20dd",
+          "sharpe": "sharpe",
+          "cells": [
+            "cells_of_4",
+            "{}/4"
+          ],
+          "train_avg_r": "TRAIN_avgR",
+          "test_avg_r": "TEST_avgR"
+        }
+      },
       "entry": [
         "Trough: the lowest low of the last 10 bars touches or pierces the lower Bollinger Band (basis = SMA20, band = 2.0x population stdev, TradingView convention), with the basis still falling into the trough so this is a real slide, not noise.",
         "Ladder: searching up to 60 bars forward, at least 2 pivot highs each strictly higher than the last and each still a failed rally (no more than 0.25 ATR above the basis). A pivot that breaks the ladder rule is skipped, not a reset; a low back below the trough kills the setup.",
@@ -402,13 +985,30 @@
         "rr_target, touch_atr and basis_slack_atr away from the chart's own defaults: each looked like an improvement in some single cut of the data and lost on the next one -- exactly what the honest protocol exists to catch.",
         "The chart's literal 3-pivot ladder as a hard gate: only 9 trades in 26 years across 1,003 names -- real but too rare to filter on; better as a confidence tag on the 2-pivot signal."
       ],
-      "docs": ["bbladder-spec", "bbladder-validation", "bbladder-results-daily", "bbladder-results-weekly"]
+      "docs": [
+        "bbladder-spec",
+        "bbladder-validation",
+        "bbladder-results-daily",
+        "bbladder-results-weekly"
+      ]
     },
     {
-      "id": "mtf", "name": "MTF Trend Strategy", "family": "Monthly → Weekly → Daily trend alignment, ATR or swing-low exit", "status": "shadow",
-      "status_label": "Scanned live from 2026-11-01, no live track record yet", "universe": "986 names: 500 Nifty + 503 S&P 500 (the 17 dropped from 1,003 had under 260 bars of history)",
+      "id": "mtf",
+      "name": "MTF Trend Strategy",
+      "family": "Monthly → Weekly → Daily trend alignment, ATR or swing-low exit",
+      "status": "shadow",
+      "status_label": "Scanned live from 2026-11-01, no live track record yet",
+      "universe": "986 names: 500 Nifty + 503 S&P 500 (the 17 dropped from 1,003 had under 260 bars of history)",
       "headline": "Started from a trader's own annotated chart screenshots (monthly key-level flip, weekly Fibonacci confluence, daily trendline break). Each visual rule was turned into an explicit, testable one, backtested on 26 years of data, then stress-tested with a 60-combination parameter sweep and a first-half-vs-second-half stability check before anything was scanned live.",
-      "metrics": { "trades": 4620, "per_year": 185, "win_pct": 42.2, "avg_r": 0.592, "pf": 2.04, "mdd_1pct": -25.0, "calmar": 109.3 },
+      "metrics": {
+        "trades": 4620,
+        "per_year": 185,
+        "win_pct": 42.2,
+        "avg_r": 0.592,
+        "pf": 2.04,
+        "mdd_1pct": -25.0,
+        "calmar": 109.3
+      },
       "entry": [
         "Monthly: close breaks above the trailing 12-month high, and that month's candle is bullish (close above open) and closes above the prior month's close -- the chart's 'key level resistance becomes support, with momentum'.",
         "Weekly: close above a rising 20-week SMA, weekly RSI14 above 50, price pulled back into the 0.5-0.618 Fibonacci zone of the last 26-week swing within the last 6 weeks, and the latest completed weekly candle is bullish and closes in the top half of its range -- the chart's 'area of confluence'.",
@@ -437,10 +1037,15 @@
         "The single best grid cell from the 60-combination sweep (ATR 2.0x / RR 2.5, Calmar 101): picking the literal best cell from an in-sample search with no out-of-sample test is exactly how a backtest gets curve-fit. The plateau's center (ATR 2.0x / RR 2.0) was chosen instead, and it is also the most stable of every config tested, which the single best cell was not.",
         "Reporting drawdown from the first pass of the grid sweep: that version concatenated each symbol's trades in symbol order instead of sorting the whole trade list by actual date, which understated drawdown by up to 3x. Caught by spot-checking the top candidates against a correctly-dated recomputation before anything was trusted."
       ],
-      "docs": ["mtf-dashboard"]
+      "docs": [
+        "mtf-dashboard"
+      ]
     },
     {
-      "id": "msr", "name": "Master Support & Resistance Framework", "family": "6-step, 100-point checklist scorer on three timeframe pairings (Hourly/Daily, Daily/Weekly, Weekly/Monthly)", "status": "candidate",
+      "id": "msr",
+      "name": "Master Support & Resistance Framework",
+      "family": "6-step, 100-point checklist scorer on three timeframe pairings (Hourly/Daily, Daily/Weekly, Weekly/Monthly)",
+      "status": "candidate",
       "status_label": "Checklist scorer, not backtested -- track its score against real outcomes before trusting it",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Started from a trader's own written checklist (Support/Resistance quality, Market Bias, Area of Value, Confirmation pattern, Risk:Reward, Multi-timeframe Confluence -- each 0-15/0-20 points, 100 total, graded A+ to D) covering three named strategies: Hourly swing (2-10 days, entry on the hour, trend read from Daily), Daily positional (2-8 weeks, entry on the day, trend from Weekly), and Weekly position (2-12 months, entry on the week, trend from Monthly). Unlike every backtested strategy on this page, this one has not been tested against history at all yet -- it is a live mechanical scorer only, built to let the checklist run itself instead of being eyeballed chart by chart.",
@@ -473,13 +1078,25 @@
         "No position sizing, portfolio cap, or regime filter -- same gap as the MTF strategy, not yet addressed here either."
       ],
       "rejected": [],
-      "docs": ["msr-spec"]
+      "docs": [
+        "msr-spec"
+      ]
     },
     {
-      "id": "dbpyramid", "name": "Double-bottom pyramid (RSI divergence + trendline + EMA20 + breakout + retest)", "family": "Scaled-in reversal: EMA20 reclaim, then confirmed breakout, then a held retest", "status": "candidate",
-      "status_label": "Backtested 2026-10-31, scanned live from 2026-11-01, no live track record yet", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "dbpyramid",
+      "name": "Double-bottom pyramid (RSI divergence + trendline + EMA20 + breakout + retest)",
+      "family": "Scaled-in reversal: EMA20 reclaim, then confirmed breakout, then a held retest",
+      "status": "candidate",
+      "status_label": "Backtested 2026-10-31, scanned live from 2026-11-01, no live track record yet",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Started from a trader's own 6-step annotated chart (RSI divergence, a double bottom or inverse head-and-shoulders, a broken descending trendline, an EMA20 reclaim, a break of structure, then a breakout-and-retest), coded into exact rules, backtested on 26 years of daily EOD data, then live-scanned daily. The backtest's own biggest finding: the first tranche alone is a false start two-thirds of the time -- see Verdict.",
-      "metrics": { "trades": 886, "per_year": 34.1, "win_pct": 50.2, "avg_r": 0.071, "pf": 1.14 },
+      "metrics": {
+        "trades": 886,
+        "per_year": 34.1,
+        "win_pct": 50.2,
+        "avg_r": 0.071,
+        "pf": 1.14
+      },
       "entry": [
         "Pattern: two swing lows (3-bar fractal) 10-180 bars apart, the second within -15%/+4% of the first, separated by a base peak at least 8% above the first low.",
         "Filter 1, RSI divergence: RSI14 at the second low is higher than RSI14 at the first low (classic bullish divergence).",
@@ -515,85 +1132,338 @@
       "docs": []
     },
     {
-      "id": "v4", "name": "v4 scale-out (replaced)", "family": "Reversal bot", "status": "retired",
-      "status_label": "Retired 2026-08-07", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "v4",
+      "name": "v4 scale-out (replaced)",
+      "family": "Reversal bot",
+      "status": "retired",
+      "status_label": "Retired 2026-08-07",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "The live pick until 7 August 2026. Sold 34% at 0.75R with a 4R target and had no per-stock trend filter. Replaced by v5.",
-      "metrics": { "win_pct": 64.9, "avg_r": 0.238 },
-      "entry": ["Same pattern and confirmation as v5 but with no 200-day trend filter."],
-      "exit": ["Sell 34% at +0.75R and move the stop to break-even; the rest to a 4R target."],
-      "filters": ["Same breadth gate and 5-position cap as v5."],
+      "metrics": {
+        "win_pct": 64.9,
+        "avg_r": 0.238
+      },
+      "entry": [
+        "Same pattern and confirmation as v5 but with no 200-day trend filter."
+      ],
+      "exit": [
+        "Sell 34% at +0.75R and move the stop to break-even; the rest to a 4R target."
+      ],
+      "filters": [
+        "Same breadth gate and 5-position cap as v5."
+      ],
       "verdict": "v5 beat it in the bake-off: 5.95 against 4.66 R a year at a common 20% drawdown, a maximum drawdown of -6.92R against -9.88R, and 4 of 4 market and era cells positive. Grafting the trend filter onto v4's own exit shape lifted the win rate but failed the 4-cell check, so it was rejected.",
-      "caveats": ["Older v4 signals still sit in the paper-trade register, so the code stays."],
+      "caveats": [
+        "Older v4 signals still sit in the paper-trade register, so the code stays."
+      ],
       "rejected": [],
       "docs": []
     },
     {
-      "id": "logic2-v0", "name": "Logic 2 as first written", "family": "Reversal bot: the starting point", "status": "rejected",
-      "status_label": "Rejected: no edge", "universe": "Watchlist backtest",
+      "id": "logic2-v0",
+      "name": "Logic 2 as first written",
+      "family": "Reversal bot: the starting point",
+      "status": "rejected",
+      "status_label": "Rejected: no edge",
+      "universe": "Watchlist backtest",
       "headline": "The original code, run exactly as written. It was the baseline that the later versions were built to beat.",
-      "metrics": { "trades": 82, "win_pct": 25.61, "avg_r": -0.0122, "pf": 0.977, "t_stat": -0.09 },
-      "metrics_from": { "file": "{reversal_dir}/logic2_output/variant_summary.csv", "match": { "variant": "V0_literal_original" }, "map": { "trades": "trades", "win_pct": "win_rate_pct", "avg_r": "avg_r", "pf": "profit_factor", "t_stat": "t_stat" } },
-      "entry": ["A 10-bar exact-equality low window, so the pattern almost never fired.", "The RSI filter was dead code.", "The confirmation bar was re-checked for stop and target, which is look-ahead."],
-      "exit": ["Fixed target with a break-even shift."],
+      "metrics": {
+        "trades": 82,
+        "win_pct": 25.61,
+        "avg_r": -0.0122,
+        "pf": 0.977,
+        "t_stat": -0.09
+      },
+      "metrics_from": {
+        "file": "{reversal_dir}/logic2_output/variant_summary.csv",
+        "match": {
+          "variant": "V0_literal_original"
+        },
+        "map": {
+          "trades": "trades",
+          "win_pct": "win_rate_pct",
+          "avg_r": "avg_r",
+          "pf": "profit_factor",
+          "t_stat": "t_stat"
+        }
+      },
+      "entry": [
+        "A 10-bar exact-equality low window, so the pattern almost never fired.",
+        "The RSI filter was dead code.",
+        "The confirmation bar was re-checked for stop and target, which is look-ahead."
+      ],
+      "exit": [
+        "Fixed target with a break-even shift."
+      ],
       "filters": [],
       "verdict": "82 trades, 25.6% win rate and -0.0122R per trade: no edge. Fixing the 30-session low, applying the RSI filter and removing the look-ahead (the 'core' baseline) gave +0.2073R over 1,592 trades, and adding next-open entry, a trend filter and a regime gate eventually produced v5. The full variant table is in the Library.",
       "caveats": [],
-      "rejected": ["The literal code.", "Entering at the confirmation close, which an end-of-day scanner can never fill."],
+      "rejected": [
+        "The literal code.",
+        "Entering at the confirmation close, which an end-of-day scanner can never fill."
+      ],
       "docs": []
+    },
+    {
+      "id": "pbmtf",
+      "name": "Pullback-Retest MTF Swing Strategy",
+      "family": "Weekly -> Daily -> Hourly pullback/retest/entry, each on its own 100-point scorecard, plus a 100-point alignment model that sets position size",
+      "status": "shadow",
+      "status_label": "Weekly+Daily backtested on 26 years; scanned live from 2026-11-01 using REAL hourly bars, no live track record yet",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Started from a trader-supplied 6-stage pullback/retest/entry framework pasted in full, run independently on Weekly, Daily and Hourly bars with its own 100-point scorecard per timeframe, plus a separate Multi-Timeframe Alignment Model (100 pts) that sizes the trade in R. The live scanner uses real hourly bars (not a daily-bar proxy), since free Yahoo data covers about 2 years of 60-minute bars -- more than this strategy's own 1-10 day hourly holding period needs.",
+      "metrics": {
+        "trades": 3212,
+        "per_year": 124,
+        "win_pct": 48.6,
+        "avg_r": 0.111,
+        "pf": 1.32,
+        "mdd_1pct": -32.6,
+        "calmar": 11.0
+      },
+      "entry": [
+        "Stage 1 Trend filter (per timeframe): close above (long) / below (short) a 50-EMA that is itself rising/falling, plus a confirmed higher-high+higher-low (long) or lower-high+lower-low (short) from 3-bar fractal swings. Neither -> no trade on that timeframe.",
+        "Stage 2 Pullback: a fresh confirmed swing high (long) / low (short) that is itself a new extreme anchors the pullback. From there, 2+ consecutive candles against the trend must follow, with the pullback staying on the correct side of the confirmed swing before the anchor (the major structure level).",
+        "Stage 3 Retest zone: once the pullback ends, its own extreme becomes the retest zone -- price must revisit it (within 1%) and the zone must hold.",
+        "Stage 4 Entry trigger: the first candle back in the trend's direction that closes beyond the high/low of the most recent counter-trend candle, after the retest holds. Enter at the next bar's open.",
+        "Weekly Position scorecard (100 pts, 3-12 month hold): EMA/trend (20), HH-HL (20), base breakout (15), pullback length 2-5 candles (10), retest holds (15), reversal candle at support (10), volume expansion (10).",
+        "Daily Swing scorecard (100 pts, 1-8 week hold): daily trend (20), weekly aligned (15), fresh swing (15), 2+ candle pullback (10), volume dry-up (10), retest holds (15), trigger candle (15).",
+        "Hourly Swing scorecard (100 pts, 1-10 day hold): daily trend (20), hourly trend (15), hourly HH-HL (15), 2+ candle pullback (10), retest tested (15), reversal candle (15), real RR >= 2:1 against the nearest structural target (10).",
+        "Multi-Timeframe Alignment Model (100 pts): Weekly uptrend (35), Daily uptrend + active pullback (30), Hourly trigger fired (20), volume expansion (10), RR >= 2 (5). Final Rule: only take a trade at alignment >= 85 AND all three timeframes agreed AND the hourly trigger fires on the latest bar -- the checklist's own claim is this removes 70-80% of low-quality setups."
+      ],
+      "exit": [
+        "Stop = the pullback/structure level minus (long) / plus (short) 1x ATR(14), moved to breakeven the first time the trade reaches +1R.",
+        "T1 = 1.5R, close 50%. T2 = 2.0R, close 25%. Remaining 25% runs to T3 (the prior opposing swing high/low) or exits on a close back across the 50-EMA, or a 40-trading-day time stop (the checklist's own 1-8 week daily holding period), whichever comes first.",
+        "Position size from the Alignment Model's score: 90-100 -> 1.0R, 80-89 -> 0.75R, 70-79 -> 0.5R, under 70 -> no trade."
+      ],
+      "filters": [
+        "Backtest covers Weekly+Daily only (both directions), 2000-2026, 2008 and 2020 excluded -- this project has no free intraday history back to 2000, so the Hourly layer (which carries its own full scorecard and entry trigger, unlike MTF/EMA Positional's intraday layers which are pure entry-timing) is dropped rather than faked with a daily-bar proxy.",
+        "The short side is DISABLED in the live scanner (ALLOW_SHORT = False in pbmtf_scan.py): the backtest found it loses money outright (40 trades, 25% win rate, avg R -0.42, profit factor 0.34) while longs carry the whole edge.",
+        "No concurrent-position cap, correlation control or liquidity filter -- same open gap as every other strategy on this page."
+      ],
+      "verdict": "Built 2026-11-01 directly from the trader's own pasted 6-stage framework and three scorecards. The Weekly+Daily mechanics have a real, positive, consistent edge in both markets (avg R +0.09 to +0.14, profit factor 1.26-1.44) -- entirely on the long side. Two real bugs were found and fixed while building this: a tautological Risk:Reward check (comparing price to a target that is always exactly 2R by construction, so it could never fail) was rewritten to grade against the real nearest structural target instead; and a one-bar lookahead in how a 3-bar fractal swing becomes \"known\" (shared by this project's MTF, EMA Positional and MSR strategies) was fixed here and flagged for backporting.",
+      "caveats": [
+        "The Hourly layer's contribution to the Multi-Timeframe Alignment Model has not been walk-forward tested over any meaningful history -- free hourly data only goes back about 2 years. Treat the backtest numbers above as validating the Weekly+Daily mechanics only; the live scanner's three-way-aligned signal is unproven beyond what accumulates from here forward.",
+        "Short side disabled by default after the backtest showed it loses money -- do not re-enable it without a market-level regime filter or a rebuild.",
+        "\"Strong breakout from base\" and the candlestick/volume checks are this project's own systematized reading of visual checklist items, not a literal transcription -- see PBMTF_STRATEGY_SPEC.md for every one.",
+        "India's EOD archive has patchy/zero Volume data for smaller Nifty 500 names, especially pre-2010 -- every volume-based check silently scores false rather than erroring when that happens.",
+        "No concurrent-position cap or losing-streak cooldown -- pullback-continuation setups are exactly the kind that cluster in a single correlated market move."
+      ],
+      "rejected": [],
+      "docs": [
+        "pbmtf-spec"
+      ]
+    },
+    {
+      "id": "breakretest",
+      "name": "Break & Retest Master Framework",
+      "family": "C.E.S.T model (Conditions / Entry / Stop / Target), 100-point scorer on three timeframe pairings",
+      "status": "shadow",
+      "status_label": "Daily and Weekly backtested and scanned live from 2026-11-01; Hourly is live-only, no live track record yet",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Started from a trader's own 'C.E.S.T' write-up and its 100-point scoring rubric, covering three named strategies: Hourly swing (2-10 days), Daily positional (2 weeks-3 months) and Weekly position (1-12 months). One of three chart patterns must exist (trend-continuation break, consolidation-range break, or triangle break), each followed by a retest of the broken level and a rejection candle, scored across five sections (Trend Quality, Breakout Quality, Retest Quality, Multi-Timeframe Alignment, Risk:Reward) for a 0-100 total. Daily and Weekly were backtested on 26 years of daily EOD data (the Weekly strategy simulated on daily bars so a stop can't be blurred through mid-week); Hourly has no free source of 60-minute bars going back further than about 2 years, so it is live-only -- see Caveats.",
+      "metrics": {
+        "trades": 4905,
+        "win_pct": 46.0,
+        "avg_r": 0.272,
+        "pf": 1.55
+      },
+      "entry": [
+        "Conditions (one of three): Pattern 1 Trend Continuation -- an uptrend (confirmed higher-high/higher-low swing structure) breaks its most recent swing high (downtrend/swing-low break for shorts). Pattern 2 Consolidation -- a tight multi-bar range with 2+ touches of both edges, broken by a strong-bodied candle. Pattern 3 Triangle -- a rising triangle (flat resistance, rising swing lows) breaking up, or a falling triangle breaking down.",
+        "Retest -- within a timeframe-sized window of bars after the break, price must return to within a small ATR-based tolerance of the broken level without re-breaking the structure behind the move, then show a rejection candle (hammer/pin bar/engulfing/strong close).",
+        "Entry Level 1 (Aggressive): right at the retest touch. Level 2 (Conservative): on the rejection candle's own close -- the level this framework's signal actually fires on. Level 3 (Professional) is Section D's multi-timeframe alignment scoring full marks, not a separate rule.",
+        "Hourly strategy adds: Weekly trend agrees, Daily is above/below its 20-EMA in the trade direction, volume expands on the 1H breakout. Daily strategy adds: Weekly trend agrees, Daily's own HH-HL structure agrees, and a next-bar follow-through close stands in for the doc's '4H reversal pattern' (no 26-year 4H archive to backtest against -- see Caveats). Weekly strategy adds: price above its rolling 30-week MA, Daily confirms the same direction."
+      ],
+      "exit": [
+        "Stop: below the retest low or the swing low behind the whole move, whichever is lower (mirrored for shorts) -- exactly the doc's own rule.",
+        "Target: never less than 1.5R; uses the next major structural level (a rolling high/low over a longer lookback, standing in for 'previous resistance / weekly resistance') when that reaches further than 2R, otherwise a flat 2R.",
+        "Entry for the backtest/live fill is the next bar's open on that same timeframe (this project's universal convention). If one bar's range contains both the stop and the target, the stop is assumed. No commissions or slippage modelled."
+      ],
+      "filters": [
+        "Score gate per strategy, straight from the doc's own checklists: Hourly needs the total score at or above 80, Daily at or above 85, Weekly at or above 90 -- the strictest of the three, matching the doc calling the weekly setup 'the highest probability'.",
+        "No concurrent-position cap or losing-streak cooldown yet -- same open problem MTF_STRATEGY_SPEC.md already found for its own strategy: a correlated macro shock can hit many open positions from this framework at once, not many independent bad picks."
+      ],
+      "verdict": "Full-universe backtest (1,003 symbols, 2001-2026, 2008/2020 excluded), simulated on daily bars for both: Daily strategy 3,180 trades, 43.7% win rate, avg R +0.294, profit factor 1.53, total +933.7R, max drawdown -50.4R, Calmar 18.5. Weekly strategy 1,725 trades, 49.9% win rate, avg R +0.238, profit factor 1.58, total +410.0R, max drawdown -60.3R, Calmar 6.8. Both net positive, and India outperformed the US on every metric for both strategies -- the same ranking MTF_STRATEGY_SPEC.md found independently for an unrelated strategy, which makes it look like a structural fact about these two markets rather than a coincidence of this framework. Weekly's win rate and profit factor beat Daily's, matching the original doc's own claim that the weekly setup is the highest-probability of the three -- but Weekly's max drawdown is actually worse than Daily's despite that, a sign of the same correlated-position risk noted in Filters. One literal reading of the Weekly checklist ('3R minimum' AND 'highest volume in 8-12 weeks', both hard-gated at their strictest wording) produced zero signals in 24 years on a sample test -- both were relaxed to be scored, not separately hard-gated, which is what actually produced the numbers above; see the full spec for why.",
+      "caveats": [
+        "No free source of 60-minute (or 4-hour) bars going back further than about 2 years (yfinance's own limit) -- the Hourly strategy, and the Daily strategy's '4H reversal pattern' checklist item, cannot be backtested over this project's full 2001-2026 window the way Daily and Weekly were. Both use a systematic daily-bar proxy where a true intraday backtest isn't possible, the same kind of substitution MTF_Strategy and EMA_Positional_Strategy already made for their own intraday layers.",
+        "'Obvious to everyone' (breakout clarity), triangle flat-vs-sloped, and 'strong/neutral/against' trend are all discretionary chart-reading calls in the original doc, turned into explicit ATR-relative and regression-slope rules here -- a different, equally reasonable coding of the same wording could score differently.",
+        "The Weekly strategy's '3R minimum' and 'highest volume in 8-12 weeks' checklist items are scored (feeding the 0-100 total) rather than separately hard-gated at their strictest literal reading, because hard-gating both at once produced zero trades in 24 years -- see Verdict.",
+        "Section D (Multi-Timeframe Alignment) substantially re-measures the same trend agreement Section A already scores, just packaged differently -- 40 of the 100 points are not fully independent information.",
+        "No position sizing, concurrent-position cap, or out-of-sample (train/test split) stability check yet -- unlike MTF_Strategy and EMA_Positional_Strategy, which were both stress-tested before being sized. Treat the backtest numbers above as 'the logic is sound and net positive', not 'these exact parameters are optimal'."
+      ],
+      "rejected": [
+        "Hard-gating the Weekly strategy's '3R minimum' (rr_score >= 15) together with its volume item at the strictest literal reading (volume_expansion_score >= 10): produced zero signals across a 60-symbol-per-market sample over 24 years. Relaxed both to feed the score instead of double-hard-gating, which is what produced a believable ~200-trade result."
+      ],
+      "docs": [
+        "breakretest-spec"
+      ]
     }
   ],
   "automation": {
     "timezone": "Singapore time (UTC+8)",
     "schedule": [
-      { "time": "07:00", "title": "US scans", "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time.", "tag": "your PC" },
-      { "time": "08:30", "title": "Publish Technical page", "detail": "The optional tasks Trilens_Publish_AM and Trilens_Publish_PM (made by SCHEDULE_PUBLISH.bat) build the encrypted Technical bundle from the fresh scan files and pushes it to GitHub.", "tag": "your PC" },
-      { "time": "19:00", "title": "India scans", "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes.", "tag": "your PC" },
-      { "time": "20:30", "title": "Publish Technical page", "detail": "Second daily publish, after the India scans finish.", "tag": "your PC" },
-      { "time": "All day", "title": "Fundamentals and sentiment update", "detail": "GitHub refreshes prices about every 30 minutes on weekdays, SEC filings every 3 hours, sentiment every 2 hours and company data twice a day, on free servers. Your PC does not need to be on.", "tag": "GitHub" }
+      {
+        "time": "07:00",
+        "title": "US scans",
+        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time.",
+        "tag": "your PC"
+      },
+      {
+        "time": "08:30",
+        "title": "Publish Technical page",
+        "detail": "The optional tasks Trilens_Publish_AM and Trilens_Publish_PM (made by SCHEDULE_PUBLISH.bat) build the encrypted Technical bundle from the fresh scan files and pushes it to GitHub.",
+        "tag": "your PC"
+      },
+      {
+        "time": "19:00",
+        "title": "India scans",
+        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time.",
+        "tag": "your PC"
+      },
+      {
+        "time": "20:30",
+        "title": "Publish Technical page",
+        "detail": "Second daily publish, after the India scans finish.",
+        "tag": "your PC"
+      },
+      {
+        "time": "All day",
+        "title": "Fundamentals and sentiment update",
+        "detail": "GitHub refreshes prices about every 30 minutes on weekdays, SEC filings every 3 hours, sentiment every 2 hours and company data twice a day, on free servers. Your PC does not need to be on.",
+        "tag": "GitHub"
+      }
     ],
     "flows": [
       {
-        "title": "SCAN_NOW.bat", "file": "reversal_strategy folder",
+        "title": "SCAN_NOW.bat",
+        "file": "reversal_strategy folder",
         "intro": "Runs the whole reversal stack for both markets on demand. Safe at any time: the scans share one price cache and take an exclusive lock, so the second simply waits for the first.",
         "steps": [
-          { "title": "US reversal scan", "detail": "Tops the price cache up to the latest close from Yahoo, then scans every symbol for v5, v6, S1, S3 and EMA20 cross + confirm setups on daily bars (weekly is scanned but unvalidated). Writes a dated Excel workbook and LATEST_US files.", "code": "run_daily_scan.py --market US --no-popup" },
-          { "title": "US revenue and dip scan", "detail": "Finds stocks 15-40% off their high with RSI at or below 40 and a reversal day, checks the revenue trend, and saves the day's bars to Excel and CSV for future backtests.", "code": "revenue_dip_scan.py --market US" },
-          { "title": "India reversal scan", "detail": "The same scan on the Nifty 500 half of the universe.", "code": "run_daily_scan.py --market India --no-popup" },
-          { "title": "India revenue and dip scan", "detail": "Same as the US one, with revenue from Yahoo.", "code": "revenue_dip_scan.py --market India" },
-          { "title": "Market context classifier (both markets)", "detail": "Tags every symbol as new-ATH breakout, inside a 300-day range, below/above its daily trendline, or a shallow/deep uptrend pullback, per MARKET_CONTEXT_FRAMEWORK.md. Writes LATEST_CONTEXT_<market>.json.", "code": "market_context.py --cache eod_cache_live.pkl --market US" },
-          { "title": "Analog setup scanner (both markets)", "detail": "Stage 1 + stages 2-4 combined: only looks for a live setup on stocks the context classifier currently tags NEW_ATH_BREAKOUT or DOWNTREND_BREAK, finds weekly base+breakout precedents per stock, backtests each one's retest on daily bars, and produces a live entry/stop/target plan gated on at least 2 confirmed precedents. Writes LATEST_ANALOG_<market>.json.", "code": "analog_setup.py --cache eod_cache_live.pkl --market US" },
-          { "title": "Base + breakout scanner (both markets)", "detail": "Stage 1 + stage 2 only, the wider screen: same context gate as the analog scanner, but lists every stock with a weekly base+breakout within the last 8 weeks, with no retest backtest and no 2-confirmed-analog requirement. Writes LATEST_BASEBREAKOUT_<market>.json.", "code": "base_breakout_scan.py --cache eod_cache_live.pkl --market US" },
-          { "title": "Paper-trade book", "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.", "code": "paper_trade.py" },
-          { "title": "Summary page", "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.", "code": "revenue_dip_scan.py --summary --open" }
+          {
+            "title": "US reversal scan",
+            "detail": "Tops the price cache up to the latest close from Yahoo, then scans every symbol for v5, v6, S1, S3 and EMA20 cross + confirm setups on daily bars (weekly is scanned but unvalidated). Writes a dated Excel workbook and LATEST_US files.",
+            "code": "run_daily_scan.py --market US --no-popup"
+          },
+          {
+            "title": "US revenue and dip scan",
+            "detail": "Finds stocks 15-40% off their high with RSI at or below 40 and a reversal day, checks the revenue trend, and saves the day's bars to Excel and CSV for future backtests.",
+            "code": "revenue_dip_scan.py --market US"
+          },
+          {
+            "title": "India reversal scan",
+            "detail": "The same scan on the Nifty 500 half of the universe.",
+            "code": "run_daily_scan.py --market India --no-popup"
+          },
+          {
+            "title": "India revenue and dip scan",
+            "detail": "Same as the US one, with revenue from Yahoo.",
+            "code": "revenue_dip_scan.py --market India"
+          },
+          {
+            "title": "Market context classifier (both markets)",
+            "detail": "Tags every symbol as new-ATH breakout, inside a 300-day range, below/above its daily trendline, or a shallow/deep uptrend pullback, per MARKET_CONTEXT_FRAMEWORK.md. Writes LATEST_CONTEXT_<market>.json.",
+            "code": "market_context.py --cache eod_cache_live.pkl --market US"
+          },
+          {
+            "title": "Analog setup scanner (both markets)",
+            "detail": "Stage 1 + stages 2-4 combined: only looks for a live setup on stocks the context classifier currently tags NEW_ATH_BREAKOUT or DOWNTREND_BREAK, finds weekly base+breakout precedents per stock, backtests each one's retest on daily bars, and produces a live entry/stop/target plan gated on at least 2 confirmed precedents. Writes LATEST_ANALOG_<market>.json.",
+            "code": "analog_setup.py --cache eod_cache_live.pkl --market US"
+          },
+          {
+            "title": "Base + breakout scanner (both markets)",
+            "detail": "Stage 1 + stage 2 only, the wider screen: same context gate as the analog scanner, but lists every stock with a weekly base+breakout within the last 8 weeks, with no retest backtest and no 2-confirmed-analog requirement. Writes LATEST_BASEBREAKOUT_<market>.json.",
+            "code": "base_breakout_scan.py --cache eod_cache_live.pkl --market US"
+          },
+          {
+            "title": "Paper-trade book",
+            "detail": "Records every new signal, replays each open trade from its entry bar so the book never double-counts, and scores live results against what the backtest predicted. Signals before the start date are NOT_TAKEN (no backfill) and signals refused by the 5-position cap are SKIPPED_CAP.",
+            "code": "paper_trade.py"
+          },
+          {
+            "title": "Summary page",
+            "detail": "Builds one page combining the Reversal bot and the Revenue and dip scan for both markets and opens it in your browser.",
+            "code": "revenue_dip_scan.py --summary --open"
+          }
         ]
       },
       {
-        "title": "SETUP_SYSTEM_TASKS.bat", "file": "reversal_strategy folder",
+        "title": "SETUP_SYSTEM_TASKS.bat",
+        "file": "reversal_strategy folder",
         "intro": "One-time setup, run as Administrator. Windows needs admin rights to create tasks that run as SYSTEM whether or not anyone is logged in.",
         "steps": [
-          { "title": "Create two daily tasks", "detail": "ReversalScan_US every day at 07:00 runs scan_US.bat. ReversalScan_India every day at 19:00 runs scan_India.bat. First runs were set for 29 October 2026.", "code": "setup_daily_tasks.ps1" },
-          { "title": "Task settings", "detail": "Start when available if the PC was asleep, wake the PC to run, ignore a second start if one is running, and stop after 60 minutes. Runs on battery.", "code": "" },
-          { "title": "Desktop shortcut", "detail": "Adds SCAN NOW - Revenue data to the desktop, which runs SCAN_NOW.bat.", "code": "" },
-          { "title": "Proof run", "detail": "Starts the US task once, waits up to 25 minutes, then prints the result code (0 means success) and the last lines of the US logs.", "code": "Start-ScheduledTask ReversalScan_US" },
-          { "title": "Check the clock", "detail": "The tasks use the PC's clock. If the PC is not on Singapore time, the script warns you that 07:00 and 19:00 are not Singapore times.", "code": "" }
+          {
+            "title": "Create two daily tasks",
+            "detail": "ReversalScan_US every day at 07:00 runs scan_US.bat. ReversalScan_India every day at 19:00 runs scan_India.bat. First runs were set for 29 October 2026.",
+            "code": "setup_daily_tasks.ps1"
+          },
+          {
+            "title": "Task settings",
+            "detail": "Start when available if the PC was asleep, wake the PC to run, ignore a second start if one is running, and stop after 60 minutes. Runs on battery.",
+            "code": ""
+          },
+          {
+            "title": "Desktop shortcut",
+            "detail": "Adds SCAN NOW - Revenue data to the desktop, which runs SCAN_NOW.bat.",
+            "code": ""
+          },
+          {
+            "title": "Proof run",
+            "detail": "Starts the US task once, waits up to 25 minutes, then prints the result code (0 means success) and the last lines of the US logs.",
+            "code": "Start-ScheduledTask ReversalScan_US"
+          },
+          {
+            "title": "Check the clock",
+            "detail": "The tasks use the PC's clock. If the PC is not on Singapore time, the script warns you that 07:00 and 19:00 are not Singapore times.",
+            "code": ""
+          }
         ]
       },
       {
-        "title": "SCAN NOW - Accumulation bot.bat", "file": "Accumulation_Bot folder",
+        "title": "SCAN NOW - Accumulation bot.bat",
+        "file": "Accumulation_Bot folder",
         "intro": "Scans US and India for institutional accumulation. Which markets run is set by MARKETS in settings.json.",
         "steps": [
-          { "title": "Find Python and packages", "detail": "Locates Python and installs yfinance, pandas, numpy, requests, lxml, tzdata and xlsxwriter if any are missing.", "code": "" },
-          { "title": "Download prices", "detail": "The first run downloads about 2 years of prices for roughly 1,450 stocks and takes 5-10 minutes. Later runs only add new bars.", "code": "accumulation_bot.py scan" },
-          { "title": "Apply the checklist", "detail": "Runs the preliminary tests, the seven points and the entry plan, then grades each stock A+ or A.", "code": "" },
-          { "title": "Write reports", "detail": "Saves latest_scan.html plus US and India pages and a CSV of the same rows, and archives the day's prices into eod_data as one Excel workbook per market per year.", "code": "reports\\latest_scan.html" },
-          { "title": "Scheduled version", "detail": "run_scheduled_scan.bat US or IN is what the Windows tasks call. Telegram alerts can be turned on in settings.json.", "code": "run_scheduled_scan.bat" }
+          {
+            "title": "Find Python and packages",
+            "detail": "Locates Python and installs yfinance, pandas, numpy, requests, lxml, tzdata and xlsxwriter if any are missing.",
+            "code": ""
+          },
+          {
+            "title": "Download prices",
+            "detail": "The first run downloads about 2 years of prices for roughly 1,450 stocks and takes 5-10 minutes. Later runs only add new bars.",
+            "code": "accumulation_bot.py scan"
+          },
+          {
+            "title": "Apply the checklist",
+            "detail": "Runs the preliminary tests, the seven points and the entry plan, then grades each stock A+ or A.",
+            "code": ""
+          },
+          {
+            "title": "Write reports",
+            "detail": "Saves latest_scan.html plus US and India pages and a CSV of the same rows, and archives the day's prices into eod_data as one Excel workbook per market per year.",
+            "code": "reports\\latest_scan.html"
+          },
+          {
+            "title": "Scheduled version",
+            "detail": "run_scheduled_scan.bat US or IN is what the Windows tasks call. Telegram alerts can be turned on in settings.json.",
+            "code": "run_scheduled_scan.bat"
+          }
         ]
       }
     ],
     "website": [
-      { "title": "GitHub Actions refreshes market data", "detail": "A free scheduled job on GitHub's servers fetches prices, company data, SEC Form 4 and filings, news and sentiment, and saves them as small JSON files. No paid service is involved." },
-      { "title": "Your PC publishes the Technical page", "detail": "PUBLISH.bat reads the scan folders and technical_uploads, builds the bundle, encrypts it with your password and pushes it to GitHub. Only the encrypted file leaves your computer." },
-      { "title": "GitHub Pages serves the site", "detail": "The site is a set of static files on a free address. Your phone downloads them and keeps a copy, so it also opens without a connection." }
+      {
+        "title": "GitHub Actions refreshes market data",
+        "detail": "A free scheduled job on GitHub's servers fetches prices, company data, SEC Form 4 and filings, news and sentiment, and saves them as small JSON files. No paid service is involved."
+      },
+      {
+        "title": "Your PC publishes the Technical page",
+        "detail": "PUBLISH.bat reads the scan folders and technical_uploads, builds the bundle, encrypts it with your password and pushes it to GitHub. Only the encrypted file leaves your computer."
+      },
+      {
+        "title": "GitHub Pages serves the site",
+        "detail": "The site is a set of static files on a free address. Your phone downloads them and keeps a copy, so it also opens without a connection."
+      }
     ],
     "bat_notes": {
       "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the analog setup scanner, the paper-trade update and the summary page, in that order.",
@@ -616,39 +1486,221 @@
     }
   },
   "docs": [
-    { "id": "v5-spec", "path": "{reversal_dir}/V5_STRATEGY_SPEC.md", "title": "v5 + throttle: complete specification", "kind": "doc" },
-    { "id": "v6-spec", "path": "{reversal_dir}/V6_CANDIDATE_SPEC.md", "title": "v6 candidate: logic and results", "kind": "doc" },
-    { "id": "logic3-spec", "path": "{reversal_dir}/LOGIC3_DBE_SPEC.md", "title": "Logic 3: double bottom and engulfing", "kind": "doc" },
-    { "id": "logic3-skip0820-summary", "path": "G:\\trading\\new back test\\LOGIC3_SKIP0820_SUMMARY.md", "title": "Logic 3: 2008/2020 excluded -- before/after and suggestions", "kind": "doc" },
-    { "id": "context-spec", "path": "{reversal_dir}/MARKET_CONTEXT_FRAMEWORK.md", "title": "Market context classifier: framework and definitions", "kind": "doc" },
-    { "id": "weinstein-stage2-spec", "path": "{reversal_dir}/WEINSTEIN_STAGE2_SPEC.md", "title": "Weinstein Stage-2: rules, variant sweep and measured results", "kind": "doc" },
-    { "id": "weinstein-backtest-2026-10-30", "path": "{reversal_dir}/WEINSTEIN_BACKTEST_SUMMARY_2026-10-30.md", "title": "Weinstein Stage-2: fresh-data re-run, 2008/2020 isolated by year", "kind": "doc" },
-    { "id": "acc-readme", "path": "{accumulation_dir}/README.txt", "title": "Accumulation Bot README", "kind": "text" },
-    { "id": "acc-sop", "path": "{accumulation_dir}/SOP - Accumulation Checklist.html", "title": "Accumulation checklist (SOP)", "kind": "report" },
-    { "id": "pine-s1", "path": "{reversal_dir}/pine/S1_double_bottom_engulfing.pine", "title": "TradingView script: S1 double bottom and engulfing", "kind": "text" },
-    { "id": "pine-s3", "path": "{reversal_dir}/pine/S3_range_break.pine", "title": "TradingView script: S3 range break", "kind": "text" },
-    { "id": "scans-summary", "path": "{scans_dir}/LATEST_SUMMARY.html", "title": "Latest combined scan summary", "kind": "report" },
-    { "id": "tbl-variants", "path": "{reversal_dir}/logic2_output/variant_summary.csv", "title": "Logic 2 variants V0 to R12", "kind": "table" },
-    { "id": "tbl-robust", "path": "{reversal_dir}/logic2_output/robustness_grid.csv", "title": "Logic 2 robustness grid", "kind": "table" },
-    { "id": "tbl-finalists", "path": "{reversal_dir}/S123_ROUND4_FINALISTS.xlsx", "title": "S1/S2/S3 round 4 finalists", "kind": "table" },
-    { "id": "tbl-blend", "path": "{reversal_dir}/S123_BLEND_GRID.xlsx", "title": "S1/S2/S3 blend grid", "kind": "table" },
-    { "id": "tbl-parity", "path": "{reversal_dir}/S123_PINE_PARITY_CHECK.xlsx", "title": "Python versus Pine parity check", "kind": "table" },
-    { "id": "tbl-watchlist", "path": "{reversal_dir}/watchlist_output/market_summary.csv", "title": "Retired 700-stock watchlist backtest", "kind": "table" },
-    { "id": "img-f3", "path": "{reversal_dir}/logic2_output/equity_F3_RECOMMENDED.png", "title": "Logic 2 equity curve (F3 recommended)", "kind": "image" },
-    { "id": "img-waterfall", "path": "{reversal_dir}/logic2_output/waterfall_comparison.png", "title": "Before and after: waterfall comparison", "kind": "image" },
-    { "id": "img-equity", "path": "{reversal_dir}/watchlist_output/equity_curves.png", "title": "Watchlist backtest equity curves", "kind": "image" },
-    { "id": "ema20-tbl-combo", "path": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx", "title": "EMA20 cross + confirm: full validation (by-year, by-market, rolling 3y, neighbourhood)", "kind": "table" },
-    { "id": "ema20-tbl-improvements", "path": "{reversal_dir}/EMA20_CONFIRM_IMPROVEMENTS.xlsx", "title": "EMA20 cross + confirm: filter ideas tested and rejected", "kind": "table" },
-    { "id": "ema20-tbl-decay", "path": "{reversal_dir}/EMA20_CONFIRM_DECAY_INVESTIGATION.xlsx", "title": "EMA20 cross + confirm: where the post-2015 decay lived", "kind": "table" },
-    { "id": "ema20-mtf-spec", "path": "{reversal_dir}/EMA20_CONFIRM_MTF_SPEC.md", "title": "EMA20 cross + confirm: multi-timeframe (hourly/daily/weekly) study, 2026-10-30", "kind": "doc" },
-    { "id": "ema20-tbl-weekly", "path": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx", "title": "EMA20 cross + confirm: weekly-timeframe validation", "kind": "table" },
-    { "id": "ema20-tbl-hourly", "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx", "title": "EMA20 cross + confirm: hourly pilot backtest (no edge found)", "kind": "table" },
-    { "id": "ema20-tbl-entrytiming", "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_ENTRY_TIMING.xlsx", "title": "EMA20 cross + confirm: hourly entry-timing refinement test (rejected)", "kind": "table" },
-    { "id": "bbladder-spec", "path": "{reversal_dir}/BB_LADDER_SPEC.md", "title": "BB Ladder: trough + ascending ladder + breakout -- complete specification", "kind": "doc" },
-    { "id": "bbladder-validation", "path": "G:/trading/new back test/BB_LADDER_VALIDATION.xlsx", "title": "BB Ladder: honest protocol validation (train/test + walk-forward)", "kind": "table" },
-    { "id": "bbladder-results-daily", "path": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx", "title": "BB Ladder: daily lever sweep and trade list", "kind": "table" },
-    { "id": "bbladder-results-weekly", "path": "G:/trading/new back test/BB_LADDER_RESULTS_weekly.xlsx", "title": "BB Ladder: weekly lever sweep and trade list", "kind": "table" },
-    { "id": "mtf-dashboard", "path": "G:/trading/MTF_Strategy/MTF_STRATEGY_SPEC.md", "title": "MTF Trend Strategy: complete specification", "kind": "doc" },
-    { "id": "msr-spec", "path": "G:/trading/MSR_Strategy/MSR_STRATEGY_SPEC.md", "title": "Master Support & Resistance Framework: complete specification", "kind": "doc" }
+    {
+      "id": "v5-spec",
+      "path": "{reversal_dir}/V5_STRATEGY_SPEC.md",
+      "title": "v5 + throttle: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "v6-spec",
+      "path": "{reversal_dir}/V6_CANDIDATE_SPEC.md",
+      "title": "v6 candidate: logic and results",
+      "kind": "doc"
+    },
+    {
+      "id": "logic3-spec",
+      "path": "{reversal_dir}/LOGIC3_DBE_SPEC.md",
+      "title": "Logic 3: double bottom and engulfing",
+      "kind": "doc"
+    },
+    {
+      "id": "logic3-skip0820-summary",
+      "path": "G:\\trading\\new back test\\LOGIC3_SKIP0820_SUMMARY.md",
+      "title": "Logic 3: 2008/2020 excluded -- before/after and suggestions",
+      "kind": "doc"
+    },
+    {
+      "id": "context-spec",
+      "path": "{reversal_dir}/MARKET_CONTEXT_FRAMEWORK.md",
+      "title": "Market context classifier: framework and definitions",
+      "kind": "doc"
+    },
+    {
+      "id": "weinstein-stage2-spec",
+      "path": "{reversal_dir}/WEINSTEIN_STAGE2_SPEC.md",
+      "title": "Weinstein Stage-2: rules, variant sweep and measured results",
+      "kind": "doc"
+    },
+    {
+      "id": "weinstein-backtest-2026-10-30",
+      "path": "{reversal_dir}/WEINSTEIN_BACKTEST_SUMMARY_2026-10-30.md",
+      "title": "Weinstein Stage-2: fresh-data re-run, 2008/2020 isolated by year",
+      "kind": "doc"
+    },
+    {
+      "id": "acc-readme",
+      "path": "{accumulation_dir}/README.txt",
+      "title": "Accumulation Bot README",
+      "kind": "text"
+    },
+    {
+      "id": "acc-sop",
+      "path": "{accumulation_dir}/SOP - Accumulation Checklist.html",
+      "title": "Accumulation checklist (SOP)",
+      "kind": "report"
+    },
+    {
+      "id": "pine-s1",
+      "path": "{reversal_dir}/pine/S1_double_bottom_engulfing.pine",
+      "title": "TradingView script: S1 double bottom and engulfing",
+      "kind": "text"
+    },
+    {
+      "id": "pine-s3",
+      "path": "{reversal_dir}/pine/S3_range_break.pine",
+      "title": "TradingView script: S3 range break",
+      "kind": "text"
+    },
+    {
+      "id": "scans-summary",
+      "path": "{scans_dir}/LATEST_SUMMARY.html",
+      "title": "Latest combined scan summary",
+      "kind": "report"
+    },
+    {
+      "id": "tbl-variants",
+      "path": "{reversal_dir}/logic2_output/variant_summary.csv",
+      "title": "Logic 2 variants V0 to R12",
+      "kind": "table"
+    },
+    {
+      "id": "tbl-robust",
+      "path": "{reversal_dir}/logic2_output/robustness_grid.csv",
+      "title": "Logic 2 robustness grid",
+      "kind": "table"
+    },
+    {
+      "id": "tbl-finalists",
+      "path": "{reversal_dir}/S123_ROUND4_FINALISTS.xlsx",
+      "title": "S1/S2/S3 round 4 finalists",
+      "kind": "table"
+    },
+    {
+      "id": "tbl-blend",
+      "path": "{reversal_dir}/S123_BLEND_GRID.xlsx",
+      "title": "S1/S2/S3 blend grid",
+      "kind": "table"
+    },
+    {
+      "id": "tbl-parity",
+      "path": "{reversal_dir}/S123_PINE_PARITY_CHECK.xlsx",
+      "title": "Python versus Pine parity check",
+      "kind": "table"
+    },
+    {
+      "id": "tbl-watchlist",
+      "path": "{reversal_dir}/watchlist_output/market_summary.csv",
+      "title": "Retired 700-stock watchlist backtest",
+      "kind": "table"
+    },
+    {
+      "id": "img-f3",
+      "path": "{reversal_dir}/logic2_output/equity_F3_RECOMMENDED.png",
+      "title": "Logic 2 equity curve (F3 recommended)",
+      "kind": "image"
+    },
+    {
+      "id": "img-waterfall",
+      "path": "{reversal_dir}/logic2_output/waterfall_comparison.png",
+      "title": "Before and after: waterfall comparison",
+      "kind": "image"
+    },
+    {
+      "id": "img-equity",
+      "path": "{reversal_dir}/watchlist_output/equity_curves.png",
+      "title": "Watchlist backtest equity curves",
+      "kind": "image"
+    },
+    {
+      "id": "ema20-tbl-combo",
+      "path": "{reversal_dir}/EMA20_CONFIRM_COMBO_VALIDATION.xlsx",
+      "title": "EMA20 cross + confirm: full validation (by-year, by-market, rolling 3y, neighbourhood)",
+      "kind": "table"
+    },
+    {
+      "id": "ema20-tbl-improvements",
+      "path": "{reversal_dir}/EMA20_CONFIRM_IMPROVEMENTS.xlsx",
+      "title": "EMA20 cross + confirm: filter ideas tested and rejected",
+      "kind": "table"
+    },
+    {
+      "id": "ema20-tbl-decay",
+      "path": "{reversal_dir}/EMA20_CONFIRM_DECAY_INVESTIGATION.xlsx",
+      "title": "EMA20 cross + confirm: where the post-2015 decay lived",
+      "kind": "table"
+    },
+    {
+      "id": "ema20-mtf-spec",
+      "path": "{reversal_dir}/EMA20_CONFIRM_MTF_SPEC.md",
+      "title": "EMA20 cross + confirm: multi-timeframe (hourly/daily/weekly) study, 2026-10-30",
+      "kind": "doc"
+    },
+    {
+      "id": "ema20-tbl-weekly",
+      "path": "{reversal_dir}/EMA20_CONFIRM_WEEKLY_VALIDATION.xlsx",
+      "title": "EMA20 cross + confirm: weekly-timeframe validation",
+      "kind": "table"
+    },
+    {
+      "id": "ema20-tbl-hourly",
+      "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_PILOT.xlsx",
+      "title": "EMA20 cross + confirm: hourly pilot backtest (no edge found)",
+      "kind": "table"
+    },
+    {
+      "id": "ema20-tbl-entrytiming",
+      "path": "{reversal_dir}/EMA20_CONFIRM_HOURLY_ENTRY_TIMING.xlsx",
+      "title": "EMA20 cross + confirm: hourly entry-timing refinement test (rejected)",
+      "kind": "table"
+    },
+    {
+      "id": "bbladder-spec",
+      "path": "{reversal_dir}/BB_LADDER_SPEC.md",
+      "title": "BB Ladder: trough + ascending ladder + breakout -- complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "bbladder-validation",
+      "path": "G:/trading/new back test/BB_LADDER_VALIDATION.xlsx",
+      "title": "BB Ladder: honest protocol validation (train/test + walk-forward)",
+      "kind": "table"
+    },
+    {
+      "id": "bbladder-results-daily",
+      "path": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx",
+      "title": "BB Ladder: daily lever sweep and trade list",
+      "kind": "table"
+    },
+    {
+      "id": "bbladder-results-weekly",
+      "path": "G:/trading/new back test/BB_LADDER_RESULTS_weekly.xlsx",
+      "title": "BB Ladder: weekly lever sweep and trade list",
+      "kind": "table"
+    },
+    {
+      "id": "mtf-dashboard",
+      "path": "G:/trading/MTF_Strategy/MTF_STRATEGY_SPEC.md",
+      "title": "MTF Trend Strategy: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "msr-spec",
+      "path": "G:/trading/MSR_Strategy/MSR_STRATEGY_SPEC.md",
+      "title": "Master Support & Resistance Framework: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "pbmtf-spec",
+      "path": "G:/trading/PullbackMTF_Strategy/PBMTF_STRATEGY_SPEC.md",
+      "title": "Pullback-Retest MTF Swing Strategy: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "breakretest-spec",
+      "path": "G:/trading/BreakRetest_Strategy/BREAK_RETEST_SPEC.md",
+      "title": "Break & Retest Master Framework: complete specification",
+      "kind": "doc"
+    }
   ]
 }
