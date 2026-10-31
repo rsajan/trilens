@@ -440,6 +440,42 @@
       "docs": ["mtf-dashboard"]
     },
     {
+      "id": "msr", "name": "Master Support & Resistance Framework", "family": "6-step, 100-point checklist scorer on three timeframe pairings (Hourly/Daily, Daily/Weekly, Weekly/Monthly)", "status": "candidate",
+      "status_label": "Checklist scorer, not backtested -- track its score against real outcomes before trusting it",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Started from a trader's own written checklist (Support/Resistance quality, Market Bias, Area of Value, Confirmation pattern, Risk:Reward, Multi-timeframe Confluence -- each 0-15/0-20 points, 100 total, graded A+ to D) covering three named strategies: Hourly swing (2-10 days, entry on the hour, trend read from Daily), Daily positional (2-8 weeks, entry on the day, trend from Weekly), and Weekly position (2-12 months, entry on the week, trend from Monthly). Unlike every backtested strategy on this page, this one has not been tested against history at all yet -- it is a live mechanical scorer only, built to let the checklist run itself instead of being eyeballed chart by chart.",
+      "metrics": {},
+      "entry": [
+        "Step 1 Support/Resistance (0/5/10/15): swing highs and lows (3-bar fractals) within 1.5% of each other are grouped into one zone; score comes from how many times that zone has been touched (2 touches = 5, 3-4 = 10, 5+ = 15).",
+        "Step 2 Market Bias (0/5/10/15): direction (bullish/bearish/neutral) from the literal checklist rule -- higher-high + higher-low vs lower-high + lower-low on the last two confirmed swings. Strength/quality is read from ADX(14) rather than eyeballed (sideways <15, weak 15-20, clear 20-30, strong 30+), since 'is the trend obvious' isn't otherwise mechanical. Neutral bias is a hard stop -- no direction means no trade, straight from the checklist's own Golden Rule.",
+        "Step 3 Area of Value (0/5/10/15): 0 if price sits away from any level, 5 within 3%, 10 on an actual touch, 15 if the latest bar both touched the zone and closed back away from it (a rejection wick).",
+        "Step 4 Confirmation (0/10/15/20): bullish/bearish engulfing, hammer/shooting star, a strong trend candle, an inside-bar breakout, and a same-direction double bottom/top are all checked on the latest bars; a double top/bottom alone scores 15, any single signal scores 10, a pattern plus a strong candle together scores 20.",
+        "Step 5 Risk:Reward (0/5/10/15): stop = nearest swing low/high in the trailing 10 bars, minus/plus 1x ATR(14) (exactly the checklist's formula). Target is the nearest opposing S&R zone if it clears 1.5R, otherwise a flat 2.5R projection. Scored 0 under 1.5R, 5 at 1.5R, 10 at 2.0R, 15 at 3.0R+.",
+        "Step 6 Multi-timeframe Confluence (0/10/20): compares this timeframe's bias against the next one up (Hourly checks Daily, Daily checks Weekly, Weekly checks Monthly when there's enough history -- Monthly is explicitly optional in the checklist). Same direction on both = 20, either side unclear or the higher timeframe unavailable = 10, opposite directions = 0.",
+        "A symbol only becomes a row in the live scan once its total clears that strategy's own minimum (Hourly 75+, Daily 80+, Weekly 85+, straight from the checklist) -- everything scored below that is computed but dropped, not shown as a weak signal."
+      ],
+      "exit": [
+        "Stop and target come out of Step 5 above (ATR-based stop, nearest-opposing-zone-or-2.5R target) -- the same levels used to score Risk:Reward are the ones reported for the trade.",
+        "No trailing stop, break-even rule, or time stop -- the checklist doesn't specify one for this framework, unlike the position-sizing detail in some of the other strategies here.",
+        "Entry is approximated by the scanned bar's close, same convention used for display (not execution) elsewhere on this page -- the live scanner reports today's/this hour's/this week's setup, not a backtested fill."
+      ],
+      "filters": [
+        "Three independent passes per symbol, not one: Hourly uses 60-minute bars (Yahoo only keeps ~730 days of those) with the Daily chart as its higher timeframe; Daily and Weekly share one ~5-year daily fetch, with Weekly and Monthly built locally by resampling it.",
+        "No regime gate, position cap, correlation control, or cost model of any kind -- this is a per-symbol checklist score, nothing portfolio-level.",
+        "Scheduled alongside the MTF scan -- see scan_US.bat / scan_India.bat in MSR_Strategy/. Writes LATEST_MSR_<market>.json (three strategies in one file) and a dated three-sheet Excel archive."
+      ],
+      "verdict": "Built 2026-11-01 directly from the trader's own 6-step scoring table and three strategy definitions, pasted in full. This is the one strategy on this page shipped with ZERO backtest -- every other live scanner here (MTF, Weinstein, dbpyramid, etc.) went through a historical validation pass first; this one didn't, because the checklist as written is a discretionary scoring rubric, not a single testable entry/exit rule, and turning six judgment calls into six formulas (documented in msr_core.py's own docstring) is itself the thing that needs checking against outcomes before it's trusted. Treat every row as 'the checklist's own math says this', not as a proven edge.",
+      "caveats": [
+        "Not backtested. No win rate, profit factor, or drawdown number exists for this strategy and none should be assumed -- that is exactly the gap the Suggested improvements note below exists to close.",
+        "Several of the checklist's own scoring inputs aren't fully mechanical in the original text (e.g. 'strong rejection zone', 'is the trend obvious') -- the coded version makes a specific, documented choice for each (see msr_core.py's docstring), and a different reasonable reading of the same checklist could score differently, same caveat as the MTF strategy above.",
+        "The Hourly strategy's higher-timeframe check (Daily) and the Weekly strategy's (Monthly, when available) only compare DIRECTION, not strength -- two markets with the same bias but very different trend quality score the same on Step 6.",
+        "Fixed 1.5% zone-clustering tolerance and 3-bar fractal window are shared across all three timeframes (hours, days, weeks) for simplicity; a tolerance tuned per timeframe would likely group zones more sensibly, especially on the Weekly chart.",
+        "No position sizing, portfolio cap, or regime filter -- same gap as the MTF strategy, not yet addressed here either."
+      ],
+      "rejected": [],
+      "docs": ["msr-spec"]
+    },
+    {
       "id": "dbpyramid", "name": "Double-bottom pyramid (RSI divergence + trendline + EMA20 + breakout + retest)", "family": "Scaled-in reversal: EMA20 reclaim, then confirmed breakout, then a held retest", "status": "candidate",
       "status_label": "Backtested 2026-10-31, scanned live from 2026-11-01, no live track record yet", "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Started from a trader's own 6-step annotated chart (RSI divergence, a double bottom or inverse head-and-shoulders, a broken descending trendline, an EMA20 reclaim, a break of structure, then a breakout-and-retest), coded into exact rules, backtested on 26 years of daily EOD data, then live-scanned daily. The backtest's own biggest finding: the first tranche alone is a false start two-thirds of the time -- see Verdict.",
@@ -612,6 +648,7 @@
     { "id": "bbladder-validation", "path": "G:/trading/new back test/BB_LADDER_VALIDATION.xlsx", "title": "BB Ladder: honest protocol validation (train/test + walk-forward)", "kind": "table" },
     { "id": "bbladder-results-daily", "path": "G:/trading/new back test/BB_LADDER_RESULTS_daily.xlsx", "title": "BB Ladder: daily lever sweep and trade list", "kind": "table" },
     { "id": "bbladder-results-weekly", "path": "G:/trading/new back test/BB_LADDER_RESULTS_weekly.xlsx", "title": "BB Ladder: weekly lever sweep and trade list", "kind": "table" },
-    { "id": "mtf-dashboard", "path": "G:/trading/MTF_Strategy/MTF_STRATEGY_SPEC.md", "title": "MTF Trend Strategy: complete specification", "kind": "doc" }
+    { "id": "mtf-dashboard", "path": "G:/trading/MTF_Strategy/MTF_STRATEGY_SPEC.md", "title": "MTF Trend Strategy: complete specification", "kind": "doc" },
+    { "id": "msr-spec", "path": "G:/trading/MSR_Strategy/MSR_STRATEGY_SPEC.md", "title": "Master Support & Resistance Framework: complete specification", "kind": "doc" }
   ]
 }

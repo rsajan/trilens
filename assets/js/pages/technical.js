@@ -237,6 +237,44 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.msr && Object.keys(sg.msr).length) {
+    let curMk = Object.keys(sg.msr)[0];
+    const box = h('div');
+    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
+    const paint = () => {
+      const r = sg.msr[curMk];
+      const strat = r.strategies || {};
+      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
+      let curStrat = names[0];
+      const inner = h('div');
+      const paintInner = () => {
+        const s = strat[curStrat] || {};
+        const recs = s.records || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} setup cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
+          { label: 'grade', render: (row) => badge(`${row.grade} (${row.total})`, GRADE_KIND[row.grade] || 'outline') },
+          { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
+          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
+          { label: 'R:R', align: 'r', render: (row) => row.rr != null ? `${fmt.num(row.rr, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+          { label: 'level (touches)', align: 'r', render: (row) => row.level != null ? `${cell(row.level)} (${row.level_touches ?? 0}x)` : '—' },
+          { label: 'confirmation', render: (row) => row.confirm_label || '—' },
+          { label: 'confluence', render: (row) => row.confluence_label || '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      };
+      box.replaceChildren(
+        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
+        h('div', { style: { height: '10px' } }), inner);
+      paintInner();
+    };
+    root.append(h('section', null, sectionHead('Master Support & Resistance Framework', 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
+      Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (sg.dbe && Object.keys(sg.dbe).length) {
     let cur = Object.keys(sg.dbe)[0];
     const box = h('div');

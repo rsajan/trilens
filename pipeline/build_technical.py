@@ -644,6 +644,36 @@ def read_mtf(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Master Support & Resistance Framework (Hourly/Daily/Weekly checklist scorer)
+MSR_ROW_COLS = ["symbol", "direction", "grade", "total", "entry", "stop", "target", "rr", "risk_pct",
+                "level", "level_touches", "bias", "adx", "sr_score", "value_score", "value_label",
+                "confirm_score", "confirm_label", "risk_score", "confluence_score", "confluence_label"]
+
+
+def read_msr(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_MSR_{mk}.json")
+        if not j:
+            continue
+        strategies = {}
+        for name, sv in (j.get("strategies") or {}).items():
+            recs = []
+            for r in sv.get("rows", []):
+                rec = {}
+                for k in MSR_ROW_COLS:
+                    if k in r and r[k] is not None:
+                        rec[k] = num(r[k]) if k not in ("symbol", "direction", "grade", "bias", "value_label",
+                                                          "confirm_label", "confluence_label") else r[k]
+                recs.append(rec)
+            strategies[name] = {"records": recs, "min_score": sv.get("min_score")}
+        out[mk] = {"strategies": strategies, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Logic 3 DBE (double bottom + engulfing) live feed
 DBE_ROW_COLS = ["symbol", "state", "bars_ago", "date", "b1_date", "b2_date", "gap",
                 "trigger", "entry", "stop", "target", "risk_pct", "vol_ok", "last_close"]
@@ -859,7 +889,7 @@ def main(argv=None) -> int:
     signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
               "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
-              "dbpyramid": read_dbpyramid(D)}
+              "dbpyramid": read_dbpyramid(D), "msr": read_msr(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
