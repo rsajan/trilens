@@ -191,6 +191,76 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.weinstein && Object.keys(sg.weinstein).length) {
+    let cur = Object.keys(sg.weinstein)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.weinstein[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: '30w MA', align: 'r', render: (row) => cell(row.ma30w) },
+        { label: 'stop (base low)', align: 'r', render: (row) => cell(row.stop_base_low ?? row.base_low) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_below_ma != null ? `${fmt.num(row.pct_below_ma, 2)}% below MA` : '—') },
+        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'R so far', align: 'r', render: (row) => row.r_so_far != null ? fmt.signed(row.r_so_far, 2) : '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Weinstein Stage-2 scanner (30-week MA bull market bottom)', 'TRIGGER: crossed back above a flattened-then-rising 30-week MA this week, volume-confirmed, after a genuine prior decline. MISSED: triggered 2-8 weeks ago, still open. SETUP: basing under the MA, not yet triggered. Backtested: 650 trades 2000-2026, 34.5% win, avg R +0.88, profit factor 4.82, t=4.34.'),
+      Object.keys(sg.weinstein).length > 1 ? segmented(Object.keys(sg.weinstein).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (sg.mtf && Object.keys(sg.mtf).length) {
+    let cur = Object.keys(sg.mtf)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.mtf[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No MTF trend signals today.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'stop B / target B', align: 'r', render: (row) => row.stop_B != null ? `${cell(row.stop_B)} / ${cell(row.target_B)}` : '—' },
+        { label: 'risk B', align: 'r', render: (row) => row.risk_B_pct != null ? fmt.pct(row.risk_B_pct, 1, false) : '—' },
+        { label: 'stop A / target A', align: 'r', render: (row) => row.stop_A != null ? `${cell(row.stop_A)} / ${cell(row.target_A)}` : '—' },
+        { label: 'risk A', align: 'r', render: (row) => row.risk_A_pct != null ? fmt.pct(row.risk_A_pct, 1, false) : '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('MTF Trend Strategy (Monthly → Weekly → Daily)', 'B = stop 2.0×ATR14 / target 2.0R, the stable pick. A = stop at the 3-day low / target 3R, the best backtested number but less stable across time. Entry is the next session’s open.'),
+      Object.keys(sg.mtf).length > 1 ? segmented(Object.keys(sg.mtf).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (sg.dbe && Object.keys(sg.dbe).length) {
+    let cur = Object.keys(sg.dbe)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.dbe[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No armed or recently triggered double-bottom setups.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        { label: 'volume ok', render: (row) => row.vol_ok ?? '—' },
+        { label: 'bars ago', align: 'r', render: (row) => cell(row.bars_ago) },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Logic 3 DBE (double bottom + engulfing)', 'TRIGGER: the breakout fired on the last bar, act today. ARMED: steps 1-4 done, a buy-stop order is live for the next session. MISSED: broke out 2-4 bars ago. Validated, not live -- see the Strategies tab for the backtest.'),
+      Object.keys(sg.dbe).length > 1 ? segmented(Object.keys(sg.dbe).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;

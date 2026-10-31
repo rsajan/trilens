@@ -566,6 +566,111 @@ def read_basebreakout(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Double-bottom pyramid scanner (RSI divergence + trendline + EMA20 + breakout + retest)
+DBPYRAMID_ROW_COLS = ["symbol", "state", "entry1_date", "entry2_date", "entry3_date", "avg_entry",
+                      "stop", "target", "close", "risk_pct", "days_since_entry1"]
+DBPYRAMID_STATE_ORDER = {"full": 0, "confirmed": 1, "watch": 2}
+
+
+def read_dbpyramid(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_DBPYRAMID_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in DBPYRAMID_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if k not in ("symbol", "state", "entry1_date", "entry2_date", "entry3_date") else r[k]
+            recs.append(rec)
+        recs.sort(key=lambda r: (DBPYRAMID_STATE_ORDER.get(r.get("state"), 9),
+                                  r.get("days_since_entry1") if r.get("days_since_entry1") is not None else 999))
+        out[mk] = {"records": recs, "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: Weinstein Stage-2 scanner (30-week MA bull market bottom)
+WEINSTEIN_ROW_COLS = ["symbol", "state", "date", "close", "cross_close", "ma30w",
+                      "stop_base_low", "risk_pct", "vol_x_avg", "r_so_far",
+                      "pct_below_ma", "ma_flat_pct", "base_low", "weeks_ago"]
+WEINSTEIN_STATE_ORDER = {"TRIGGER": 0, "MISSED": 1, "SETUP": 2}
+
+
+def read_weinstein(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_WEINSTEIN_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in WEINSTEIN_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if k not in ("symbol", "state", "date") else r[k]
+            recs.append(rec)
+        recs.sort(key=lambda r: (WEINSTEIN_STATE_ORDER.get(r.get("state"), 9),
+                                  r.get("weeks_ago") if r.get("weeks_ago") is not None else 999))
+        out[mk] = {"records": recs, "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: MTF Trend Strategy (Monthly->Weekly->Daily)
+MTF_ROW_COLS = ["symbol", "close", "atr14", "stop_B", "target_B", "risk_B_pct", "stop_A", "target_A", "risk_A_pct"]
+
+
+def read_mtf(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_MTF_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in MTF_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k])
+            recs.append(rec)
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: Logic 3 DBE (double bottom + engulfing) live feed
+DBE_ROW_COLS = ["symbol", "state", "bars_ago", "date", "b1_date", "b2_date", "gap",
+                "trigger", "entry", "stop", "target", "risk_pct", "vol_ok", "last_close"]
+DBE_STATE_ORDER = {"TRIGGER": 0, "ARMED": 1, "MISSED": 2}
+
+
+def read_dbe(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_DBE_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in DBE_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if k not in ("symbol", "state", "date", "b1_date", "b2_date", "vol_ok") else r[k]
+            recs.append(rec)
+        recs.sort(key=lambda r: (DBE_STATE_ORDER.get(r.get("state"), 9),
+                                  r.get("bars_ago") if r.get("bars_ago") is not None else 999))
+        out[mk] = {"records": recs, "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ results
 def downsample(xs, ys, n=520):
     if len(xs) <= n:
@@ -615,9 +720,17 @@ def table_from(path: Path, sheet: str | None, title: str, note_: str, keep: list
     return {"title": title, "note": note_, "columns": cols, "rows": rows[:limit]}
 
 
+LOGIC3_SKIP0820 = Path(r"G:\trading\new back test\LOGIC3_SKIP0820_RESULTS.xlsx")
+
+
 def read_results(D: Dirs) -> dict:
     R = {"equity": [], "yearly": [], "tables": []}
     rd = D.reversal
+    t_l3 = table_from(LOGIC3_SKIP0820, "summary", "Logic 3 (double bottom + engulfing): spec vs tuned builds, 2008/2020 excluded",
+                      "VALIDATED is the recommended build -- the only one chosen by a TRAIN-only protocol rather than by looking at the whole sample. See the Logic 3 strategy entry and its 2008/2020 write-up for the full comparison.",
+                      ["variant", "trades", "per_yr", "win_pct", "avg_r", "t_stat", "PF", "max_dd_r", "cagr_at_20dd", "sharpe", "TRAIN_avgR", "TEST_avgR", "cells_of_4"])
+    if t_l3:
+        R["tables"].append(t_l3)
     if D.paper and D.paper.exists():
         for sheet, title, nt in (("scorecard", "Live paper-trade scorecard", "Forward test of the scanner signals. Fewer than 30 closed trades is too few to judge."),
                                  ("open_positions", "Paper trades open now", "Replayed from each trade's entry bar."),
@@ -744,7 +857,8 @@ def main(argv=None) -> int:
         strategies.append(s)
 
     signals = {"accumulation": read_accumulation(D), "reversal": read_reversal(D), "revenue_dip": read_revenue(D),
-              "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D)}
+              "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
+              "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
