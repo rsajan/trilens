@@ -1247,7 +1247,10 @@
       "rejected": [
         "The checklist's own literal Daily Structure score minimum (>=15/20) -- empirically destroys the edge rather than protecting it."
       ],
-      "docs": ["ema_vcp-spec", "ema_vcp-results"]
+      "docs": [
+        "ema_vcp-spec",
+        "ema_vcp-results"
+      ]
     },
     {
       "id": "pbmtf",
@@ -1463,10 +1466,57 @@
       "docs": []
     },
     {
-      "id": "vcp", "name": "VCP Positional (volatility contraction pattern)", "family": "Daily base/contraction detector gated by a weekly trend/RS filter and a market-breadth filter", "status": "shadow",
-      "status_label": "Backtested, provisional India-only edge -- watch only, not sized", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "id": "tef",
+      "name": "Master Stock Analysis & Trade Execution Framework",
+      "family": "7-stage, 155-point checklist: Business Quality (Akshat-style) + Fundamentals/Valuation/Turnaround (CA Rachana Ranade-style) + Weekly/Daily/Hourly VCP timing (Minervini-style)",
+      "status": "candidate",
+      "status_label": "Checklist scorer, not backtested -- its Weekly/Daily/Hourly VCP stages are a fresh implementation of this pasted rubric's own numbers, distinct from the already-backtested EMA-VCP strategy's thresholds",
+      "universe": "Same 503 US + 500 India watchlist as EMA_VCP_Strategy / MSR_Strategy / Fundamental_Scanner",
+      "headline": "A pasted 7-stage rubric turned into a literal scorer: Stage 1 Business Quality (20pts: industry tailwind, moat-by-gross-margin, governance red-flag count -- Q1 'do I understand the business' is excluded, not guessed), Stage 2 Fundamentals (25pts: sales/profit CAGR, ROCE proxied by ROIC, ROE, debt/equity), Stage 3 Valuation (15pts: PE vs this run's sector-peer average, EPS trend, PEG), Stage 4 Turnaround (15pts: QoQ sales/profit growth and operating-margin delta from yfinance's quarterly statements -- the first scanner in this project to fetch quarterly, not just annual, data), Stage 5 Weekly VCP (30pts: 30W/40W trend template, volume dry-up, contraction-leg shape), Stage 6 Daily Setup (30pts: 20/50/200-DMA alignment, % off 52-week high, volume breakout), Stage 7 Hourly Entry (20pts: higher-high/higher-low, volume expansion, breakout-retest-hold, from real 60-minute bars, not a daily-bar stand-in).",
+      "metrics": {},
+      "entry": [
+        "Total Score = sum of all 7 stages (0-155), rescaled proportionally over whichever stages had data this run. Decision Matrix: 130-155 Aggressive Buy (A+), 115-129 Buy (A), 100-114 Watchlist, 85-99 Monitor, below 85 Reject -- the checklist's own raw-total bands.",
+        "Golden Rule (goldenRuleBuy) = Fundamentals% (Stages 1-4 over 75) >= 70 AND Technicals% (Stages 5-7 over 80) >= 70 AND Total >= 115. Position sizing (risk %/allocation %) is keyed to the 0-100% score, not the raw total -- see caveats, these two tables don't fully reconcile in the pasted text.",
+        "Every sub-score is independently optional: a missing input (no PEG, too few quarters, not enough weekly history, ...) drops out of that stage's own renormalization rather than scoring 0 or failing the symbol -- same discipline as master_framework.py above."
+      ],
+      "exit": [
+        "No stop/target/exit rule, same as master_framework above -- this is a 7-stage grade and a position-sizing suggestion straight from the pasted framework's own Risk Management table, not a timed trade signal."
+      ],
+      "filters": [
+        "Standalone scanner (TradeExecutionFramework_Strategy/tef_scan.py), not integrated into StockLens's backend -- reuses Fundamental_Scanner's statement-row helper and EMA_VCP_Strategy's swing/base/contraction-leg detection directly rather than reimplementing them.",
+        "Scheduled as 'TradeExecutionFramework Scan_US' (07:00 SGT) and 'TradeExecutionFramework Scan_India' (19:00 SGT) daily, same convention as every other scanner here. Writes LATEST_TEF_<market>.json.",
+        "Fundamentals cached 7 days; a full 500-symbol run takes roughly 14-15 minutes cold (measured on an 85-symbol batch), faster on a warm cache."
+      ],
+      "verdict": "Built 2026-11-02 from a pasted 'MASTER STOCK ANALYSIS & TRADE EXECUTION FRAMEWORK' checklist (Akshat-style business-quality filter + CA Rachana Ranade-style fundamentals/valuation/turnaround + Minervini-style weekly/daily/hourly VCP). Smoke-tested at 3, 15 and 85 symbols on both markets with zero scoring errors; one real bug was caught and fixed building it (yfinance returns a MultiIndex column even for a single-ticker download on this yfinance version, which the batch-fetch helper mishandled for a trailing 1-symbol chunk). Full known-gaps and improvement-suggestions list lives in TradeExecutionFramework_Strategy/TRADE_EXECUTION_FRAMEWORK_SPEC.md.",
+      "caveats": [
+        "The Position-Sizing bands (90+/80-89/70-79/below 70) and the Golden Rule's 'Total >= 115' don't fully agree with each other -- a stock scoring exactly 70%/70% on Fundamentals/Technicals averages to ~70% of 155 but still fails the 115 cutoff. See the spec's Known Gaps #1.",
+        "Q1 ('do I understand the business?') has no financial-statement proxy and is excluded from the automated score -- a high Stage-1 score means nothing mechanical disqualifies the name, not that the business is understood.",
+        "ROE/ROCE/Debt-Equity can be distorted or sign-flipped for buyback-heavy, low-or-negative-book-equity companies (AAPL showed this immediately in testing) -- the checklist's bands assume a 'normal' balance sheet.",
+        "Stage 3's 'PE vs median PE' is proxied by PE vs this run's own sector-peer average, not a real historical-PE time series (yfinance has none free) -- a different signal (cross-sectional, not time-series) than the checklist intends.",
+        "Stage 4 (Turnaround) credits a single quarter's QoQ move, with no persistence check across 2+ quarters.",
+        "Stage 5/6/7 (the VCP timing layer) have NO backtest behind them at all, and this project already has a backtested VCP system (EMA_VCP_Strategy) with different point thresholds -- treat any Stage 5-7 pass here as a pre-screen, not a proven edge, until checked against EMA_VCP_Strategy's own validated grade on the same name.",
+        "No market-regime filter or position cap, same unresolved gap flagged on MSR/MTF/several others above -- nothing here stops many same-direction 'Aggressive Buy' rows from firing together on a broad market move."
+      ],
+      "rejected": [],
+      "docs": []
+    },
+    {
+      "id": "vcp",
+      "name": "VCP Positional (volatility contraction pattern)",
+      "family": "Daily base/contraction detector gated by a weekly trend/RS filter and a market-breadth filter",
+      "status": "shadow",
+      "status_label": "Backtested, provisional India-only edge -- watch only, not sized",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "From a trader-supplied VCP checklist (Market check -> Weekly check -> Daily contraction pattern -> Volume check -> Pivot breakout -> Hourly entry timing -> 0-100 score -> entry/exit rules). A stock bases through 3+ shrinking pullback legs under a resistance pivot, with volume drying up through the base and expanding on the breakout bar, while its own weekly trend/relative-strength and the market's breadth are both healthy. Backtested on this project's own 1,003-name universe; the result is real but concentrated almost entirely in India.",
-      "metrics": { "trades": 169, "win_pct": 36.1, "avg_r": 0.251, "pf": 1.67, "t_stat": 2.20, "total_r": 42.4, "mdd": -16.3 },
+      "metrics": {
+        "trades": 169,
+        "win_pct": 36.1,
+        "avg_r": 0.251,
+        "pf": 1.67,
+        "t_stat": 2.2,
+        "total_r": 42.4,
+        "mdd": -16.3
+      },
       "entry": [
         "Base/contraction: the trailing 3+ swing-point legs ending at the most recent low each pull back less than the one before (10% tolerance, not strict), the final leg's depth is at most 8% (the checklist's literal 5% measured worse -- see Verdict), and the whole base spans at most ~130 daily bars (~6 months).",
         "Pivot = the highest of the leg peaks bounding the base (the resistance the stock is coiling under, not the window's overall high).",
@@ -1499,7 +1549,9 @@
         "The checklist's literal final-contraction cap (<=5%): fewer and weaker trades than the 8% default used here (131 trades, t=1.52 vs 169 trades, t=2.20) -- looser was better, not a cliff in the 'stricter wins' direction some trend-followers would expect.",
         "Hard-gating entries on the score (score >= 85): trade count drops to 46 and the t-stat falls to 1.35 even though avg R and profit factor both rise -- a small-sample tradeoff, not demonstrated evidence the score threshold itself is predictive."
       ],
-      "docs": ["vcp-positional-spec"]
+      "docs": [
+        "vcp-positional-spec"
+      ]
     }
   ],
   "automation": {

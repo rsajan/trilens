@@ -794,6 +794,34 @@ def read_akshat(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Master Stock Analysis & Trade Execution Framework (CA Rachana Ranade style)
+TEF_ROW_COLS = ["symbol", "sector", "totalScore", "pctScore", "action", "gradeTag", "goldenRuleBuy",
+                "fundamentalsPct", "technicalsPct", "riskPct", "allocationPct",
+                "stage1", "stage2", "stage3", "stage4", "stage5", "stage6", "stage7"]
+TEF_STR_OR_BOOL_FIELDS = ("symbol", "sector", "action", "gradeTag", "goldenRuleBuy")
+
+
+def read_tef(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_TEF_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in TEF_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if k in TEF_STR_OR_BOOL_FIELDS else num(r[k])
+            recs.append(rec)
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "action_counts": j.get("action_counts")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Break & Retest Master Framework (C.E.S.T, Hourly/Daily/Weekly)
 BREAKRETEST_ROW_COLS = ["symbol", "direction", "pattern", "date", "close", "entry_level1_aggressive",
                          "entry_level2_conservative", "stop", "target", "risk_pct", "rr_multiple",
@@ -1106,7 +1134,7 @@ def main(argv=None) -> int:
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
               "inversehs": read_inversehs(D), "master_framework": read_master_framework(D),
-              "akshat": read_akshat(D), "vcp": read_vcp(D)}
+              "akshat": read_akshat(D), "tef": read_tef(D), "vcp": read_vcp(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
