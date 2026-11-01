@@ -536,6 +536,64 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.tef && Object.keys(sg.tef).length) {
+    let curMk = Object.keys(sg.tef)[0];
+    const box = h('div');
+    const ACTION_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Watchlist: 'outline', Monitor: 'outline', Reject: 'loss' };
+    const paint = () => {
+      const r = sg.tef[curMk] || {};
+      const recs = r.records || [];
+      const counts = r.action_counts || {};
+      const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...Object.keys(counts).map((a) => badge(`${counts[a]} ${a}`, ACTION_KIND[a] || 'outline'))) : null;
+      if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'No fundamentals score yet -- run the scanner.')].filter(Boolean)); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'sector', render: (row) => row.sector || '—' },
+        { label: 'action (score)', render: (row) => row.action ? badge(`${row.action} (${fmt.num(row.totalScore, 0)})`, ACTION_KIND[row.action] || 'outline') : '—' },
+        { label: 'fund % / tech %', align: 'r', render: (row) => `${row.fundamentalsPct != null ? fmt.num(row.fundamentalsPct, 0) : '—'} / ${row.technicalsPct != null ? fmt.num(row.technicalsPct, 0) : '—'}` },
+        { label: 'stages 1-4 (biz/fund/val/turn)', align: 'r', render: (row) =>
+          `${cell(row.stage1)}/20 · ${cell(row.stage2)}/25 · ${cell(row.stage3)}/15 · ${cell(row.stage4)}/15` },
+        { label: 'stages 5-7 (wk/day/hr)', align: 'r', render: (row) =>
+          `${cell(row.stage5)}/30 · ${cell(row.stage6)}/30 · ${cell(row.stage7)}/20` },
+        { label: 'golden rule', render: (row) => badge(row.goldenRuleBuy ? 'Buy' : 'No', row.goldenRuleBuy ? 'gain' : 'outline') },
+        { label: 'sizing', align: 'r', render: (row) => row.riskPct ? `risk ${row.riskPct}% · ${row.allocationPct}%` : '—' },
+      ];
+      box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
+    };
+    root.append(h('section', null, sectionHead('Master Stock Analysis & Trade Execution Framework', 'Business Quality (20) + Fundamentals (25) + Valuation (15) + Turnaround (15) + Weekly VCP (30) + Daily Setup (30) + Hourly Entry (20) = 155-point Decision Matrix. Golden Rule = Fundamentals % and Technicals % both >= 70 and Total >= 115. See the Strategies page for the full write-up and known gaps.'),
+      Object.keys(sg.tef).length > 1 ? segmented(Object.keys(sg.tef).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (sg.rachana_tps && Object.keys(sg.rachana_tps).length) {
+    let curMk = Object.keys(sg.rachana_tps)[0];
+    let curView = 'actionable';
+    const box = h('div');
+    const paint = () => {
+      const r = sg.rachana_tps[curMk] || {};
+      const recs = curView === 'actionable' ? (r.records || []) : (r.watchlist || []);
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, `No ${curView === 'actionable' ? 'actionable' : 'watchlist'} rows this run.`)); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'grade (score)', render: (row) => row.grade ? badge(`${row.grade.replace(/_/g, ' ')} (${fmt.num(row.total_score, 0)})`, row.total_score >= 150 ? 'outline' : 'gain') : '—' },
+        { label: 'pattern', render: (row) => row.best_pattern ? row.best_pattern.replace(/_/g, ' ') : '—' },
+        { label: 'entry / stop / target', align: 'r', render: (row) => `${fmt.num(row.entry, 2)} / ${fmt.num(row.stop, 2)} / ${fmt.num(row.target, 2)}` },
+        { label: 'RR', align: 'r', render: (row) => row.rr != null ? fmt.num(row.rr, 2) : '—' },
+        { label: 'RSI', align: 'r', render: (row) => row.rsi != null ? fmt.num(row.rsi, 1) : '—' },
+        { label: 'trend/pattern/rsi/vol/pivot/candle/vcp/rr', align: 'r', render: (row) =>
+          `${fmt.num(row.trend_score, 0)}·${fmt.num(row.pattern_score, 0)}·${fmt.num(row.rsi_score, 0)}·${fmt.num(row.volume_score, 0)}·${fmt.num(row.pivot_score, 0)}·${fmt.num(row.candlestick_score, 0)}·${fmt.num(row.vcp_score, 0)}·${fmt.num(row.rr_score, 0)}` },
+        { label: 'note', render: (row) => row.size_caveat ? badge('backtest: top band ≠ stronger', 'outline') : '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs, { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('CA Rachana Ranade Combined Framework', 'Trend + Chart Pattern + RSI + Volume + Fibonacci Pivot + Candlestick + VCP + Risk/Reward, 175-point score. Backtested 1,003 symbols / 26 years: real edge (t=27, PF 1.65), but the pasted framework\'s own top tier (150+, "A+ Setup") backtested as the WEAKEST band, not the strongest -- see the Strategies page.'),
+      h('div', { class: 'row', style: { gap: '8px', marginBottom: '10px' } },
+        segmented([{ id: 'actionable', label: 'Actionable' }, { id: 'watchlist', label: 'Close calls' }], curView, (v) => { curView = v; paint(); }),
+        Object.keys(sg.rachana_tps).length > 1 ? segmented(Object.keys(sg.rachana_tps).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null),
+      box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;
