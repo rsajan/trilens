@@ -1345,6 +1345,77 @@
         "inversehs-spec",
         "inversehs-summary"
       ]
+    },
+    {
+      "id": "master_framework",
+      "name": "Fundamental Analysis Master Framework",
+      "family": "6-stage fundamentals scorer: business quality, industry rank, valuation, forward earnings, catalysts, red flags",
+      "status": "candidate",
+      "status_label": "Checklist scorer on financial statements, not backtested -- track its grades against real outcomes before trusting it",
+      "universe": "StockLens's own watchlist only (8 US + 4 NSE names), NOT the 1,003-name universe every other strategy here scans",
+      "headline": "A pasted fundamentals rubric (Revenue/EPS growth, margin trend, ROIC, debt, industry leadership, PEG, margin-of-safety DCF discount, forward EPS growth, catalysts, a 10-item red-flag checklist) turned into Quality (0-100) and Opportunity (0-100) scores, blended 60/40 into an Investment Score and an A+-D grade, plus a Minervini-style weekly/daily technical-confirmation layer. Runs inside the StockLens app (G:\\STOCK) against its own tracked watchlist, not this project's 1,003-name price universe, because fundamentals need several separate Yahoo Finance calls per symbol (statements, not one batched OHLCV call) -- scanning 1,003 names for fundamentals daily would be slow and likely to trip Yahoo's rate limiter for data that doesn't change daily the way prices do.",
+      "metrics": {},
+      "entry": [
+        "Quality (0-100): Growth 25pts (5yr-or-best-available revenue + EPS CAGR, banded), Margins 15pts (gross+operating trend), ROIC 15pts, Balance Sheet 10pts (debt/equity banded), Industry Position 20pts (this symbol's growth/margin/ROIC percentile against every OTHER symbol scanned this run in the same Yahoo sector -- a real cross-sectional rank, just over a small peer group), Management 15pts (buyback/no-dilution + ROIC>WACC + gross-margin level as a capital-allocation/moat proxy).",
+        "Opportunity (0-100): Valuation 40pts (PEG banded + DCF-intrinsic-value discount to price, DCF reused from StockLens's own fundamentals engine), Forecast Growth 40pts (forward EPS growth estimate, else the DCF's own growth path, else historical EPS CAGR), Catalysts 20pts across 4 signals worth 5pts each -- all computable from statements/quotes, substituted for the original rubric's news-driven catalysts (new product, new management): sector-tailwind keyword match, operating-margin-expansion trend, EPS growth accelerating YoY, forward PE below trailing PE.",
+        "Investment Score = Quality x 60% + Opportunity x 40%. Grade: 90+ A+, 80+ A, 70+ B, 60+ C, else D. A category with zero data this run is dropped from that score's weighting rather than scored as 0, so a stock isn't punished for a statement line Yahoo doesn't carry.",
+        "Red flags (7 of the original 10 are computable: revenue/EPS declining, negative FCF, rising debt, share dilution, falling ROIC, margin compression; insider selling, guidance cuts and auditor concerns are NOT computable from statements and are explicitly excluded from the count rather than assumed clean) -- 3+ triggered sets reject=true.",
+        "Phase-4 technical confirmation (weekly price/30-week-MA + MA slope, a momentum proxy for RS line, and four daily heuristics -- Bollinger-bandwidth contraction standing in for a real VCP detector, plus the existing 20-day volume ratio for dry/breakout volume) scores 0-100; the framework's own buy rule (fundamentals grade A/A+ AND technical score > 80) is reported per symbol as finalBuy."
+      ],
+      "exit": [
+        "No stop/target/exit rule -- this is a fundamentals grade and a position-sizing suggestion (risk % and portfolio allocation %, straight from the pasted framework's own A+/A/B bands), not a timed trade signal like the price-based strategies on this page."
+      ],
+      "filters": [
+        "Runs inside StockLens's own backend (app/analysis/master_framework.py), not as a standalone script against eod_cache.pkl like the other live scanners here -- MasterFramework_Strategy/master_framework_scan.py imports that app directly and reuses its tested scoring code rather than re-implementing it.",
+        "Scheduled as 'MasterFramework Scan_US' (07:00 SGT) and 'MasterFramework Scan_India' (19:00 SGT) daily, both calling the SAME underlying watchlist scan and filtering by exchange -- the India run mostly hits StockLens's own 24h fundamentals cache the US run already warmed. Writes LATEST_MASTERFRAMEWORK_<market>.json.",
+        "Industry Position and the sector-average-PE check are only as good as how many watchlist symbols share that sector this run -- with under 3 peers in a sector it degrades to 'not ranked' rather than guessing."
+      ],
+      "verdict": "Built 2026-11-02 from a pasted 'FUNDAMENTAL ANALYSIS MASTER FRAMEWORK' scoring rubric (Quality/Opportunity categories, grading table, red-flag checklist, position-sizing table). Unlike every price-based strategy on this page, there is no trade log or R-multiple here to validate against -- it's a financial-statement scorer, and the only thing tested so far is that the arithmetic matches the rubric's own bands (5 unit tests against synthetic good/bad-company fixtures) and that it runs cleanly end-to-end against the real watchlist. One real bug was caught building it: Yahoo's annual-statement window sometimes has a trailing all-null fiscal year at the oldest edge (confirmed on NVDA), which silently zeroed the entire 25-point growth category before the CAGR calculation was fixed to walk back to the oldest NON-null year instead of blindly indexing the last column.",
+      "caveats": [
+        "Not backtested, same caveat as MSR above -- no win rate or forward-return number exists for these grades yet.",
+        "Scans a 12-symbol watchlist, not the 1,003-name universe -- Industry Position and sector-average-PE are real cross-sectional comparisons, just over a much smaller and less representative peer set than a proper industry benchmark.",
+        "3 of the pasted framework's 10 red flags (insider selling, management lowering guidance, auditor concerns) aren't computable from Yahoo's financial statements and are excluded from the reject count, not treated as 'not triggered' -- a stock can still be hiding one of these three.",
+        "Stage-5 catalysts substitute 4 computable statement/quote signals for the original rubric's genuinely qualitative ones (new product cycle, new management, industry tailwind as written, margin expansion) -- a real news-driven catalyst can be happening and still score 0 here.",
+        "Phase-4 'VCP pattern' and 'tight consolidation' are a Bollinger-bandwidth-contraction proxy, not real pattern recognition -- flagged as a heuristic in the code and should be read as a rough stand-in, not a true VCP detector like the EMA-VCP strategy above (which also only approximates VCP, but with more structure).",
+        "Capital-allocation/moat scoring (Management, 15pts) is the weakest sub-score in the rubric -- buybacks + ROIC>WACC + gross-margin level is a coarse proxy for something that usually needs a human analyst's read."
+      ],
+      "rejected": [],
+      "docs": []
+    },
+    {
+      "id": "akshatvcp",
+      "name": "Akshat Shrivastava Fundamental + VCP Hybrid",
+      "family": "5-step 100-point checklist: Industry, Business Quality, Valuation, Supply/Demand, VCP Technical",
+      "status": "candidate",
+      "status_label": "Checklist scorer on financial statements + price action, not backtested -- track its grades against real outcomes before trusting it",
+      "universe": "503 US + 500 India names, same watchlist as the EMA-VCP scanner",
+      "headline": "A pasted 'Akshat Shrivastava fundamental investing framework' checklist, scored end to end: Industry (25pts: growth potential, government-support themes, competitive intensity), Business Quality (30pts: ROCE, revenue/profit CAGR, debt/equity, promoter holding, cash flow), Valuation (20pts: PE vs sector, PEG, margin of safety against a Graham-formula intrinsic value), Supply/Demand (15pts: relative strength vs the benchmark index, institutional-holding level, an OBV-slope volume-accumulation proxy), and VCP Technical (10pts, reusing the EMA-VCP scanner's own contraction/volume-dry-up detector). Totals to a 100-point Decision Matrix (A+/A/B/Watchlist/Reject), a Trade Execution Checklist, position sizing by grade, and an Exit Framework (stop at the lower of the final contraction low or the 10-week MA, partial profit at +20%/+40%).",
+      "metrics": {},
+      "entry": [
+        "Fundamental gate: Industry score >=18/25, Business Quality score >=22/30, Valuation score >=12/20 -- all three must pass.",
+        "Technical gate: close above both the 50-day and 200-day moving averages, a VCP base present (contraction legs tightening, final leg <=5%), relative strength strong versus the benchmark index, some volume dry-up in the final leg, and a breakout day with volume >=150% of the 50-day average.",
+        "Entry trigger: price closes above the VCP pivot, volume confirms (>1.5x the 50-day average), and the benchmark index itself is bullish (above its own rising 50/200-day average)."
+      ],
+      "exit": [
+        "Stop: the lower of the final VCP contraction leg's low or the 10-week moving average.",
+        "Partial profit: sell 25% at +20%, another 25% at +40%.",
+        "Final exit on any of: the 10-week MA breaking, a heavy-distribution-volume day, next-quarter fundamental deterioration (flagged for manual review -- not automatable from free annual-only statements), or relative strength weakening run-over-run."
+      ],
+      "filters": [
+        "Position sizing by grade: A+ risks 1.5% of portfolio / 15-20% capital allocation, A risks 1.0% / 10-15%, B risks 0.5% / 5-10% -- straight from the pasted framework's own table.",
+        "Scheduled as 'Akshat Scan_US' (07:00 SGT) and 'Akshat Scan_India' (19:00 SGT) daily, in Fundamental_Scanner/akshat_scan.py. Writes LATEST_AKSHAT_<market>.json.",
+        "Fundamentals are cached 7 days (ROCE/debt/promoter-holding don't move day to day); price bars and the benchmark index are fetched live every run."
+      ],
+      "verdict": "Built 2026-11-01/02 from a pasted 5-step scoring checklist attributed to Akshat Shrivastava, combined with this project's own EMA-VCP contraction detector for the technical leg. Two of the checklist's own sub-score groups didn't sum to their stated step maximum as written (Industry's three factors summed to 15, not the stated 25; Valuation's three summed to 15, not 20) and were rescaled proportionally rather than left to silently cap every score short of its band. Like Fundamental Analysis Master Framework above, there is no trade log or R-multiple here -- only that the scanner runs cleanly end to end against the full 1,003-name universe and that a handful of names (NVDA, AAPL, MSFT, GOOGL) score in the expected direction by eye. Two real bugs were caught building it: a negative year-over-year profit ratio raised to a fractional CAGR exponent silently produced a Python complex number that crashed the fundamentals cache, and Yahoo's free endpoint rate-limits hard after roughly 100-120 sequential per-ticker calls, which the first version handled by just dropping every later symbol from the output with no retry.",
+      "caveats": [
+        "Not backtested -- the Decision Matrix bands (A+/A/B/Watchlist/Reject) are the checklist's own numbers, unvalidated against this universe's actual forward returns.",
+        "Institutional Interest (part of Supply/Demand) is a current holding level, not the FII/DII/MF trend the checklist actually wants -- no free API exposes the point-in-time shareholding history that would need.",
+        "Promoter Holding (part of Business Quality) uses Yahoo's insider-ownership field, which is not India's disclosed promoter-holding figure and is frequently blank or stale for NSE names.",
+        "Margin of Safety uses a Benjamin Graham formula (EPS x (8.5 + 2g)) as a single-number intrinsic-value stand-in, not a real DCF -- fine for ranking the universe, not for sizing a specific position.",
+        "The VCP leg reuses the EMA-VCP scanner's contraction/volume-dry-up detector but scores it against this checklist's own 0-10 bands, not the EMA-VCP backtest's own validated production thresholds -- cross-check a borderline VCP pass against EMA_VCP_BACKTEST_RESULTS.md before trusting it."
+      ],
+      "rejected": [],
+      "docs": []
     }
   ],
   "automation": {

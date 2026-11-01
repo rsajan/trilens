@@ -705,6 +705,66 @@ def read_ema_vcp(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Fundamental Analysis Master Framework (StockLens watchlist, not the 1,003-name universe)
+MASTER_FRAMEWORK_ROW_COLS = ["symbol", "sector", "currency", "investmentScore", "grade", "action", "finalBuy",
+                              "qualityScore", "opportunityScore", "technicalScore", "industryRank",
+                              "redFlagCount", "redFlagsTriggered", "redFlagReject", "peg", "marginOfSafety",
+                              "riskPct", "allocationPct", "dataGap"]
+MASTER_FRAMEWORK_STR_FIELDS = ("symbol", "sector", "currency", "grade", "action", "industryRank",
+                                "riskPct", "allocationPct", "dataGap")
+
+
+def read_master_framework(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_MASTERFRAMEWORK_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in MASTER_FRAMEWORK_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if (k in MASTER_FRAMEWORK_STR_FIELDS or k == "redFlagsTriggered") else num(r[k])
+            recs.append(rec)
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "grade_counts": j.get("grade_counts")}
+    return out
+
+
+# ------------------------------------------------------------------ signals: Akshat Shrivastava Fundamental + VCP Hybrid Framework
+AKSHAT_ROW_COLS = ["symbol", "sector", "industry", "price", "industry_score", "business_score",
+                    "valuation_score", "supply_demand_score", "vcp_score", "total_score", "grade",
+                    "fundamental_gate", "checklist_all_met", "entry_signal", "stop_loss",
+                    "partial_exit_1", "partial_exit_2"]
+AKSHAT_STR_OR_BOOL_FIELDS = ("symbol", "sector", "industry", "grade", "fundamental_gate",
+                              "checklist_all_met", "entry_signal")
+
+
+def read_akshat(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_AKSHAT_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in AKSHAT_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if k in AKSHAT_STR_OR_BOOL_FIELDS else num(r[k])
+            recs.append(rec)
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "market_bullish": j.get("market_bullish")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Break & Retest Master Framework (C.E.S.T, Hourly/Daily/Weekly)
 BREAKRETEST_ROW_COLS = ["symbol", "direction", "pattern", "date", "close", "entry_level1_aggressive",
                          "entry_level2_conservative", "stop", "target", "risk_pct", "rr_multiple",
@@ -1016,7 +1076,8 @@ def main(argv=None) -> int:
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
-              "inversehs": read_inversehs(D)}
+              "inversehs": read_inversehs(D), "master_framework": read_master_framework(D),
+              "akshat": read_akshat(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

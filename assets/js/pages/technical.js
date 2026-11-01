@@ -237,6 +237,35 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.master_framework && Object.keys(sg.master_framework).length) {
+    let cur = Object.keys(sg.master_framework)[0];
+    const box = h('div');
+    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
+    const paint = () => {
+      const r = sg.master_framework[cur];
+      const recs = r.records || [];
+      const counts = r.grade_counts || {};
+      const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...['A+', 'A', 'B', 'C', 'D'].filter((g) => counts[g]).map((g) => badge(`${counts[g]} ${g}`, GRADE_KIND[g] || 'outline'))) : null;
+      if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'No fundamentals score yet -- run the scanner.')].filter(Boolean)); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'sector', render: (row) => row.sector || '—' },
+        { label: 'grade', render: (row) => row.grade ? badge(`${row.grade} (${fmt.num(row.investmentScore, 1)})`, GRADE_KIND[row.grade] || 'outline') : '—' },
+        { label: 'quality / opportunity', align: 'r', render: (row) => `${row.qualityScore != null ? fmt.num(row.qualityScore, 0) : '—'} / ${row.opportunityScore != null ? fmt.num(row.opportunityScore, 0) : '—'}` },
+        { label: 'technical', align: 'r', render: (row) => row.technicalScore != null ? fmt.num(row.technicalScore, 0) : '—' },
+        { label: 'industry rank', render: (row) => row.industryRank || '—' },
+        { label: 'red flags', render: (row) => row.redFlagCount ? badge(`${row.redFlagCount}${row.redFlagReject ? ' (reject)' : ''}`, row.redFlagReject ? 'loss' : 'outline') : badge('0', 'gain') },
+        { label: 'action', render: (row) => row.action || '—' },
+        { label: 'sizing', align: 'r', render: (row) => row.riskPct ? `risk ${row.riskPct} · ${row.allocationPct}` : '—' },
+      ];
+      box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
+    };
+    root.append(h('section', null, sectionHead('Fundamental Analysis Master Framework', 'Quality (growth/margins/ROIC/debt/industry rank/management) x 60% + Opportunity (valuation/forecast growth/catalysts) x 40% = Investment Score, graded A+ to D. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe -- see the Strategies page for the full write-up.'),
+      Object.keys(sg.master_framework).length > 1 ? segmented(Object.keys(sg.master_framework).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (sg.msr && Object.keys(sg.msr).length) {
     let curMk = Object.keys(sg.msr)[0];
     const box = h('div');
@@ -423,6 +452,36 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.akshat && Object.keys(sg.akshat).length) {
+    let curAk = Object.keys(sg.akshat)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.akshat[curAk];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'Nothing scored right now.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'sector', render: (row) => row.sector || '—' },
+        { label: 'price', align: 'r', render: (row) => cell(row.price) },
+        { label: 'industry /25', align: 'r', render: (row) => cell(row.industry_score) },
+        { label: 'business /30', align: 'r', render: (row) => cell(row.business_score) },
+        { label: 'valuation /20', align: 'r', render: (row) => cell(row.valuation_score) },
+        { label: 'supply/demand /15', align: 'r', render: (row) => cell(row.supply_demand_score) },
+        { label: 'vcp /10', align: 'r', render: (row) => cell(row.vcp_score) },
+        { label: 'total /100', align: 'r', render: (row) => cell(row.total_score) },
+        { label: 'grade', render: (row) => badge(AKSHAT_GRADE_LABEL[row.grade] || row.grade, AKSHAT_GRADE_KIND[row.grade]) },
+        { label: 'gate', render: (row) => row.fundamental_gate ? badge('pass', 'gain') : badge('no', 'outline') },
+        { label: 'entry', render: (row) => row.entry_signal ? badge('fires', 'gain') : '—' },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop_loss) },
+        { label: '+20% / +40%', align: 'r', render: (row) => `${cell(row.partial_exit_1)} / ${cell(row.partial_exit_2)}` },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Akshat Shrivastava Fundamental + VCP Hybrid', `Industry -> Business Quality -> Valuation -> Supply/Demand -> VCP, 100-point Decision Matrix${sg.akshat[curAk]?.run_at ? `; run ${sg.akshat[curAk].run_at}` : ''}`),
+      Object.keys(sg.akshat).length > 1 ? segmented(Object.keys(sg.akshat).map((k) => ({ id: k, label: k })), curAk, (v) => { curAk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (!root.childNodes.length) root.append(h('div', { class: 'empty' }, h('b', null, 'No scan results in the bundle'), 'Run PUBLISH.bat after a scan has finished and they will show up here.'));
   if (b.notes?.length) root.append(h('details', null, h('summary', { class: 'small muted', style: { cursor: 'pointer', padding: '6px 0' } }, `Build notes (${b.notes.length})`), h('ul', { class: 'soft small', style: { paddingLeft: '20px' } }, b.notes.map((n) => h('li', null, n)))));
   return root;
@@ -439,6 +498,8 @@ const CONTEXT_LABEL = { NEW_ATH_BREAKOUT: 'new ATH', DOWNTREND_BREAK: 'downtrend
 const CONTEXT_KIND = { NEW_ATH_BREAKOUT: 'gain', DOWNTREND_BREAK: 'gain', UPTREND_PULLBACK_SMALL: 'gain', UPTREND_PULLBACK_DEEP: 'loss', DOWNTREND_INTACT: 'loss', RANGE_CORRECTION_300D: 'outline', UNCLASSIFIED: 'outline' };
 const INVERSEHS_LABEL = { ACTIVE: 'open trade', AWAITING_ENTRY: 'awaiting entry', AWAITING_RECLAIM: 'awaiting reclaim', AWAITING_RETEST: 'awaiting retest', WATCHING: 'watching' };
 const INVERSEHS_KIND = { ACTIVE: 'gain', AWAITING_ENTRY: 'gain', AWAITING_RECLAIM: 'outline', AWAITING_RETEST: 'outline', WATCHING: 'outline' };
+const AKSHAT_GRADE_LABEL = { A_PLUS: 'A+', A: 'A', B: 'B', WATCHLIST: 'watchlist', REJECT: 'reject', 'Insufficient data': 'no data' };
+const AKSHAT_GRADE_KIND = { A_PLUS: 'gain', A: 'gain', B: 'accent', WATCHLIST: 'outline', REJECT: 'loss', 'Insufficient data': 'outline' };
 function contextDetail(row) {
   if (row.context === 'NEW_ATH_BREAKOUT') return row.prior_ath_bars_ago != null ? `prior high stood ${fmt.int(row.prior_ath_bars_ago)} bars` : '—';
   if (row.context === 'DOWNTREND_BREAK') return row.trendline_value != null ? `trendline ${cell(row.trendline_value)}` : '—';
