@@ -1297,6 +1297,54 @@
       "docs": [
         "breakretest-spec"
       ]
+    },
+    {
+      "id": "inversehs",
+      "name": "Inverse head & shoulders",
+      "family": "Reversal pattern: LS/head/RS swing lows, neckline break, retest or breakout entry",
+      "status": "candidate",
+      "status_label": "First pass, narrow edge, US only",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Classic three-swing-low reversal pattern (left shoulder, a deeper head, a right shoulder) that breaks back above the neckline through the two bounces between them. Two entry styles were tested: buy the breakout itself, or wait for price to come back and hold the neckline first. No single configuration wins everywhere -- the two validated results are both in the US; nothing tested makes India reliably work.",
+      "metrics": {},
+      "entry": [
+        "Three consecutive confirmed swing lows (left shoulder, head, right shoulder), the head strictly the deepest, shoulders within 1.5x ATR14 of each other in price and inside a loose time-symmetry band.",
+        "Neckline = the higher of the two reaction highs between the shoulders and the head (a flat line, not sloped -- a sloped neckline extrapolated forward was tried first and rejected for producing unstable targets).",
+        "Breakout entry: next bar's open after a green candle closes back above the neckline on at least 1.3x average volume, closing in the top 40% of its own range.",
+        "Retest entry (the better of the two styles in 3 of 4 cells, after a bug that inflated early results was found and fixed -- see caveats): instead of buying the breakout bar, wait for price to pull back to the neckline within 1%, hold a reclaim close back above it, then buy the next bar's open. Stop is the retest bar's own low, rejected if that stop is under 0.5% of price (too close to be a real risk-defined level).",
+        "The one filter that helped almost everywhere: requiring rolling-average volume to strictly decline left-shoulder to head to right-shoulder (volume drying up ahead of the breakout). Requiring the US daily setup's weekly chart to also be constructive (classify_context() on the weekly-resampled series) helped US daily specifically but hurt India daily when added to the same stack."
+      ],
+      "exit": [
+        "Target: the classic measured move -- neckline value at confirmation plus the vertical drop from neckline to head.",
+        "Breakout-style stop: the right shoulder's own low, no buffer.",
+        "Retest-style stop: the retest bar's own low (tighter, but only usable once the minimum-risk check passes).",
+        "A close back below the neckline after confirmation (a failed reclaim) exits regardless of the nominal stop -- this is the single biggest failure mode of the breakout style, 39-61% of confirmed patterns even after every filter tested."
+      ],
+      "filters": [
+        "A downtrend-context gate (reusing market_context.py, read at either the left or right shoulder) was tested and does not help -- flat to slightly negative at both anchors, settled as a closed question rather than left open.",
+        "A pattern-height floor (1x ATR14) was tested and has no effect -- it almost never binds once the shoulder/time-symmetry checks already applied have run.",
+        "RSI bullish divergence at the head was tested and hurts, consistently, in every one of 8 comparisons across both entry styles -- the shoulder-symmetry rule already favors fast moves where momentum often hasn't diverged yet.",
+        "A 2-bar hold requirement on the breakout (the close must stay above the neckline a second bar, not just one) helps the base pattern modestly and rescues the one weak India-weekly cell when stacked with retest entry, but costs the best India-daily result when stacked the same way -- not a free add-on.",
+        "Runs daily in scan_US.bat / scan_India.bat, surfacing only live setups (forming, awaiting a retest/reclaim, or an open trade) using the best validated config per market and timeframe, not a historical dump. Writes LATEST_INVERSEHS_<market>.json."
+      ],
+      "verdict": "26-year backtest (2000-2026, 2008/2020 excluded), 1,003 names, pooled trade-level stats. Every suggestion from the original spec was tested: context gate (both anchors), 2-bar confirmation, height floor, RSI divergence, volume shape, retest entry, and nested weekly-context gating, alone and in combination. The two results that actually clear this project's own v5/v6 bar (avg R 0.25-0.34): US weekly with retest entry + volume shape (+0.281R blended) and US daily with retest entry + volume shape + weekly context (+0.172R, smaller sample). India's best anywhere is daily retest entry + volume shape alone (+0.108R) -- every further filter stacked on top made India worse, not better, four separate times, which looks like a real market difference rather than noise, though the mechanism isn't identified.",
+      "caveats": [
+        "A real bug was found and fixed mid-project: the retest-entry stop had no minimum-risk floor (unlike analog_setup.py's own backtest_retest(), which it was modeled on), so a handful of near-zero-risk trades produced 50-200x R-multiple outliers that inflated several early results, India daily most of all (originally reported as high as +0.258R, corrected to +0.040-0.108R depending on configuration). All affected numbers were re-run and corrected; the figures above are post-fix.",
+        "No train/test split -- this is one 26-year sample, not validated the way v5/v6/logic3 went through a select-early/confirm-late protocol.",
+        "The US daily result (retest + volume shape + weekly context) ran on a few hundred trades, smaller than most other cells here -- hold it a little more loosely than the US weekly result.",
+        "Hourly was never implemented: this project has no intraday data pipeline, and free sources only cover 60-730 days, far short of what a pattern that can take months to form needs.",
+        "Live scanning only surfaces the single most recent swing-low triple per symbol per timeframe (same convention as the analog setup scanner), using the per-cell config above -- not a blend or a vote across configs."
+      ],
+      "rejected": [
+        "A sloped neckline through the two reaction highs, extrapolated forward: unstable, could put the target below entry on a steep slope (caught via a negative-R target exit in testing).",
+        "Downtrend-context gate at either shoulder: flat to slightly negative, inside the same noise band at both anchors.",
+        "RSI bullish divergence at the head, with either entry style: hurts in all 8 comparisons tested.",
+        "Pattern-height floor at 1x ATR14: no measurable effect, removes under 0.4% of patterns anywhere."
+      ],
+      "docs": [
+        "inversehs-spec",
+        "inversehs-summary"
+      ]
     }
   ],
   "automation": {
@@ -1305,7 +1353,7 @@
       {
         "time": "07:00",
         "title": "US scans",
-        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time.",
+        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner.",
         "tag": "your PC"
       },
       {
@@ -1317,7 +1365,7 @@
       {
         "time": "19:00",
         "title": "India scans",
-        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time.",
+        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time, and the inverse head & shoulders live scanner.",
         "tag": "your PC"
       },
       {
@@ -1467,8 +1515,8 @@
     ],
     "bat_notes": {
       "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the analog setup scanner, the paper-trade update and the summary page, in that order.",
-      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, paper trade, summary. Logs to the scans folder.",
-      "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
+      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, paper trade, summary. Logs to the scans folder, inverse head & shoulders live scan.",
+      "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat, same steps as scan_US.bat.",
       "market_context.py": "Structural context classifier (new ATH / 300-day range / trendline / pullback depth), run per market. Writes LATEST_CONTEXT_<market>.json to the scans folder.",
       "analog_setup.py": "Stage-1 context gate (NEW_ATH_BREAKOUT or DOWNTREND_BREAK only) plus weekly base+breakout precedent search and daily-bar retest backtest (stages 2-4), run per market. Writes LATEST_ANALOG_<market>.json to the scans folder.",
       "base_breakout_scan.py": "Same stage-1 context gate as analog_setup.py, plus stage-2 base+breakout detection only (no retest backtest, no 2-confirmed-analog gate) -- the wider candidate list. Writes LATEST_BASEBREAKOUT_<market>.json to the scans folder.",
@@ -1482,7 +1530,8 @@
       "SETUP (run once).bat": "Installs the Python packages, creates the scheduled tasks and puts three shortcuts on the desktop.",
       "BACKTEST - Accumulation bot.bat": "Tests the rules on 1 to 10 years of history for US or India, optionally on your own saved EOD archive.",
       "CHECK TICKERS - Accumulation bot.bat": "Runs the full checklist on tickers you type in.",
-      "REFRESH EOD EXCEL - Accumulation bot.bat": "Updates the EOD Excel archive without running a scan."
+      "REFRESH EOD EXCEL - Accumulation bot.bat": "Updates the EOD Excel archive without running a scan.",
+      "inverse_hs_live_scan.py": "Inverse head & shoulders live scanner, run per market: surfaces today's forming/awaiting-retest/open setups using the best validated config per market and timeframe (INVERSE_HS_SPEC.md sections 9-15). Writes LATEST_INVERSEHS_<market>.json to the scans folder."
     }
   },
   "docs": [
@@ -1700,6 +1749,18 @@
       "id": "breakretest-spec",
       "path": "G:/trading/BreakRetest_Strategy/BREAK_RETEST_SPEC.md",
       "title": "Break & Retest Master Framework: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "inversehs-spec",
+      "path": "{reversal_dir}/INVERSE_HS_SPEC.md",
+      "title": "Inverse head & shoulders: full technical record",
+      "kind": "doc"
+    },
+    {
+      "id": "inversehs-summary",
+      "path": "{reversal_dir}/INVERSE_HS_SUMMARY.md",
+      "title": "Inverse head & shoulders: plain-language summary",
       "kind": "doc"
     }
   ]

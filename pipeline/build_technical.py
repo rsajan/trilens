@@ -153,6 +153,7 @@ class Dirs:
 
         self.reversal = pick(a.reversal_dir, "reversal_dir")
         self.accumulation = pick(a.accumulation_dir, "accumulation_dir")
+        self.ema = pick(getattr(a, "ema_dir", None), "ema_dir")
         self.scans = pick(a.scans_dir, "scans_dir")
         self.paper = pick(a.paper_book, "paper_book")
         up = cfg.get("uploads_dir", "technical_uploads")
@@ -161,6 +162,7 @@ class Dirs:
     def fill(self, s: str) -> str:
         return (s.replace("{reversal_dir}", str(self.reversal or ""))
                  .replace("{accumulation_dir}", str(self.accumulation or ""))
+                 .replace("{ema_dir}", str(self.ema or ""))
                  .replace("{scans_dir}", str(self.scans or "")))
 
     def path(self, s: str) -> Path:
@@ -797,6 +799,32 @@ def read_pbmtf(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Inverse head & shoulders (live setups only)
+INVERSEHS_ROW_COLS = ["symbol", "timeframe", "status", "config", "entry", "stop", "target",
+                      "watch_level", "risk_pct", "unrealized_r", "close", "asof"]
+
+
+def read_inversehs(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_INVERSEHS_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in INVERSEHS_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = num(r[k]) if not isinstance(r[k], bool) else r[k]
+            recs.append(rec)
+        status_order = {"ACTIVE": 0, "AWAITING_ENTRY": 1, "AWAITING_RECLAIM": 2, "AWAITING_RETEST": 3, "WATCHING": 4}
+        recs.sort(key=lambda r: (status_order.get(r.get("status"), 9), r.get("symbol") or ""))
+        out[mk] = {"records": recs, "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ results
 def downsample(xs, ys, n=520):
     if len(xs) <= n:
@@ -910,7 +938,7 @@ def read_automation(cur: dict, D: Dirs) -> dict:
     A = dict(cur.get("automation", {}))
     notes = A.pop("bat_notes", {})
     files = []
-    for folder in (D.reversal, D.accumulation):
+    for folder in (D.reversal, D.accumulation, D.ema):
         if not folder or not folder.exists():
             continue
         for p in sorted(folder.glob("*.bat")):
@@ -957,6 +985,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--reversal-dir")
     ap.add_argument("--accumulation-dir")
+    ap.add_argument("--ema-dir")
     ap.add_argument("--scans-dir")
     ap.add_argument("--paper-book")
     ap.add_argument("--uploads-dir")
@@ -969,7 +998,7 @@ def main(argv=None) -> int:
     D = Dirs(a)
     cur = read_json(ROOT / "pipeline" / "technical_curated.json", {}) or {}
     print("Reading your scanner folders...")
-    for label, p in (("Reversal bot", D.reversal), ("Accumulation bot", D.accumulation), ("Scans", D.scans), ("Paper book", D.paper)):
+    for label, p in (("Reversal bot", D.reversal), ("Accumulation bot", D.accumulation), ("EMA Positional", D.ema), ("Scans", D.scans), ("Paper book", D.paper)):
         print(f"  {label:<17}", "found" if p and p.exists() else "NOT FOUND", f"({p})" if p else "(not set)")
 
     strategies = []
@@ -986,7 +1015,8 @@ def main(argv=None) -> int:
               "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
-              "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D)}
+              "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
+              "inversehs": read_inversehs(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

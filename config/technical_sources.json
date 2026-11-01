@@ -2,6 +2,7 @@
   "_help": "Where your scanner files live on this PC. PUBLISH.bat reads these folders (read only) and builds the encrypted Technical page. Change a path here if you move a folder.",
   "reversal_dir": "G:\\DANGLING\\reversal_strategy",
   "accumulation_dir": "G:\\trading\\Accumulation_Bot_v2.3\\Accumulation_Bot",
+  "ema_dir": "G:\\trading\\EMA_Positional_Strategy",
   "scans_dir": "G:\\trading\\new back test\\scans",
   "paper_book": "G:\\trading\\new back test\\PAPER_TRADING.xlsx",
   "uploads_dir": "technical_uploads",
