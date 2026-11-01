@@ -1345,6 +1345,42 @@
         "inversehs-spec",
         "inversehs-summary"
       ]
+    },
+    {
+      "id": "fundamental-analysis",
+      "name": "Fundamental Analysis screen",
+      "family": "Quality/value screen: the automatable slice of a 100-point fundamental checklist (screening, financial analysis, sector-relative valuation)",
+      "status": "candidate",
+      "status_label": "Live-scanned from 2026-11-01, no backtest -- this is a screen, not a priced entry/exit system",
+      "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "Started from a trader-supplied 100-point fundamental checklist (screening, SWOT, financials, management, valuation, final thesis). Only the parts an SEC filing or a price feed can actually answer are scanned daily -- 3-year revenue/EPS CAGR, ROE, debt/equity, FCF and its conversion from net income, margin trends, and valuation relative to the stock's own sector peers in this watchlist (not a fixed PE cutoff). SWOT, management quality and the final bull/bear/devil's-advocate thesis stay a manual judgement call on the owner's own worksheet -- this page does not invent a score for those.",
+      "metrics": {},
+      "entry": [
+        "Screening (automatable, ~14 of 15 pts): revenue CAGR > 15% (3yr, not 5 -- the free annual statement feed only covers ~4 fiscal years), EPS CAGR > 15%, ROE > 15%, debt/equity < 0.5, free cash flow positive, net margin trending up. 'Market/niche leader' (1 pt) is left out: no data feed can honestly judge that.",
+        "Financial analysis (automatable subset of 25 pts): income statement growth and margin trends, debt and current ratio, cash > debt, dilution check (diluted share count trend), operating and free cash flow, FCF growing, and FCF/net-income conversion -- a conversion below 80% flags earnings that aren't turning into cash even when FCF is nominally positive.",
+        "Valuation (15 pts, sector-relative): the stock's trailing PE against the MEDIAN trailing PE of its own GICS sector within this same watchlist (not a fixed multiple, and not a fabricated 'industry average' -- it's computed fresh each run from whichever peers the scan actually has data for), plus analyst consensus upside (mean target price vs current price) as the margin-of-safety proxy.",
+        "Score is scaled to whatever inputs were actually available for that ticker (missing fields are listed, never guessed), so a ticker with a thin data feed isn't silently scored as if it failed every unavailable test."
+      ],
+      "exit": [
+        "Not a trading system with an entry/exit/stop -- this ranks the watchlist for further research. A ticker clearing the quant bar is a candidate to run through the full checklist's manual phases (SWOT, management, thesis) before anything resembling a position decision."
+      ],
+      "filters": [
+        "Accounting-shenanigans checklist (revenue up while FCF down, receivables or inventory outgrowing revenue, large gap between net and normalized income, heavy stock-based compensation): 2+ triggers deduct 5 points from the financial-analysis subtotal.",
+        "Quality veto: 4 or more combined screening red flags and shenanigans force a Reject regardless of the raw score, the same logic as the owner's manual scorer worksheet -- a high score built on weak earnings quality shouldn't rank like a clean one.",
+        "Fundamentals are cached 7 days per ticker, not refetched every run: unlike price-action signals, quarterly financials don't move daily, and re-hammering Yahoo for ~1,000 names every morning is both slow and the kind of thing that gets this project rate-limited. The daily schedule re-ranks with the latest price/PE; the underlying statements refresh roughly weekly."
+      ],
+      "verdict": "This is a pre-screen, not a backtested strategy -- there is no win rate or R-multiple to report, by design (a discretionary quality/value checklist has no priced entry and exit to backtest). What it is: an honest, data-only first pass over 1,003 names on the parts of the checklist a filing can answer, so the owner's own time on SWOT, management and the final thesis review goes to names that already clear a quantitative bar. Live results are on the Signals tab.",
+      "caveats": [
+        "yfinance fundamentals are self-reported company data via Yahoo, not independently audited by this project -- treat a borderline score as a reason to open the filing, not as a verdict.",
+        "The CAGR and margin-trend figures use whatever annual history Yahoo's free endpoint returns, typically about 4 fiscal years (a 3-year CAGR), not the full 5 years the checklist asks for.",
+        "Sector-relative valuation needs at least 3 same-sector peers with a usable PE in the same run to compute a median; thin sectors fall back to 'not enough data' rather than a guessed benchmark.",
+        "The shenanigans checklist is a set of heuristic proxies (e.g. stock comp over 5% of revenue, receivables growth materially outrunning revenue growth), not the actual forensic-accounting judgement a human analyst would apply -- false positives and false negatives are both expected.",
+        "No position sizing, stop or backtest-validated edge here, unlike the price-action strategies on this page -- do not size real money off this score alone."
+      ],
+      "rejected": [
+        "Scoring SWOT, management quality or the bull/bear/devil's-advocate thesis from data: rejected outright. Those are judgement calls about competitive moats, capital-allocation track record and what's already priced in -- a feed that fabricated a number for them would be inventing data, which this project's own rules forbid."
+      ],
+      "docs": []
     }
   ],
   "automation": {
@@ -1353,7 +1389,7 @@
       {
         "time": "07:00",
         "title": "US scans",
-        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner.",
+        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_US (fundamental_scan.py --market US, in Fundamental_Scanner) runs at the same time -- writes LATEST_FUNDAMENTAL_US.json; the underlying statements are cached ~7 days, so most days this just re-ranks on the latest price.",
         "tag": "your PC"
       },
       {
@@ -1365,7 +1401,7 @@
       {
         "time": "19:00",
         "title": "India scans",
-        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time, and the inverse head & shoulders live scanner.",
+        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_India (fundamental_scan.py --market India, in Fundamental_Scanner) runs at the same time -- writes LATEST_FUNDAMENTAL_India.json.",
         "tag": "your PC"
       },
       {

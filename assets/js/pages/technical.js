@@ -398,6 +398,35 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.fundamental && Object.keys(sg.fundamental).length) {
+    let cur = Object.keys(sg.fundamental)[0];
+    const box = h('div');
+    const FUND_TIER = { Strong: ['strong', 'gain'], Good: ['good', 'gain'], Starter: ['starter', 'outline'], Watch: ['watch', 'outline'], Reject: ['reject', 'loss'], 'Reject (quality veto)': ['quality veto', 'loss'], 'Not enough data': ['no data', 'outline'] };
+    const paint = () => {
+      const r = sg.fundamental[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No fundamental scan yet.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'sector', render: (row) => row.sector || '—' },
+        { label: 'tier', render: (row) => { const [lbl, kind] = FUND_TIER[row.tier] || [row.tier, 'outline']; return badge(lbl, kind); } },
+        { label: 'score', align: 'r', render: (row) => row.quant_score != null ? fmt.num(row.quant_score, 0) : '—' },
+        { label: 'rev CAGR 3y', align: 'r', render: (row) => row.rev_cagr_3y_pct != null ? fmt.pct(row.rev_cagr_3y_pct, 1, false) : '—' },
+        { label: 'EPS CAGR 3y', align: 'r', render: (row) => row.eps_cagr_3y_pct != null ? fmt.pct(row.eps_cagr_3y_pct, 1, false) : '—' },
+        { label: 'ROE', align: 'r', render: (row) => row.roe_pct != null ? fmt.pct(row.roe_pct, 1, false) : '—' },
+        { label: 'D/E', align: 'r', render: (row) => row.de_ratio != null ? fmt.num(row.de_ratio, 2) : '—' },
+        { label: 'PE', align: 'r', render: (row) => row.pe != null ? fmt.num(row.pe, 1) : '—' },
+        { label: 'vs sector PE', align: 'r', render: (row) => row.sector_discount_pct != null ? fmt.signed(row.sector_discount_pct, 0) + '%' : '—' },
+        { label: 'analyst upside', align: 'r', render: (row) => row.analyst_upside_pct != null ? fmt.signed(row.analyst_upside_pct, 0) + '%' : '—' },
+        { label: 'flags', align: 'r', render: (row) => `${row.red_flags ?? 0}+${row.shenanigans ?? 0}` },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('Fundamental Analysis screen', 'the automatable slice only -- screening, financials and sector-relative valuation. SWOT, management and thesis review stay a manual call. Score is scaled to the data actually available; "quality veto" means 4+ combined red flags/shenanigans forced a Reject regardless of score. See the Strategies tab.'),
+      Object.keys(sg.fundamental).length > 1 ? segmented(Object.keys(sg.fundamental).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (sg.inversehs && Object.keys(sg.inversehs).length) {
     let cur = Object.keys(sg.inversehs)[0];
     const box = h('div');
