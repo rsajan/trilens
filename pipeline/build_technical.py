@@ -595,6 +595,33 @@ def read_dbpyramid(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Fundamental Analysis scanner (automatable screening + financials + valuation slice)
+FUNDAMENTAL_ROW_COLS = ["symbol", "sector", "quant_score", "tier", "quality_veto", "rev_cagr_3y_pct", "eps_cagr_3y_pct",
+                        "roe_pct", "de_ratio", "fcf_conversion_pct", "pe", "sector_discount_pct", "analyst_upside_pct",
+                        "red_flags", "shenanigans"]
+FUNDAMENTAL_TIER_ORDER = {"Strong": 0, "Good": 1, "Starter": 2, "Watch": 3, "Reject": 4, "Reject (quality veto)": 5, "Not enough data": 6}
+
+
+def read_fundamental(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_FUNDAMENTAL_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in FUNDAMENTAL_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = r[k] if k in ("symbol", "sector", "tier") else (bool(r[k]) if k == "quality_veto" else num(r[k]))
+            recs.append(rec)
+        recs.sort(key=lambda r: (FUNDAMENTAL_TIER_ORDER.get(r.get("tier"), 9), -(r.get("quant_score") or -1)))
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Weinstein Stage-2 scanner (30-week MA bull market bottom)
 WEINSTEIN_ROW_COLS = ["symbol", "state", "date", "close", "cross_close", "ma30w",
                       "stop_base_low", "risk_pct", "vol_x_avg", "r_so_far",
@@ -1133,8 +1160,9 @@ def main(argv=None) -> int:
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
-              "inversehs": read_inversehs(D), "master_framework": read_master_framework(D),
-              "akshat": read_akshat(D), "tef": read_tef(D), "vcp": read_vcp(D)}
+              "inversehs": read_inversehs(D), "fundamental": read_fundamental(D),
+              "master_framework": read_master_framework(D), "akshat": read_akshat(D),
+              "tef": read_tef(D), "vcp": read_vcp(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
