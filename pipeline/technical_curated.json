@@ -1205,6 +1205,51 @@
       "docs": []
     },
     {
+      "id": "ema_vcp",
+      "name": "EMA-VCP Positional Strategy",
+      "family": "Weekly -> Daily -> Hourly VCP (volatility contraction pattern), EMA-anchored trade management",
+      "status": "shadow",
+      "status_label": "Backtested and threshold-swept on 26 years; scanned live from 2026-11-01, no live track record yet",
+      "universe": "986 names: 500 Nifty + 503 S&P 500 (same universe as the MTF Trend Strategy)",
+      "headline": "Started from a trader-pasted VCP checklist (Weekly -> Daily -> Hourly multi-timeframe scorecard, 110 points, Elite/A+/B/Watchlist/Reject grading) with every checkbox turned into an explicit formula. Running the checklist's own literal thresholds produced only 16 trades across the whole 26-year universe -- too few to mean anything -- so a threshold sweep was run before anything shipped live. The sweep found the checklist's own Daily-Structure-score gate (>=15/20) is a cliff where the edge collapses outright, not a safety margin; lowering it to >=10 with the breakout-volume requirement at 1.25x (down from the checklist's 1.4x) restores a statistically solid result while keeping the Weekly/Volume/Hourly gates at the checklist's own literal numbers, which tested fine as written.",
+      "metrics": {
+        "trades": 134,
+        "per_year": 5.15,
+        "win_pct": 48.51,
+        "avg_r": 0.6402,
+        "pf": 2.243,
+        "mdd_1pct": -8.34,
+        "t_stat": 3.46
+      },
+      "entry": [
+        "Weekly VCP Analysis (score >=30/40): price above a rising 30-week MA, higher weekly highs and lows, a relative-strength line making new highs against an equal-weight universe benchmark, tight weekly candles with volume drying up -- no market-cap index exists in this project, so RS and the Market Filter below both use the same equal-weight synthetic index + breadth already built for the other strategies here.",
+        "Daily VCP Structure (score >=10/20, lowered from the checklist's own >=15 -- see headline): a base 4-20 weeks old, 3+ progressively smaller contractions, the final one <=5%, volatility (ATR%) trending down.",
+        "Volume Dry-Up (score >=10/15) and Breakout (pivot clarity + volume >=1.25x the 50-day average, close above the base's high): the final contraction's own volume well below average, then a real expansion on the breakout bar.",
+        "Hourly Precision Entry (score >=10/15): on real data this needs intraday bars; the live scanner uses a daily-bar VWAP/EMA20 proxy for now (another strategy on this page, Pullback-Retest MTF, already proved real 60-minute Yahoo bars are available live -- upgrading this strategy's Hourly leg to real hourly data is the next concrete step, not yet done).",
+        "Market Filter: universe breadth (% of names above their own 200-day SMA) > 40%, same house threshold used elsewhere on this page -- no real S&P500/Nifty500 index is cached in this project to check directly."
+      ],
+      "exit": [
+        "Stop = the lower of the final contraction's low and the breakout candle's low.",
+        "Scale out 25% at +10%, 25% at +20%, trail the remaining 50% on the 21-day EMA once both partials are taken; hard stop throughout.",
+        "Also exits on two consecutive daily closes below the 21 EMA."
+      ],
+      "filters": [
+        "Market breadth > 40%.",
+        "Risk (entry to stop) under 8% of entry price."
+      ],
+      "verdict": "134 trades over 26 years (about 5/year across both markets combined), 48.5% win rate, avg R +0.64, profit factor 2.24, t=3.46 -- a real, if infrequent, signal at the swept thresholds. The checklist's own exact Daily-Structure threshold is actively harmful (t collapses to 0.1-1.6 at >=15 across every breakout-volume setting tested), which is the headline finding of the whole exercise: formalizing a discretionary checklist into exact numbers is only useful if each number then gets checked against history, not assumed correct because it came from an experienced trader's own notes.",
+      "caveats": [
+        "No real hourly data backs the Hourly leg -- a daily-bar proxy stands in for it, same caveat as MTF's 4H/1H leg.",
+        "The Market Filter and Strategy 1's relative-strength line both use an equal-weight synthetic index built from this project's own universe, not a real market-cap index -- there is none cached here.",
+        "Only the Daily Structure x breakout-volume gate (2 of 5 dimensions) was swept on a grid; Weekly/Volume/Hourly minimums were only spot-checked, not swept as finely.",
+        "A concurrency cap (20 open positions) paradoxically worsened this backtest's realized drawdown rather than improving it, most likely a small-sample trade-ordering artifact -- flagged, not resolved."
+      ],
+      "rejected": [
+        "The checklist's own literal Daily Structure score minimum (>=15/20) -- empirically destroys the edge rather than protecting it."
+      ],
+      "docs": ["ema_vcp-spec", "ema_vcp-results"]
+    },
+    {
       "id": "pbmtf",
       "name": "Pullback-Retest MTF Swing Strategy",
       "family": "Weekly -> Daily -> Hourly pullback/retest/entry, each on its own 100-point scorecard, plus a 100-point alignment model that sets position size",
@@ -1416,6 +1461,45 @@
       ],
       "rejected": [],
       "docs": []
+    },
+    {
+      "id": "vcp", "name": "VCP Positional (volatility contraction pattern)", "family": "Daily base/contraction detector gated by a weekly trend/RS filter and a market-breadth filter", "status": "shadow",
+      "status_label": "Backtested, provisional India-only edge -- watch only, not sized", "universe": "1,003 names: S&P 500 + Nifty 500",
+      "headline": "From a trader-supplied VCP checklist (Market check -> Weekly check -> Daily contraction pattern -> Volume check -> Pivot breakout -> Hourly entry timing -> 0-100 score -> entry/exit rules). A stock bases through 3+ shrinking pullback legs under a resistance pivot, with volume drying up through the base and expanding on the breakout bar, while its own weekly trend/relative-strength and the market's breadth are both healthy. Backtested on this project's own 1,003-name universe; the result is real but concentrated almost entirely in India.",
+      "metrics": { "trades": 169, "win_pct": 36.1, "avg_r": 0.251, "pf": 1.67, "t_stat": 2.20, "total_r": 42.4, "mdd": -16.3 },
+      "entry": [
+        "Base/contraction: the trailing 3+ swing-point legs ending at the most recent low each pull back less than the one before (10% tolerance, not strict), the final leg's depth is at most 8% (the checklist's literal 5% measured worse -- see Verdict), and the whole base spans at most ~130 daily bars (~6 months).",
+        "Pivot = the highest of the leg peaks bounding the base (the resistance the stock is coiling under, not the window's overall high).",
+        "Volume: the final leg's average volume is at most 70% of the earlier legs' average (dry-up), and leg volumes trend down leg-to-leg.",
+        "Weekly gate: price above a rising 30-week MA, within 15% of the 52-week high, the last two confirmed weekly swing highs AND lows both rising, and relative strength (trailing ~26-week return, ranked against the rest of the same market) in the top 30%.",
+        "Market gate: at least 50% of the stock's own market (US or India) trades above its own 200-day/40-week average -- this project's standard breadth proxy for 'index above its moving averages', since there is no real index series in the data.",
+        "Breakout: close crosses above the pivot with that bar's volume at least 1.4x its 50-day average (volume expansion -- the opposite condition from the dry-up checks above, both required). Entry is the next session's open."
+      ],
+      "exit": [
+        "Stop: the final contraction leg's low (structural). If that is more than 10% away, the production build rejects the signal rather than taking an oversized risk.",
+        "Exit on whichever fires first: two daily closes below the 21 EMA (the checklist's own rule), a 4R target, or closing back below the pivot within 5 bars of entry ('failed breakout', the checklist's other named immediate-exit trigger). Of 169 trades: 92 exited via the 21-EMA trail, 34 via failed breakout, 25 at the stop, 18 at target -- the trailing exit does most of the work, but the failed-breakout rule earns its place too.",
+        "Costs of 0.20% round trip are charged in R, same as the rest of the reversal bot."
+      ],
+      "filters": [
+        "The checklist's 0-100 score (Weekly Trend/20, Relative Strength/15, VCP Structure/15, Volume Dry-up/15, Final Tightness/10, Sector Strength/5, Breakout Volume/10, Market Trend/10) is computed and reported per signal, but is NOT a hard gate in the production build -- see Verdict for why.",
+        "This project has no real sector/industry data, so 'Sector Strength' and 'Relative Strength' in the score are the SAME trailing-return percentile reused twice, not independent information.",
+        "Runs daily in scan_US.bat / scan_India.bat, after the Weinstein Stage-2 scanner. Writes LATEST_VCP_<market>.json.",
+        "No concurrent-position cap or portfolio sizing yet -- same open gap as Weinstein and most of this project's other strategies."
+      ],
+      "verdict": "Built 2026-11-01 from a trader-supplied checklist. The full production rule (daily pattern + weekly gate + volume checks + market gate) backtests to 169 trades, t=2.20, PF 1.67, avg R +0.251 over 26 years -- but that result is almost entirely an India effect: India alone is 55 trades, t=2.59, PF 2.83 (real); the 114 US trades are t=0.66 (statistical noise). An 8-variant ablation sweep found volume is where nearly all the measured edge lives -- removing the volume check collapses the daily result to pure noise (3,339 trades, t=0.24) despite the pattern geometry alone (no filters at all) still being weak at huge N (avg R 0.048). The weekly trend/RS gate's own contribution is genuinely ambiguous: removing it roughly quintuples the trade count and the t-stat goes UP, not down (3.80 vs 2.20) -- the opposite of what a weekly filter did for this project's EMA20-cross rule. The checklist's own score does not cleanly separate trade quality either: bucketed by score, the 70-80 bucket actually outperforms 80-85 and 85-90 (not monotonic); restricting to score >= 85 raises avg R and PF but the t-stat falls purely from the smaller sample. Running the identical engine on weekly bars directly gives only 12 trades in 26 years (58% win, PF 4.17) -- an attractive-looking but statistically meaningless sample. The checklist's hourly entry-timing step could barely be tested at all: the production signal is too rare to land inside yfinance's ~2.9-year hourly window even once across the usual pilot pool; an illustrative (not production) test on a looser variant found n=5, too small to mean anything, though directionally consistent with this project's other hourly work in finding that waiting for an hourly confirmation does not obviously help a daily swing entry.",
+      "caveats": [
+        "This is provisional India-only evidence, not a validated system like v5/S1/S3: the US leg alone is not distinguishable from noise. Do not size this for US names off the numbers above.",
+        "No real sector or index data exists in this project -- 'sector outperforming the market' and 'strong relative strength' are the same single proxy (cross-sectional trailing-return rank within the same market), stated here rather than hidden.",
+        "The checklist's 'heavy distribution volume' immediate-exit trigger is not implemented -- too subjective to encode mechanically without faking a rule.",
+        "The 8% final-contraction cap (vs. the checklist's literal 5%) was picked by citing Minervini's own stated range, not by sweeping 6-10% to confirm it's a plateau rather than a lucky point -- the project's usual neighbourhood-sweep discipline was skipped here and should be done before trusting this number further.",
+        "stop_mode='pct_capped' (tighten the stop to 10% instead of rejecting wide-structural-risk setups) roughly doubles trade count on both daily and weekly with a similar or better t-stat -- looks like a real improvement, not yet adopted as the production default.",
+        "No concurrent-position cap or portfolio-level sizing was modelled, same simplification as weinstein_stage2.py."
+      ],
+      "rejected": [
+        "The checklist's literal final-contraction cap (<=5%): fewer and weaker trades than the 8% default used here (131 trades, t=1.52 vs 169 trades, t=2.20) -- looser was better, not a cliff in the 'stricter wins' direction some trend-followers would expect.",
+        "Hard-gating entries on the score (score >= 85): trade count drops to 46 and the t-stat falls to 1.35 even though avg R and profit factor both rise -- a small-sample tradeoff, not demonstrated evidence the score threshold itself is predictive."
+      ],
+      "docs": ["vcp-positional-spec"]
     }
   ],
   "automation": {
@@ -1424,7 +1508,7 @@
       {
         "time": "07:00",
         "title": "US scans",
-        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner.",
+        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, VCP Positional scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner. Akshat Scan_US (akshat_scan.py --market US, in Fundamental_Scanner) also runs at the same time.",
         "tag": "your PC"
       },
       {
@@ -1832,6 +1916,24 @@
       "id": "inversehs-summary",
       "path": "{reversal_dir}/INVERSE_HS_SUMMARY.md",
       "title": "Inverse head & shoulders: plain-language summary",
+      "kind": "doc"
+    },
+    {
+      "id": "vcp-positional-spec",
+      "path": "{reversal_dir}/VCP_POSITIONAL_SPEC.md",
+      "title": "VCP Positional: rules, variant sweep and measured results",
+      "kind": "doc"
+    },
+    {
+      "id": "ema_vcp-spec",
+      "path": "G:/trading/EMA_VCP_Strategy/EMA_VCP_STRATEGY_SPEC.md",
+      "title": "EMA-VCP Positional Strategy: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "ema_vcp-results",
+      "path": "G:/trading/EMA_VCP_Strategy/EMA_VCP_BACKTEST_RESULTS.md",
+      "title": "EMA-VCP Positional Strategy: backtest and threshold-sweep results",
       "kind": "doc"
     }
   ]

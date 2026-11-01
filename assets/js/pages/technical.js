@@ -215,6 +215,31 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (sg.vcp && Object.keys(sg.vcp).length) {
+    let cur = Object.keys(sg.vcp)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.vcp[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => h('a', { class: 'sym', href: `#/fundamentals/${encodeURIComponent(row.symbol)}`, style: { textDecoration: 'none' } }, row.symbol) },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'pivot', align: 'r', render: (row) => cell(row.pivot) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_to_pivot != null ? `${fmt.num(row.pct_to_pivot, 2)}% to pivot` : '—') },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'score', align: 'r', render: (row) => row.score != null ? `${fmt.num(row.score, 0)}/100` : '—' },
+        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+    };
+    root.append(h('section', null, sectionHead('VCP Positional scanner (volatility contraction pattern)', 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'),
+      Object.keys(sg.vcp).length > 1 ? segmented(Object.keys(sg.vcp).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (sg.mtf && Object.keys(sg.mtf).length) {
     let cur = Object.keys(sg.mtf)[0];
     const box = h('div');

@@ -623,6 +623,35 @@ def read_weinstein(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: VCP Positional scanner
+VCP_ROW_COLS = ["symbol", "state", "date", "close", "pivot", "stop", "risk_pct",
+                 "target", "score", "n_legs", "final_depth_pct", "vol_x_avg",
+                 "pct_to_pivot", "shares_1pct_risk", "action", "bars_ago"]
+VCP_STATE_ORDER = {"TRIGGER": 0, "MISSED": 1, "SETUP": 2}
+VCP_STRING_COLS = ("symbol", "state", "date", "action")
+
+
+def read_vcp(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_VCP_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in VCP_ROW_COLS:
+                if k in r and r[k] is not None:
+                    rec[k] = r[k] if k in VCP_STRING_COLS else num(r[k])
+            recs.append(rec)
+        recs.sort(key=lambda r: (VCP_STATE_ORDER.get(r.get("state"), 9),
+                                  r.get("bars_ago") if r.get("bars_ago") is not None else 999))
+        out[mk] = {"records": recs, "asof": j.get("data_through"), "run_at": j.get("run_at")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: MTF Trend Strategy (Monthly->Weekly->Daily)
 MTF_ROW_COLS = ["symbol", "close", "atr14", "stop_B", "target_B", "risk_B_pct", "stop_A", "target_A", "risk_A_pct"]
 
@@ -1077,7 +1106,7 @@ def main(argv=None) -> int:
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
               "inversehs": read_inversehs(D), "master_framework": read_master_framework(D),
-              "akshat": read_akshat(D)}
+              "akshat": read_akshat(D), "vcp": read_vcp(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
