@@ -3,11 +3,13 @@ import { store } from './lib/store.js';
 import { getJSON, clearMemo } from './lib/data.js';
 
 const NAV = [
-  { id: 'overview', label: 'Overview', path: '#/', icon: 'overview' },
+  { id: 'scanner', label: 'Scanner', path: '#/', icon: 'scanner' },
+  { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
 ];
 
 const PAGES = {
-  overview: () => import('./pages/overview.js'),
+  scanner: () => import('./pages/scanner.js'),
+  fundamentals: () => import('./pages/fundamentals.js'),
 };
 
 const view = $('#view');
@@ -82,7 +84,7 @@ async function route() {
   const token = ++renderToken;
   const hash = location.hash.replace(/^#/, '') || '/';
   const parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
-  const id = PAGES[parts[0]] ? parts[0] : 'overview';
+  const id = PAGES[parts[0]] ? parts[0] : 'scanner';
   markNav(id);
   view.classList.add('loading');
   try {

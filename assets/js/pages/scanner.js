@@ -1,58 +1,39 @@
 import { h, icon, fmt, badge, sheet } from '../lib/dom.js';
-import { getJSON } from '../lib/data.js';
-import { store } from '../lib/store.js';
-import { decryptEnvelope, cryptoAvailable } from '../lib/crypto.js';
 import { renderMarkdown } from '../lib/md.js';
 import { lineChart, columns } from '../lib/charts.js';
 import { pageHead, sectionHead, tabsBar, segmented, chipGroup, dataTable } from '../lib/ui.js';
+import { loadBundle, notPublished, lockScreen } from '../lib/bundle.js';
 
-const TABS = [
+export const TABS = [
   { id: 'signals', label: 'Signals' },
   { id: 'strategies', label: 'Strategies' },
   { id: 'results', label: 'Results' },
   { id: 'automation', label: 'Automation' },
   { id: 'library', label: 'Library' },
 ];
-let BUNDLE = null;
 
-// ------------------------------------------------------------------ loading / unlocking
-async function fetchEnvelope() {
-  for (const p of ['data/technical/bundle.json', 'data/technical/bundle.local.json']) {
-    const o = await getJSON(p, { fresh: true });
-    if (o) return o;
-  }
-  return null;
-}
+// Which sg.<key> sections each page's Signals tab shows. Strategies/Results/Automation/Library
+// are identical on every page - only the Signals tab is split, by the owner's own request.
+export const SCANNER_KEYS = new Set(['accumulation', 'reversal', 'revenue_dip', 'context', 'analog',
+  'basebreakout', 'weinstein', 'vcp', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs']);
+export const FUNDAMENTAL_KEYS = new Set(['master_framework', 'fundamental', 'akshat', 'tef', 'rachana_tps']);
 
-async function unlock(env, pass) {
-  const b = await decryptEnvelope(env, pass);
-  BUNDLE = b;
-  return b;
-}
-
-export async function render(ctx) {
-  ctx.setTitle('Technical');
+export async function renderPage(ctx, { title, sub, allow }) {
+  ctx.setTitle(title);
   const [tab = 'signals', id] = ctx.params;
   const root = h('div');
-  root.append(pageHead('Technical', 'Your scanners, strategy research and backtests, and the automation that runs them.'));
-  if (!BUNDLE) {
-    const env = await fetchEnvelope();
-    if (!env) { root.append(notPublished()); return root; }
-    if (!env.enc) BUNDLE = env;
-    else {
-      const saved = store.get('techpass');
-      if (saved) { try { await unlock(env, saved); } catch { store.del('techpass'); } }
-      if (!BUNDLE) { root.append(lockScreen(env, ctx)); return root; }
-    }
-  }
-  const b = BUNDLE;
+  root.append(pageHead(title, sub));
+  const loaded = await loadBundle();
+  if (loaded.lock === 'not-published') { root.append(notPublished()); return root; }
+  if (loaded.lock === 'locked') { root.append(lockScreen(loaded.env, () => location.reload())); return root; }
+  const b = loaded.bundle;
   root.append(h('div', { class: 'row between wrap', style: { gap: '8px' } },
     h('span', { class: 'tiny muted' }, `Built ${fmt.rel(b.built_at)} on your PC`)));
   root.append(tabsBar(TABS, TABS.some((t) => t.id === tab) ? tab : 'signals', (t) => { location.hash = `#/${t}`; }));
   const body = h('div', { style: { marginTop: '18px' } });
   root.append(body);
   const t = TABS.some((x) => x.id === tab) ? tab : 'signals';
-  if (t === 'signals') body.append(signals(b, ctx));
+  if (t === 'signals') body.append(signals(b, ctx, allow));
   else if (t === 'strategies') body.append(id ? strategyDetail(b, id) : strategies(b));
   else if (t === 'results') body.append(results(b));
   else if (t === 'automation') body.append(automation(b));
@@ -60,26 +41,8 @@ export async function render(ctx) {
   return root;
 }
 
-function notPublished() {
-  return h('div', { class: 'lock' }, icon('lock', 'big'), h('h2', null, 'Technical data is not published yet'),
-    h('p', { class: 'soft', style: { margin: '10px 0 0' } }, 'This page is built from the scanner files on your computer. Run PUBLISH.bat in your project folder once, and it will appear here. The README explains the one-time setup.'));
-}
-
-function lockScreen(env, ctx) {
-  const err = h('div', { class: 'err', role: 'alert' });
-  const pass = h('input', { class: 'field', type: 'password', placeholder: 'Technical page password', autocomplete: 'current-password', 'aria-label': 'Password', required: true });
-  const remember = h('input', { type: 'checkbox', checked: true, id: 'rem' });
-  const form = h('form', { onSubmit: async (e) => {
-    e.preventDefault(); err.textContent = '';
-    if (!cryptoAvailable()) { err.textContent = 'Your browser only unlocks on a secure address. Open the site by its https:// link.'; return; }
-    try {
-      await unlock(env, pass.value);
-      if (remember.checked) store.set('techpass', pass.value);
-      location.reload();
-    } catch (x) { err.textContent = x.message === 'bad-password' ? 'That password did not open it. Check it and try again.' : 'Could not unlock: ' + x.message; }
-  } }, pass, h('label', { class: 'check', for: 'rem' }, remember, 'Remember on this device'), h('button', { class: 'btn primary', type: 'submit' }, 'Unlock'), err);
-  return h('div', { class: 'lock' }, icon('lock', 'big'), h('h2', null, 'Your strategies are locked'),
-    h('p', { class: 'soft', style: { margin: '10px 0 0' } }, 'Everything on this page is encrypted in your repository. Enter the password you chose during setup to read it. It is checked on your device only.'), form);
+export async function render(ctx) {
+  return renderPage(ctx, { title: 'Scanner', sub: 'Your price-action scanners, the strategies built from them, and the automation that runs them.', allow: SCANNER_KEYS });
 }
 
 // ------------------------------------------------------------------ signals
@@ -107,15 +70,15 @@ function sigHead(title, runAt, desc) {
   ];
 }
 
-function signals(b, ctx) {
+function signals(b, ctx, allow) {
   const root = h('div', { class: 'stack', style: { '--gap': '30px' } });
   const sg = b.signals || {};
-  const acc = sg.accumulation || {};
+  const acc = allow.has('accumulation') ? (sg.accumulation || {}) : {};
   for (const mk of ['US', 'IN']) {
     const a = acc[mk]; if (!a) continue;
     root.append(accumulationBlock(mk, a));
   }
-  if (sg.reversal && Object.keys(sg.reversal).length) {
+  if (allow.has('reversal') && sg.reversal && Object.keys(sg.reversal).length) {
     let cur = Object.keys(sg.reversal)[0];
     const box = h('div');
     const paint = () => {
@@ -129,7 +92,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.revenue_dip && Object.keys(sg.revenue_dip).length) {
+  if (allow.has('revenue_dip') && sg.revenue_dip && Object.keys(sg.revenue_dip).length) {
     let cur = Object.keys(sg.revenue_dip)[0];
     const box = h('div');
     const paint = () => {
@@ -145,7 +108,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.context && Object.keys(sg.context).length) {
+  if (allow.has('context') && sg.context && Object.keys(sg.context).length) {
     let cur = Object.keys(sg.context)[0];
     const box = h('div');
     const paint = () => {
@@ -168,7 +131,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.analog && Object.keys(sg.analog).length) {
+  if (allow.has('analog') && sg.analog && Object.keys(sg.analog).length) {
     let cur = Object.keys(sg.analog)[0];
     const box = h('div');
     const paint = () => {
@@ -192,7 +155,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.basebreakout && Object.keys(sg.basebreakout).length) {
+  if (allow.has('basebreakout') && sg.basebreakout && Object.keys(sg.basebreakout).length) {
     let cur = Object.keys(sg.basebreakout)[0];
     const box = h('div');
     const paint = () => {
@@ -215,7 +178,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.weinstein && Object.keys(sg.weinstein).length) {
+  if (allow.has('weinstein') && sg.weinstein && Object.keys(sg.weinstein).length) {
     let cur = Object.keys(sg.weinstein)[0];
     const box = h('div');
     const paint = () => {
@@ -225,7 +188,7 @@ function signals(b, ctx) {
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
-        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'close', align: 'r', render: (row) => cell(row.close ?? row.cross_close) },
         { label: '30w MA', align: 'r', render: (row) => cell(row.ma30w) },
         { label: 'stop (base low)', align: 'r', render: (row) => cell(row.stop_base_low ?? row.base_low) },
         { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_below_ma != null ? `${fmt.num(row.pct_below_ma, 2)}% below MA` : '—') },
@@ -239,7 +202,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.vcp && Object.keys(sg.vcp).length) {
+  if (allow.has('vcp') && sg.vcp && Object.keys(sg.vcp).length) {
     let cur = Object.keys(sg.vcp)[0];
     const box = h('div');
     const paint = () => {
@@ -256,6 +219,7 @@ function signals(b, ctx) {
         { label: 'target', align: 'r', render: (row) => cell(row.target) },
         { label: 'score', align: 'r', render: (row) => row.score != null ? `${fmt.num(row.score, 0)}/100` : '—' },
         { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'what it needs', render: (row) => row.action || '—' },
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
     };
@@ -264,7 +228,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.mtf && Object.keys(sg.mtf).length) {
+  if (allow.has('mtf') && sg.mtf && Object.keys(sg.mtf).length) {
     let cur = Object.keys(sg.mtf)[0];
     const box = h('div');
     const paint = () => {
@@ -286,7 +250,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.master_framework && Object.keys(sg.master_framework).length) {
+  if (allow.has('master_framework') && sg.master_framework && Object.keys(sg.master_framework).length) {
     let cur = Object.keys(sg.master_framework)[0];
     const box = h('div');
     const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
@@ -315,7 +279,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.msr && Object.keys(sg.msr).length) {
+  if (allow.has('msr') && sg.msr && Object.keys(sg.msr).length) {
     let curMk = Object.keys(sg.msr)[0];
     const box = h('div');
     const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
@@ -353,7 +317,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.breakretest && Object.keys(sg.breakretest).length) {
+  if (allow.has('breakretest') && sg.breakretest && Object.keys(sg.breakretest).length) {
     let curMk = Object.keys(sg.breakretest)[0];
     const box = h('div');
     const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', 'NO_TRADE': 'loss' };
@@ -389,7 +353,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.pbmtf && Object.keys(sg.pbmtf).length) {
+  if (allow.has('pbmtf') && sg.pbmtf && Object.keys(sg.pbmtf).length) {
     let curMk = Object.keys(sg.pbmtf)[0];
     const box = h('div');
     const DEC_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Enter: 'gain', 'Full Position': 'gain', 'Small Position': 'outline', 'Half Position': 'outline', Watchlist: 'outline', Monitor: 'outline', Watch: 'outline', Pass: 'loss', 'No Trade': 'loss', Skip: 'loss' };
@@ -427,7 +391,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.dbe && Object.keys(sg.dbe).length) {
+  if (allow.has('dbe') && sg.dbe && Object.keys(sg.dbe).length) {
     let cur = Object.keys(sg.dbe)[0];
     const box = h('div');
     const paint = () => {
@@ -451,7 +415,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.dbpyramid && Object.keys(sg.dbpyramid).length) {
+  if (allow.has('dbpyramid') && sg.dbpyramid && Object.keys(sg.dbpyramid).length) {
     let cur = Object.keys(sg.dbpyramid)[0];
     const box = h('div');
     const DBP_STATE = { full: ['full pyramid', 'gain'], confirmed: ['confirmed breakout', 'gain'], watch: ['watch (EMA reclaim only)', 'outline'] };
@@ -476,7 +440,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.fundamental && Object.keys(sg.fundamental).length) {
+  if (allow.has('fundamental') && sg.fundamental && Object.keys(sg.fundamental).length) {
     let cur = Object.keys(sg.fundamental)[0];
     const box = h('div');
     const FUND_TIER = { Strong: ['strong', 'gain'], Good: ['good', 'gain'], Starter: ['starter', 'outline'], Watch: ['watch', 'outline'], Reject: ['reject', 'loss'], 'Reject (quality veto)': ['quality veto', 'loss'], 'Not enough data': ['no data', 'outline'] };
@@ -505,7 +469,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.inversehs && Object.keys(sg.inversehs).length) {
+  if (allow.has('inversehs') && sg.inversehs && Object.keys(sg.inversehs).length) {
     let cur = Object.keys(sg.inversehs)[0];
     const box = h('div');
     const paint = () => {
@@ -530,7 +494,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.akshat && Object.keys(sg.akshat).length) {
+  if (allow.has('akshat') && sg.akshat && Object.keys(sg.akshat).length) {
     let curAk = Object.keys(sg.akshat)[0];
     const box = h('div');
     const paint = () => {
@@ -560,7 +524,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.tef && Object.keys(sg.tef).length) {
+  if (allow.has('tef') && sg.tef && Object.keys(sg.tef).length) {
     let curMk = Object.keys(sg.tef)[0];
     const box = h('div');
     const ACTION_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Watchlist: 'outline', Monitor: 'outline', Reject: 'loss' };
@@ -590,7 +554,7 @@ function signals(b, ctx) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (sg.rachana_tps && Object.keys(sg.rachana_tps).length) {
+  if (allow.has('rachana_tps') && sg.rachana_tps && Object.keys(sg.rachana_tps).length) {
     let curMk = Object.keys(sg.rachana_tps)[0];
     let curView = 'actionable';
     const box = h('div');
