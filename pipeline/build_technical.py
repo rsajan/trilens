@@ -455,8 +455,11 @@ def read_reversal(D: Dirs) -> dict:
             item["html"] = read_text(h)
         if t.exists():
             item["text"] = read_text(t)
-        m = re.search(r"data through (\d{4}-\d{2}-\d{2})", item.get("text") or item.get("html") or "")
+        text = item.get("text") or item.get("html") or ""
+        m = re.search(r"data through (\d{4}-\d{2}-\d{2})", text)
         item["asof"] = m.group(1) if m else datetime.fromtimestamp((h if h.exists() else t).stat().st_mtime).strftime("%Y-%m-%d")
+        m2 = re.search(r"SCAN\s+(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\b", text)
+        item["run_at"] = f"{m2.group(1)} {m2.group(2)}:{m2.group(3)}" if m2 else None
         out[mk] = item
     return out
 
@@ -481,7 +484,8 @@ def read_revenue(D: Dirs) -> dict:
                 if k in r:
                     rec["status" if k == "group" else k] = num(r[k])
             recs.append(rec)
-        out[mk] = {"records": recs, "regime_on": j.get("regime_on"), "regime_gap_pct": num(j.get("regime_gap_pct")), "asof": j.get("asof") or j.get("date")}
+        out[mk] = {"records": recs, "regime_on": j.get("regime_on"), "regime_gap_pct": num(j.get("regime_gap_pct")),
+                   "asof": j.get("data_through") or j.get("asof") or j.get("date"), "run_at": j.get("run_at")}
     return out
 
 
