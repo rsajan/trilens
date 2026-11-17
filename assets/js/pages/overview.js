@@ -96,6 +96,17 @@ function fmtRunAt(s) {
   return `Updated ${wd} ${+d} ${mon} ${m[4]}:${m[5]}`;
 }
 
+// A signal section's header: the timestamp sits as its own small badge next to the title
+// (not crammed into the same line as the description), and the description gets its own
+// readable paragraph underneath, instead of both sharing one muted subtitle span.
+function sigHead(title, runAt, desc) {
+  const ts = fmtRunAt(runAt);
+  return [
+    sectionHead(title, null, ts ? badge(ts, 'outline') : null),
+    desc ? h('p', { class: 'soft small', style: { margin: '2px 0 4px' } }, desc) : null,
+  ];
+}
+
 function signals(b, ctx) {
   const root = h('div', { class: 'stack', style: { '--gap': '30px' } });
   const sg = b.signals || {};
@@ -113,7 +124,7 @@ function signals(b, ctx) {
         ? h('iframe', { class: 'report-frame', sandbox: '', srcdoc: r.html, title: `Reversal bot ${cur}` })
         : h('pre', { class: 'txt' }, r.text || 'No report found.'));
     };
-    root.append(h('section', null, sectionHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', [fmtRunAt(sg.reversal[cur]?.run_at), sg.reversal[cur]?.asof ? `data through ${sg.reversal[cur].asof}` : ''].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', sg.reversal[cur]?.run_at, sg.reversal[cur]?.asof ? `Data through ${sg.reversal[cur].asof}.` : ''),
       Object.keys(sg.reversal).length > 1 ? segmented(Object.keys(sg.reversal).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -129,7 +140,7 @@ function signals(b, ctx) {
       const cols = Object.keys(recs[0]).slice(0, 9);
       box.replaceChildren(...[gate, dataTable(cols.map((c) => ({ label: c.replace(/_/g, ' '), align: typeof recs[0][c] === 'number' ? 'r' : '', render: (row) => cell(row[c]) })), recs.slice(0, 40), { compact: true })].filter(Boolean));
     };
-    root.append(h('section', null, sectionHead('Revenue trend and price dip', [fmtRunAt(sg.revenue_dip[cur]?.run_at), 'a watch list, not a trading signal'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Revenue trend and price dip', sg.revenue_dip[cur]?.run_at, 'A watch list, not a trading signal.'),
       Object.keys(sg.revenue_dip).length > 1 ? segmented(Object.keys(sg.revenue_dip).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -152,7 +163,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(chips, dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Market context classifier', [fmtRunAt(sg.context[cur]?.run_at), sg.context[cur]?.universe ? `${sg.context[cur].universe} scanned` : ''].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Market context classifier', sg.context[cur]?.run_at, sg.context[cur]?.universe ? `${sg.context[cur].universe} symbols scanned.` : ''),
       Object.keys(sg.context).length > 1 ? segmented(Object.keys(sg.context).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -176,7 +187,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Analog setup scanner (stage 1 + stages 2-4)', [fmtRunAt(sg.analog[cur]?.run_at), 'context-gated: only stocks currently tagged a fresh breakout, then validated against ≥2 confirmed historical retests on the same stock, daily-bar proxy for the 4H chart'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Analog setup scanner (stage 1 + stages 2-4)', sg.analog[cur]?.run_at, 'Context-gated: only stocks currently tagged a fresh breakout, then validated against ≥2 confirmed historical retests on the same stock, daily-bar proxy for the 4H chart.'),
       Object.keys(sg.analog).length > 1 ? segmented(Object.keys(sg.analog).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -199,7 +210,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Base + breakout scanner (stage 1 + stage 2)', [fmtRunAt(sg.basebreakout[cur]?.run_at), 'the wider candidate list: every weekly base-and-breakout within the last 8 weeks on a stock currently tagged a fresh breakout -- no retest backtest or precedent gate yet'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Base + breakout scanner (stage 1 + stage 2)', sg.basebreakout[cur]?.run_at, 'The wider candidate list: every weekly base-and-breakout within the last 8 weeks on a stock currently tagged a fresh breakout -- no retest backtest or precedent gate yet.'),
       Object.keys(sg.basebreakout).length > 1 ? segmented(Object.keys(sg.basebreakout).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -223,7 +234,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Weinstein Stage-2 scanner (30-week MA bull market bottom)', [fmtRunAt(sg.weinstein[cur]?.run_at), 'TRIGGER: crossed back above a flattened-then-rising 30-week MA this week, volume-confirmed, after a genuine prior decline. MISSED: triggered 2-8 weeks ago, still open. SETUP: basing under the MA, not yet triggered. Backtested: 650 trades 2000-2026, 34.5% win, avg R +0.88, profit factor 4.82, t=4.34.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Weinstein Stage-2 scanner (30-week MA bull market bottom)', sg.weinstein[cur]?.run_at, 'TRIGGER: crossed back above a flattened-then-rising 30-week MA this week, volume-confirmed, after a genuine prior decline. MISSED: triggered 2-8 weeks ago, still open. SETUP: basing under the MA, not yet triggered. Backtested: 650 trades 2000-2026, 34.5% win, avg R +0.88, profit factor 4.82, t=4.34.'),
       Object.keys(sg.weinstein).length > 1 ? segmented(Object.keys(sg.weinstein).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -248,7 +259,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('VCP Positional scanner (volatility contraction pattern)', [fmtRunAt(sg.vcp[cur]?.run_at), 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('VCP Positional scanner (volatility contraction pattern)', sg.vcp[cur]?.run_at, 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'),
       Object.keys(sg.vcp).length > 1 ? segmented(Object.keys(sg.vcp).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -270,7 +281,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('MTF Trend Strategy (Monthly → Weekly → Daily)', [fmtRunAt(sg.mtf[cur]?.run_at), 'B = stop 2.0×ATR14 / target 2.0R, the stable pick. A = stop at the 3-day low / target 3R, the best backtested number but less stable across time. Entry is the next session’s open.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('MTF Trend Strategy (Monthly → Weekly → Daily)', sg.mtf[cur]?.run_at, 'B = stop 2.0×ATR14 / target 2.0R, the stable pick. A = stop at the 3-day low / target 3R, the best backtested number but less stable across time. Entry is the next session’s open.'),
       Object.keys(sg.mtf).length > 1 ? segmented(Object.keys(sg.mtf).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -299,7 +310,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
     };
-    root.append(h('section', null, sectionHead('Fundamental Analysis Master Framework', [fmtRunAt(sg.master_framework[cur]?.run_at), 'Quality (growth/margins/ROIC/debt/industry rank/management) x 60% + Opportunity (valuation/forecast growth/catalysts) x 40% = Investment Score, graded A+ to D. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe -- see the Strategies page for the full write-up.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Fundamental Analysis Master Framework', sg.master_framework[cur]?.run_at, 'Quality (growth/margins/ROIC/debt/industry rank/management) x 60% + Opportunity (valuation/forecast growth/catalysts) x 40% = Investment Score, graded A+ to D. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe -- see the Strategies page for the full write-up.'),
       Object.keys(sg.master_framework).length > 1 ? segmented(Object.keys(sg.master_framework).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -337,7 +348,7 @@ function signals(b, ctx) {
         h('div', { style: { height: '10px' } }), inner);
       paintInner();
     };
-    root.append(h('section', null, sectionHead('Master Support & Resistance Framework', [fmtRunAt(sg.msr[curMk]?.run_at), 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Master Support & Resistance Framework', sg.msr[curMk]?.run_at, 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
       Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -373,7 +384,7 @@ function signals(b, ctx) {
         h('div', { style: { height: '10px' } }), inner);
       paintInner();
     };
-    root.append(h('section', null, sectionHead('Break & Retest Master Framework (C.E.S.T)', [fmtRunAt(sg.breakretest[curMk]?.run_at), 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Break & Retest Master Framework (C.E.S.T)', sg.breakretest[curMk]?.run_at, 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'),
       Object.keys(sg.breakretest).length > 1 ? segmented(Object.keys(sg.breakretest).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -411,7 +422,7 @@ function signals(b, ctx) {
         inner);
       paintInner();
     };
-    root.append(h('section', null, sectionHead('Pullback-Retest MTF Swing Strategy (Weekly → Daily → Hourly)', [fmtRunAt(sg.pbmtf[curMk]?.run_at), 'Long only -- the short side is disabled after the backtest showed it loses money. Signals = passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired now). Watchlist = every symbol with a clear daily trend, scored on all 3 timeframes either way. See the Strategies tab for the backtest.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Pullback-Retest MTF Swing Strategy (Weekly → Daily → Hourly)', sg.pbmtf[curMk]?.run_at, 'Long only -- the short side is disabled after the backtest showed it loses money. Signals = passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired now). Watchlist = every symbol with a clear daily trend, scored on all 3 timeframes either way. See the Strategies tab for the backtest.'),
       Object.keys(sg.pbmtf).length > 1 ? segmented(Object.keys(sg.pbmtf).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -435,7 +446,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Logic 3 DBE (double bottom + engulfing)', [fmtRunAt(sg.dbe[cur]?.run_at), 'TRIGGER: the breakout fired on the last bar, act today. ARMED: steps 1-4 done, a buy-stop order is live for the next session. MISSED: broke out 2-4 bars ago. Validated, not live -- see the Strategies tab for the backtest.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Logic 3 DBE (double bottom + engulfing)', sg.dbe[cur]?.run_at, 'TRIGGER: the breakout fired on the last bar, act today. ARMED: steps 1-4 done, a buy-stop order is live for the next session. MISSED: broke out 2-4 bars ago. Validated, not live -- see the Strategies tab for the backtest.'),
       Object.keys(sg.dbe).length > 1 ? segmented(Object.keys(sg.dbe).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -460,7 +471,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Double-bottom pyramid scanner', [fmtRunAt(sg.dbpyramid[cur]?.run_at), 'Watch = EMA20 reclaim only (historically the weak tranche, ~6% win rate alone). Confirmed = closed back above the base high. Full pyramid = breakout plus a held retest -- historically the strong tranche, 74% win rate / +0.38R in the 2000-2026 backtest. See the Strategies tab.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Double-bottom pyramid scanner', sg.dbpyramid[cur]?.run_at, 'Watch = EMA20 reclaim only (historically the weak tranche, ~6% win rate alone). Confirmed = closed back above the base high. Full pyramid = breakout plus a held retest -- historically the strong tranche, 74% win rate / +0.38R in the 2000-2026 backtest. See the Strategies tab.'),
       Object.keys(sg.dbpyramid).length > 1 ? segmented(Object.keys(sg.dbpyramid).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -489,7 +500,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Fundamental Analysis screen', [fmtRunAt(sg.fundamental[cur]?.run_at), 'the automatable slice only -- screening, financials and sector-relative valuation. SWOT, management and thesis review stay a manual call. Score is scaled to the data actually available; "quality veto" means 4+ combined red flags/shenanigans forced a Reject regardless of score. See the Strategies tab.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Fundamental Analysis screen', sg.fundamental[cur]?.run_at, 'The automatable slice only -- screening, financials and sector-relative valuation. SWOT, management and thesis review stay a manual call. Score is scaled to the data actually available; "quality veto" means 4+ combined red flags/shenanigans forced a Reject regardless of score. See the Strategies tab.'),
       Object.keys(sg.fundamental).length > 1 ? segmented(Object.keys(sg.fundamental).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -514,7 +525,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Inverse head & shoulders', [fmtRunAt(sg.inversehs[cur]?.run_at), 'live setups only -- forming, awaiting a retest/reclaim, or an open trade -- not the backtest'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Inverse head & shoulders', sg.inversehs[cur]?.run_at, 'Live setups only -- forming, awaiting a retest/reclaim, or an open trade -- not the backtest.'),
       Object.keys(sg.inversehs).length > 1 ? segmented(Object.keys(sg.inversehs).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -544,7 +555,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
     };
-    root.append(h('section', null, sectionHead('Akshat Shrivastava Fundamental + VCP Hybrid', [fmtRunAt(sg.akshat[curAk]?.run_at), 'Industry -> Business Quality -> Valuation -> Supply/Demand -> VCP, 100-point Decision Matrix'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Akshat Shrivastava Fundamental + VCP Hybrid', sg.akshat[curAk]?.run_at, 'Industry -> Business Quality -> Valuation -> Supply/Demand -> VCP, 100-point Decision Matrix.'),
       Object.keys(sg.akshat).length > 1 ? segmented(Object.keys(sg.akshat).map((k) => ({ id: k, label: k })), curAk, (v) => { curAk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -574,7 +585,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
     };
-    root.append(h('section', null, sectionHead('Master Stock Analysis & Trade Execution Framework', [fmtRunAt(sg.tef[curMk]?.run_at), 'Business Quality (20) + Fundamentals (25) + Valuation (15) + Turnaround (15) + Weekly VCP (30) + Daily Setup (30) + Hourly Entry (20) = 155-point Decision Matrix. Golden Rule = Fundamentals % and Technicals % both >= 70 and Total >= 115. See the Strategies page for the full write-up and known gaps.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('Master Stock Analysis & Trade Execution Framework', sg.tef[curMk]?.run_at, 'Business Quality (20) + Fundamentals (25) + Valuation (15) + Turnaround (15) + Weekly VCP (30) + Daily Setup (30) + Hourly Entry (20) = 155-point Decision Matrix. Golden Rule = Fundamentals % and Technicals % both >= 70 and Total >= 115. See the Strategies page for the full write-up and known gaps.'),
       Object.keys(sg.tef).length > 1 ? segmented(Object.keys(sg.tef).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
@@ -600,7 +611,7 @@ function signals(b, ctx) {
       ];
       box.replaceChildren(dataTable(cols, recs, { compact: true }));
     };
-    root.append(h('section', null, sectionHead('CA Rachana Ranade Combined Framework', [fmtRunAt(sg.rachana_tps[curMk]?.run_at), 'Trend + Chart Pattern + RSI + Volume + Fibonacci Pivot + Candlestick + VCP + Risk/Reward, 175-point score. Backtested 1,003 symbols / 26 years: real edge (t=27, PF 1.65), but the pasted framework\'s own top tier (150+, "A+ Setup") backtested as the WEAKEST band, not the strongest -- see the Strategies page.'].filter(Boolean).join(' · ')),
+    root.append(h('section', null, ...sigHead('CA Rachana Ranade Combined Framework', sg.rachana_tps[curMk]?.run_at, 'Trend + Chart Pattern + RSI + Volume + Fibonacci Pivot + Candlestick + VCP + Risk/Reward, 175-point score. Backtested 1,003 symbols / 26 years: real edge (t=27, PF 1.65), but the pasted framework\'s own top tier (150+, "A+ Setup") backtested as the WEAKEST band, not the strongest -- see the Strategies page.'),
       h('div', { class: 'row', style: { gap: '8px', marginBottom: '10px' } },
         segmented([{ id: 'actionable', label: 'Actionable' }, { id: 'watchlist', label: 'Close calls' }], curView, (v) => { curView = v; paint(); }),
         Object.keys(sg.rachana_tps).length > 1 ? segmented(Object.keys(sg.rachana_tps).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null),
