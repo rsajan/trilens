@@ -269,12 +269,12 @@ function signals(b, ctx, allow) {
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'sector', render: (row) => row.sector || '—' },
         { label: 'grade', render: (row) => row.grade ? badge(`${row.grade} (${fmt.num(row.investmentScore, 1)})`, GRADE_KIND[row.grade] || 'outline') : '—' },
-        { label: 'quality / opportunity', align: 'r', render: (row) => `${row.qualityScore != null ? fmt.num(row.qualityScore, 0) : '—'} / ${row.opportunityScore != null ? fmt.num(row.opportunityScore, 0) : '—'}` },
+        { label: 'quality / opportunity', align: 'r', render: (row) => `Q ${row.qualityScore != null ? fmt.num(row.qualityScore, 0) : '—'} / O ${row.opportunityScore != null ? fmt.num(row.opportunityScore, 0) : '—'}` },
         { label: 'technical', align: 'r', render: (row) => row.technicalScore != null ? fmt.num(row.technicalScore, 0) : '—' },
         { label: 'industry rank', render: (row) => row.industryRank || '—' },
         { label: 'red flags', render: (row) => row.redFlagCount ? badge(`${row.redFlagCount}${row.redFlagReject ? ' (reject)' : ''}`, row.redFlagReject ? 'loss' : 'outline') : badge('0', 'gain') },
         { label: 'action', render: (row) => row.action || '—' },
-        { label: 'sizing', align: 'r', render: (row) => row.riskPct ? `risk ${row.riskPct} · ${row.allocationPct}` : '—' },
+        { label: 'sizing', align: 'r', render: (row) => row.riskPct ? `risk ${row.riskPct} · alloc ${row.allocationPct}` : '—' },
       ];
       box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
     };
@@ -451,10 +451,15 @@ function signals(b, ctx, allow) {
     let cur = Object.keys(sg.fundamental)[0];
     const box = h('div');
     const FUND_TIER = { Strong: ['strong', 'gain'], Good: ['good', 'gain'], Starter: ['starter', 'outline'], Watch: ['watch', 'outline'], Reject: ['reject', 'loss'], 'Reject (quality veto)': ['quality veto', 'loss'], 'Not enough data': ['no data', 'outline'] };
+    const FUND_TIER_ORDER = ['Strong', 'Good', 'Starter', 'Watch', 'Reject', 'Reject (quality veto)', 'Not enough data'];
     const paint = () => {
       const r = sg.fundamental[cur];
       const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No fundamental scan yet.')); return; }
+      const counts = {};
+      for (const row of recs) counts[row.tier] = (counts[row.tier] || 0) + 1;
+      const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...FUND_TIER_ORDER.filter((t) => counts[t]).map((t) => { const [lbl, kind] = FUND_TIER[t] || [t, 'outline']; return badge(`${counts[t]} ${lbl}`, kind); })) : null;
+      if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'No fundamental scan yet.')].filter(Boolean)); return; }
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'sector', render: (row) => row.sector || '—' },
@@ -467,9 +472,9 @@ function signals(b, ctx, allow) {
         { label: 'PE', align: 'r', render: (row) => row.pe != null ? fmt.num(row.pe, 1) : '—' },
         { label: 'vs sector PE', align: 'r', render: (row) => row.sector_discount_pct != null ? fmt.signed(row.sector_discount_pct, 0) + '%' : '—' },
         { label: 'analyst upside', align: 'r', render: (row) => row.analyst_upside_pct != null ? fmt.signed(row.analyst_upside_pct, 0) + '%' : '—' },
-        { label: 'flags', align: 'r', render: (row) => `${row.red_flags ?? 0}+${row.shenanigans ?? 0}` },
+        { label: 'flags', align: 'r', render: (row) => `${row.red_flags ?? 0} flag${row.red_flags === 1 ? '' : 's'} · ${row.shenanigans ?? 0} shenanigan${row.shenanigans === 1 ? '' : 's'}` },
       ];
-      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      box.replaceChildren(...[chips, dataTable(cols, recs.slice(0, 60), { compact: true })].filter(Boolean));
     };
     root.append(h('section', null, ...sigHead('Fundamental Analysis screen', sg.fundamental[cur]?.run_at, 'The automatable slice only -- screening, financials and sector-relative valuation. SWOT, management and thesis review stay a manual call. Score is scaled to the data actually available; "quality veto" means 4+ combined red flags/shenanigans forced a Reject regardless of score. See the Strategies tab.'),
       Object.keys(sg.fundamental).length > 1 ? segmented(Object.keys(sg.fundamental).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
@@ -504,19 +509,21 @@ function signals(b, ctx, allow) {
   if (allow.has('akshat') && sg.akshat && Object.keys(sg.akshat).length) {
     let curAk = Object.keys(sg.akshat)[0];
     const box = h('div');
+    const AKSHAT_GRADE_ORDER = ['A_PLUS', 'A', 'B', 'WATCHLIST', 'REJECT', 'Insufficient data'];
     const paint = () => {
       const r = sg.akshat[curAk];
       const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'Nothing scored right now.')); return; }
+      const counts = {};
+      for (const row of recs) counts[row.grade] = (counts[row.grade] || 0) + 1;
+      const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...AKSHAT_GRADE_ORDER.filter((g) => counts[g]).map((g) => badge(`${counts[g]} ${AKSHAT_GRADE_LABEL[g] || g}`, AKSHAT_GRADE_KIND[g] || 'outline'))) : null;
+      if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'Nothing scored right now.')].filter(Boolean)); return; }
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'sector', render: (row) => row.sector || '—' },
         { label: 'price', align: 'r', render: (row) => cell(row.price) },
-        { label: 'industry /25', align: 'r', render: (row) => cell(row.industry_score) },
-        { label: 'business /30', align: 'r', render: (row) => cell(row.business_score) },
-        { label: 'valuation /20', align: 'r', render: (row) => cell(row.valuation_score) },
-        { label: 'supply/demand /15', align: 'r', render: (row) => cell(row.supply_demand_score) },
-        { label: 'vcp /10', align: 'r', render: (row) => cell(row.vcp_score) },
+        { label: 'industry/biz/val/s&d/vcp', align: 'r', render: (row) =>
+          `${cell(row.industry_score)}/25 · ${cell(row.business_score)}/30 · ${cell(row.valuation_score)}/20 · ${cell(row.supply_demand_score)}/15 · ${cell(row.vcp_score)}/10` },
         { label: 'total /100', align: 'r', render: (row) => cell(row.total_score) },
         { label: 'grade', render: (row) => badge(AKSHAT_GRADE_LABEL[row.grade] || row.grade, AKSHAT_GRADE_KIND[row.grade]) },
         { label: 'gate', render: (row) => row.fundamental_gate ? badge('pass', 'gain') : badge('no', 'outline') },
@@ -524,7 +531,7 @@ function signals(b, ctx, allow) {
         { label: 'stop', align: 'r', render: (row) => cell(row.stop_loss) },
         { label: '+20% / +40%', align: 'r', render: (row) => `${cell(row.partial_exit_1)} / ${cell(row.partial_exit_2)}` },
       ];
-      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+      box.replaceChildren(...[chips, dataTable(cols, recs.slice(0, 80), { compact: true })].filter(Boolean));
     };
     root.append(h('section', null, ...sigHead('Akshat Shrivastava Fundamental + VCP Hybrid', sg.akshat[curAk]?.run_at, 'Industry -> Business Quality -> Valuation -> Supply/Demand -> VCP, 100-point Decision Matrix.'),
       Object.keys(sg.akshat).length > 1 ? segmented(Object.keys(sg.akshat).map((k) => ({ id: k, label: k })), curAk, (v) => { curAk = v; paint(); }) : null,
@@ -574,14 +581,13 @@ function signals(b, ctx, allow) {
       if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, `No ${curView === 'actionable' ? 'actionable' : 'watchlist'} rows this run.`)); return; }
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
-        { label: 'grade (score)', render: (row) => row.grade ? badge(`${row.grade.replace(/_/g, ' ')} (${fmt.num(row.total_score, 0)})`, row.total_score >= 150 ? 'outline' : 'gain') : '—' },
+        { label: 'grade (score)', render: (row) => row.grade ? badge(`${row.grade.replace(/_/g, ' ')} (${fmt.num(row.total_score, 0)})${row.size_caveat ? ' · weak band' : ''}`, row.total_score >= 150 ? 'outline' : 'gain') : '—' },
         { label: 'pattern', render: (row) => row.best_pattern ? row.best_pattern.replace(/_/g, ' ') : '—' },
-        { label: 'entry / stop / target', align: 'r', render: (row) => `${fmt.num(row.entry, 2)} / ${fmt.num(row.stop, 2)} / ${fmt.num(row.target, 2)}` },
+        { label: 'entry', align: 'r', render: (row) => fmt.num(row.entry, 2) },
+        { label: 'stop', align: 'r', render: (row) => fmt.num(row.stop, 2) },
+        { label: 'target', align: 'r', render: (row) => fmt.num(row.target, 2) },
         { label: 'RR', align: 'r', render: (row) => row.rr != null ? fmt.num(row.rr, 2) : '—' },
         { label: 'RSI', align: 'r', render: (row) => row.rsi != null ? fmt.num(row.rsi, 1) : '—' },
-        { label: 'trend/pattern/rsi/vol/pivot/candle/vcp/rr', align: 'r', render: (row) =>
-          `${fmt.num(row.trend_score, 0)}·${fmt.num(row.pattern_score, 0)}·${fmt.num(row.rsi_score, 0)}·${fmt.num(row.volume_score, 0)}·${fmt.num(row.pivot_score, 0)}·${fmt.num(row.candlestick_score, 0)}·${fmt.num(row.vcp_score, 0)}·${fmt.num(row.rr_score, 0)}` },
-        { label: 'note', render: (row) => row.size_caveat ? badge('backtest: top band ≠ stronger', 'outline') : '—' },
       ];
       box.replaceChildren(dataTable(cols, recs, { compact: true }));
     };
