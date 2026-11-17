@@ -193,6 +193,7 @@ function signals(b, ctx, allow) {
         { label: 'stop (base low)', align: 'r', render: (row) => cell(row.stop_base_low ?? row.base_low) },
         { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_below_ma != null ? `${fmt.num(row.pct_below_ma, 2)}% below MA` : '—') },
         { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'MA flat', align: 'r', render: (row) => row.ma_flat_pct != null ? `${fmt.num(row.ma_flat_pct, 1)}%` : '—' },
         { label: 'R so far', align: 'r', render: (row) => row.r_so_far != null ? fmt.signed(row.r_so_far, 2) : '—' },
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
@@ -218,7 +219,9 @@ function signals(b, ctx, allow) {
         { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_to_pivot != null ? `${fmt.num(row.pct_to_pivot, 2)}% to pivot` : '—') },
         { label: 'target', align: 'r', render: (row) => cell(row.target) },
         { label: 'score', align: 'r', render: (row) => row.score != null ? `${fmt.num(row.score, 0)}/100` : '—' },
+        { label: 'legs / depth', align: 'r', render: (row) => row.n_legs != null ? `${fmt.int(row.n_legs)} legs, ${fmt.num(row.final_depth_pct, 1)}%` : '—' },
         { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'shares @1% risk', align: 'r', render: (row) => cell(row.shares_1pct_risk) },
         { label: 'what it needs', render: (row) => row.action || '—' },
       ];
       box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
@@ -238,6 +241,7 @@ function signals(b, ctx, allow) {
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'ATR14', align: 'r', render: (row) => cell(row.atr14) },
         { label: 'stop B / target B', align: 'r', render: (row) => row.stop_B != null ? `${cell(row.stop_B)} / ${cell(row.target_B)}` : '—' },
         { label: 'risk B', align: 'r', render: (row) => row.risk_B_pct != null ? fmt.pct(row.risk_B_pct, 1, false) : '—' },
         { label: 'stop A / target A', align: 'r', render: (row) => row.stop_A != null ? `${cell(row.stop_A)} / ${cell(row.target_A)}` : '—' },
@@ -371,7 +375,7 @@ function signals(b, ctx, allow) {
           { label: 'daily', render: (row) => decCell(row.daily_score, row.daily_decision) },
           { label: 'hourly', render: (row) => decCell(row.hourly_score, row.hourly_decision) },
           { label: 'alignment', align: 'r', render: (row) => badge(`${row.alignment_score}`, row.take_trade ? 'gain' : 'outline') },
-          { label: 'size', align: 'r', render: (row) => row.position_size_R ? `${fmt.num(row.position_size_R, 2)}R` : '—' },
+          { label: 'size', align: 'r', render: (row) => row.position_size_R ? `${fmt.num(row.position_size_R, 2)}R${row.position_size_shares != null ? ` (${fmt.int(row.position_size_shares)} sh)` : ''}` : '—' },
           { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
           { label: 'T1 / T2', align: 'r', render: (row) => row.target_1_5R != null ? `${cell(row.target_1_5R)} / ${cell(row.target_2R)}` : '—' },
           { label: 'RR vs. swing', align: 'r', render: (row) => row.rr_to_prior_swing != null ? `${fmt.num(row.rr_to_prior_swing, 2)}R` : '—' },
@@ -401,10 +405,12 @@ function signals(b, ctx, allow) {
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
         { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'bottoms', render: (row) => row.b1_date || row.b2_date ? `${row.b1_date || '—'} / ${row.b2_date || '—'}` : '—' },
         { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
         { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
         { label: 'target', align: 'r', render: (row) => cell(row.target) },
         { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        { label: 'last close', align: 'r', render: (row) => cell(row.last_close) },
         { label: 'volume ok', render: (row) => row.vol_ok ?? '—' },
         { label: 'bars ago', align: 'r', render: (row) => cell(row.bars_ago) },
       ];
@@ -428,6 +434,7 @@ function signals(b, ctx, allow) {
         { label: 'state', render: (row) => { const [lbl, kind] = DBP_STATE[row.state] || [row.state, 'outline']; return badge(lbl, kind); } },
         { label: 'close', align: 'r', render: (row) => cell(row.close) },
         { label: 'avg entry', align: 'r', render: (row) => cell(row.avg_entry) },
+        { label: 'entries', render: (row) => [row.entry1_date, row.entry2_date, row.entry3_date].filter(Boolean).join(' → ') || '—' },
         { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
         { label: 'target', align: 'r', render: (row) => cell(row.target) },
         { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
@@ -528,12 +535,15 @@ function signals(b, ctx, allow) {
     let curMk = Object.keys(sg.tef)[0];
     const box = h('div');
     const ACTION_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Watchlist: 'outline', Monitor: 'outline', Reject: 'loss' };
+    const REJECT_FLOOR = 80;
     const paint = () => {
       const r = sg.tef[curMk] || {};
-      const recs = r.records || [];
-      const counts = r.action_counts || {};
+      // Below this, a Reject is just noise -- hide it rather than list hundreds of near-zero scores.
+      const recs = (r.records || []).filter((row) => row.action !== 'Reject' || (row.totalScore ?? 0) >= REJECT_FLOOR);
+      const counts = {};
+      for (const row of recs) counts[row.action] = (counts[row.action] || 0) + 1;
       const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
-        ...Object.keys(counts).map((a) => badge(`${counts[a]} ${a}`, ACTION_KIND[a] || 'outline'))) : null;
+        ...Object.keys(counts).map((a) => badge(`${counts[a]} ${a}${a === 'Reject' ? ` (≥${REJECT_FLOOR})` : ''}`, ACTION_KIND[a] || 'outline'))) : null;
       if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'No fundamentals score yet -- run the scanner.')].filter(Boolean)); return; }
       const cols = [
         { label: 'symbol', render: (row) => row.symbol },
@@ -604,6 +614,7 @@ function contextDetail(row) {
   if (row.context === 'NEW_ATH_BREAKOUT') return row.prior_ath_bars_ago != null ? `prior high stood ${fmt.int(row.prior_ath_bars_ago)} bars` : '—';
   if (row.context === 'DOWNTREND_BREAK') return row.trendline_value != null ? `trendline ${cell(row.trendline_value)}` : '—';
   if (row.context === 'UPTREND_PULLBACK_SMALL' || row.context === 'UPTREND_PULLBACK_DEEP') return row.retracement_pct != null ? `${fmt.num(row.retracement_pct, 1)}% retracement` : '—';
+  if (row.context === 'RANGE_CORRECTION_300D') return row.range_low != null && row.range_high != null ? `range ${cell(row.range_low)}–${cell(row.range_high)}${row.pressing_upper_band ? ', pressing upper band' : ''}` : '—';
   return '—';
 }
 
