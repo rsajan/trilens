@@ -23,6 +23,7 @@ import base64
 import csv
 import gzip
 import hashlib
+import html
 import io
 import json
 import os
@@ -441,6 +442,47 @@ def read_accumulation(D: Dirs) -> dict:
 
 
 # ------------------------------------------------------------------ signals: Reversal bot + Revenue and dip
+def _strip_tags(s: str) -> str:
+    s = re.sub(r"<br\s*/?>", "\n", s)
+    s = re.sub(r"<[^>]+>", "", s)
+    return html.unescape(s).strip()
+
+
+def _div_text(text: str, cls: str) -> str | None:
+    m = re.search(rf"<div class=['\"]{cls}['\"]>(.*?)</div>", text, re.DOTALL)
+    return _strip_tags(m.group(1)) if m else None
+
+
+def _parse_dataframe_tables(text: str) -> list[dict]:
+    """Each <h2>title</h2><table class="dataframe">...</table> in the reversal bot's own
+    report -- a plain pandas .to_html() table, so no nested markup inside a cell -- becomes
+    {title, cols, rows} with rows as lists of cell strings."""
+    out = []
+    for m in re.finditer(r"<h2>(.*?)</h2>\s*<table class=\"dataframe\">(.*?)</table>", text, re.DOTALL):
+        title = _strip_tags(m.group(1))
+        table_html = m.group(2)
+        cols = []
+        thead_m = re.search(r"<thead>(.*?)</thead>", table_html, re.DOTALL)
+        if thead_m:
+            cols = [_strip_tags(c) for c in re.findall(r"<th[^>]*>(.*?)</th>", thead_m.group(1), re.DOTALL)]
+        rows = []
+        tbody_m = re.search(r"<tbody>(.*?)</tbody>", table_html, re.DOTALL)
+        if tbody_m:
+            for row_m in re.finditer(r"<tr[^>]*>(.*?)</tr>", tbody_m.group(1), re.DOTALL):
+                cells = [_strip_tags(c) for c in re.findall(r"<td[^>]*>(.*?)</td>", row_m.group(1), re.DOTALL)]
+                if cells:
+                    rows.append(cells)
+        out.append({"title": title, "cols": cols, "rows": rows})
+    return out
+
+
+REVERSAL_ROW_COLS = ["timeframe", "symbol", "date", "pattern", "close", "confirm_close", "trigger_above",
+                     "stop", "risk_pct", "risk_mult", "target", "rsi", "vol_x_avg", "bars_ago", "action"]
+REVERSAL_STRING_COLS = ("timeframe", "symbol", "date", "pattern", "action")
+REVERSAL_STATE_FROM_TITLE = (("Actionable now", "ACTIONABLE"), ("Pending", "PENDING"), ("Already triggered", "TRIGGERED"))
+REVERSAL_STATE_ORDER = {"ACTIONABLE": 0, "PENDING": 1, "TRIGGERED": 2}
+
+
 def read_reversal(D: Dirs) -> dict:
     out = {}
     if not D.scans or not D.scans.exists():
@@ -450,16 +492,40 @@ def read_reversal(D: Dirs) -> dict:
         h, t = D.scans / f"LATEST_{mk}.html", D.scans / f"LATEST_{mk}.txt"
         if not h.exists() and not t.exists():
             continue
-        item = {}
-        if h.exists():
-            item["html"] = read_text(h)
-        if t.exists():
-            item["text"] = read_text(t)
-        text = item.get("text") or item.get("html") or ""
+        raw = read_text(h) if h.exists() else ""
+        text = raw or read_text(t)
         m = re.search(r"data through (\d{4}-\d{2}-\d{2})", text)
-        item["asof"] = m.group(1) if m else datetime.fromtimestamp((h if h.exists() else t).stat().st_mtime).strftime("%Y-%m-%d")
+        item = {"asof": m.group(1) if m else datetime.fromtimestamp((h if h.exists() else t).stat().st_mtime).strftime("%Y-%m-%d")}
         m2 = re.search(r"SCAN\s+(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\b", text)
         item["run_at"] = f"{m2.group(1)} {m2.group(2)}:{m2.group(3)}" if m2 else None
+        if raw:
+            item["gates"] = _div_text(raw, "sub")
+            item["throttle"] = _div_text(raw, "warn")
+            item["headline"] = _div_text(raw, "trig")
+            configs: dict[str, list] = {}
+            counts: dict[str, int] = {}
+            for sec in _parse_dataframe_tables(raw):
+                state = next((s for prefix, s in REVERSAL_STATE_FROM_TITLE if sec["title"].startswith(prefix)), "OTHER")
+                counts[state] = counts.get(state, 0) + len(sec["rows"])
+                for cells in sec["rows"]:
+                    raw_rec = dict(zip(sec["cols"], cells))
+                    cfg = raw_rec.get("config")
+                    if not cfg:
+                        continue
+                    rec = {"state": state}
+                    for k in REVERSAL_ROW_COLS:
+                        v = raw_rec.get(k)
+                        if v is None or v == "" or v.lower() == "nan":
+                            continue
+                        rec[k] = v if k in REVERSAL_STRING_COLS else num(v)
+                    configs.setdefault(cfg, []).append(rec)
+            for rows in configs.values():
+                rows.sort(key=lambda r: (REVERSAL_STATE_ORDER.get(r.get("state"), 9),
+                                          r.get("bars_ago") if r.get("bars_ago") is not None else 999))
+            item["configs"] = configs
+            item["counts"] = counts
+        elif t.exists():
+            item["text"] = text
         out[mk] = item
     return out
 

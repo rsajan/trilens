@@ -82,10 +82,42 @@ function signals(b, ctx, allow) {
     let cur = Object.keys(sg.reversal)[0];
     const box = h('div');
     const paint = () => {
-      const r = sg.reversal[cur];
-      box.replaceChildren(r.html
-        ? h('iframe', { class: 'report-frame', sandbox: '', srcdoc: r.html, title: `Reversal bot ${cur}` })
-        : h('pre', { class: 'txt' }, r.text || 'No report found.'));
+      const r = sg.reversal[cur] || {};
+      const configs = r.configs || {};
+      const names = Object.keys(configs).sort((x, y) => {
+        const ix = REV_CONFIG_ORDER.indexOf(x), iy = REV_CONFIG_ORDER.indexOf(y);
+        return (ix < 0 ? 999 : ix) - (iy < 0 ? 999 : iy);
+      });
+      if (!names.length) { box.replaceChildren(r.text ? h('pre', { class: 'txt' }, r.text) : h('div', { class: 'empty' }, 'No report found.')); return; }
+      const banners = h('div', null,
+        r.headline ? h('div', { class: 'banner' }, icon('info'), h('div', null, r.headline)) : null,
+        r.throttle ? h('div', { class: 'banner warn' }, icon('alert'), h('div', null, r.throttle)) : null,
+        r.gates ? h('p', { class: 'soft small', style: { margin: '-6px 0 16px', whiteSpace: 'pre-line' } }, r.gates) : null);
+      const blocks = names.map((cfg) => {
+        const rows = configs[cfg];
+        const counts = {};
+        for (const row of rows) counts[row.state] = (counts[row.state] || 0) + 1;
+        const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '8px' } },
+          ...['ACTIONABLE', 'PENDING', 'TRIGGERED'].filter((s) => counts[s]).map((s) => badge(`${counts[s]} ${REV_STATE_LABEL[s]}`, REV_STATE_KIND[s])));
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'state', render: (row) => badge(REV_STATE_LABEL[row.state] || row.state, REV_STATE_KIND[row.state]) },
+          { label: 'timeframe', render: (row) => row.timeframe || '—' },
+          { label: 'date', render: (row) => row.date || '—' },
+          { label: 'pattern', render: (row) => row.pattern || '—' },
+          { label: 'close', align: 'r', render: (row) => cell(row.close) },
+          { label: 'entry trigger', align: 'r', render: (row) => row.confirm_close != null ? `confirmed @ ${cell(row.confirm_close)}` : row.trigger_above != null ? `needs close > ${cell(row.trigger_above)}` : '—' },
+          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+          { label: 'target', align: 'r', render: (row) => cell(row.target) },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+          { label: 'bars ago', align: 'r', render: (row) => cell(row.bars_ago) },
+          { label: 'action', render: (row) => row.action || '—' },
+        ];
+        return h('div', { style: { marginBottom: '28px' } },
+          h('h3', { style: { margin: '0 0 8px' } }, cfg),
+          chips, dataTable(cols, rows.slice(0, 80), { compact: true }));
+      });
+      box.replaceChildren(banners, ...blocks);
     };
     root.append(h('section', null, ...sigHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', sg.reversal[cur]?.run_at, sg.reversal[cur]?.asof ? `Data through ${sg.reversal[cur].asof}.` : ''),
       Object.keys(sg.reversal).length > 1 ? segmented(Object.keys(sg.reversal).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
@@ -607,6 +639,21 @@ function cell(v) {
   if (typeof v === 'number') return Number.isInteger(v) || Math.abs(v) >= 1000 ? fmt.int(v) : fmt.num(v, Math.abs(v) < 1 ? 3 : 2);
   return String(v);
 }
+
+// The order the owner listed these 8 configs in -- unlisted ones (if the scanner ever adds a
+// new config) sort last rather than disappearing.
+const REV_CONFIG_ORDER = [
+  'FIB33 pullback + EMA20 cross (daily, 1:1.8R)',
+  'FIB33 pullback + EMA20 cross (weekly, 1:1.8R)',
+  'EMA20 cross + confirm 1:1.8R + trend200 + breadth50 + liquid250 (t=5.04)',
+  'VCP Positional V1_CORE (weekly gate + market gate + volume, 8% final contraction)',
+  'Weinstein Stage-2 W1_MA_EXIT',
+  'S3 range break long 2.0R',
+  'v5 trend200 4R',
+  'v6 L11 rsi30 ema200',
+];
+const REV_STATE_LABEL = { ACTIONABLE: 'actionable', PENDING: 'pending', TRIGGERED: 'triggered' };
+const REV_STATE_KIND = { ACTIONABLE: 'gain', PENDING: 'outline', TRIGGERED: 'outline' };
 
 // Tags from market_context.py / MARKET_CONTEXT_FRAMEWORK.md, in decision-tree order.
 const CONTEXT_TAGS = ['NEW_ATH_BREAKOUT', 'DOWNTREND_BREAK', 'UPTREND_PULLBACK_SMALL', 'UPTREND_PULLBACK_DEEP', 'DOWNTREND_INTACT', 'RANGE_CORRECTION_300D', 'UNCLASSIFIED'];
