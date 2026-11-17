@@ -684,16 +684,32 @@ function accumulationBlock(mk, a) {
       badge(`${(a.buys || []).length} buy`, (a.buys || []).length ? 'gain' : 'outline'),
       badge(`${(a.watch || []).length} on watch`, 'outline'),
       badge(`${(a.near || []).length} near miss`, 'outline')));
-  const mkRows = (rows, withChecks) => h('div', { class: 'ledger' }, rows.map((r) => h('div', { class: 'lrow', style: { alignItems: 'flex-start', padding: '12px 2px', flexDirection: 'column', gap: '8px' } },
-    h('div', { class: 'row between', style: { width: '100%' } },
-      h('div', { class: 'row', style: { gap: '10px', minWidth: 0 } }, r.ticker.replace(/\.NS$/, ''),
-        h('span', { class: 'name ell' }, [r.sector, r.industry && r.industry !== r.sector ? r.industry : null].filter(Boolean).join(', '))),
-      badge(`Grade ${r.grade}`, r.grade === 'A+' ? 'gain' : 'outline')),
-    h('div', { class: 'small soft' }, r.verdict),
-    h('div', { class: 'row wrap tnum small', style: { gap: '4px 18px' } },
-      kvInline('Close', money(r.close)), kvInline('Pivot', money(r.pivot)), kvInline('Stop', money(r.stop)), kvInline('Risk', r.risk_pct != null ? fmt.pct(r.risk_pct * 100, 1, false) : '—'),
-      kvInline('Reward:risk', fmt.num(r.rr, 1)), r.shares ? kvInline('Shares', fmt.int(r.shares)) : null, r.earnings ? kvInline('Earnings', fmt.shortDate(r.earnings)) : null, r.rs_rating != null ? kvInline('RS rating', fmt.int(r.rs_rating)) : null),
-    withChecks ? h('div', { class: 'checks', title: 'Checklist: A = preliminary, B = the seven points' }, CHECKS.map((k) => h('span', { class: r.checks?.[k] === true ? 'y' : r.checks?.[k] === false ? 'n' : 'u', title: k + (r.checks?.[k] === true ? ' pass' : r.checks?.[k] === false ? ' fail' : ' not applicable') }, k))) : null)));
+  const checksCell = (r) => h('div', { class: 'checks', title: 'A = preliminary, B = the seven points' }, CHECKS.map((k) => h('span', { class: r.checks?.[k] === true ? 'y' : r.checks?.[k] === false ? 'n' : 'u', title: k + (r.checks?.[k] === true ? ' pass' : r.checks?.[k] === false ? ' fail' : ' not applicable') }, k)));
+  const mkRows = (rows, withChecks) => {
+    // Within a bucket the verdict is usually one fixed sentence driven by the market regime
+    // (not a per-symbol judgement) -- show it once above the table instead of on every row;
+    // only show it per-row (as its own column) when it actually varies, e.g. near-misses.
+    const verdicts = new Set(rows.map((r) => r.verdict).filter(Boolean));
+    const uniform = verdicts.size === 1 ? [...verdicts][0] : null;
+    const cols = [
+      { label: 'symbol', render: (r) => r.ticker.replace(/\.NS$/, '') },
+      { label: 'sector', render: (r) => [r.sector, r.industry && r.industry !== r.sector ? r.industry : null].filter(Boolean).join(', ') || '—' },
+      { label: 'grade', render: (r) => badge(`Grade ${r.grade}`, r.grade === 'A+' ? 'gain' : 'outline') },
+      !uniform ? { label: 'status', render: (r) => r.verdict || '—' } : null,
+      { label: 'close', align: 'r', render: (r) => money(r.close) },
+      { label: 'pivot', align: 'r', render: (r) => money(r.pivot) },
+      { label: 'stop', align: 'r', render: (r) => money(r.stop) },
+      { label: 'risk', align: 'r', render: (r) => r.risk_pct != null ? fmt.pct(r.risk_pct * 100, 1, false) : '—' },
+      { label: 'reward:risk', align: 'r', render: (r) => fmt.num(r.rr, 1) },
+      { label: 'shares', align: 'r', render: (r) => r.shares ? fmt.int(r.shares) : '—' },
+      { label: 'earnings', align: 'r', render: (r) => r.earnings ? fmt.shortDate(r.earnings) : '—' },
+      { label: 'RS rating', align: 'r', render: (r) => r.rs_rating != null ? fmt.int(r.rs_rating) : '—' },
+      withChecks ? { label: 'checklist', render: checksCell } : null,
+    ].filter(Boolean);
+    return h('div', null,
+      uniform ? h('p', { class: 'soft small', style: { margin: '0 0 10px' } }, uniform) : null,
+      dataTable(cols, rows, { compact: true }));
+  };
   if (a.buys?.length) wrap.append(h('h3', { style: { margin: '14px 0 4px' } }, 'Breakouts today'), mkRows(a.buys, true));
   if (a.watch?.length) wrap.append(h('h3', { style: { margin: '18px 0 4px' } }, 'Watchlist: set an alert at the pivot'), mkRows(a.watch, true));
   if (a.near?.length) {
@@ -703,7 +719,6 @@ function accumulationBlock(mk, a) {
   if (!a.buys?.length && !a.watch?.length && !a.near?.length) wrap.append(h('div', { class: 'empty' }, 'The scan found nothing today.'));
   return wrap;
 }
-const kvInline = (k, v) => h('span', null, h('span', { class: 'muted' }, k + ' '), v);
 
 // ------------------------------------------------------------------ strategies
 const STATUS = { live: ['Live', 'live'], shadow: ['Shadow test', 'val'], validated: ['Validated, not live', 'val'], candidate: ['Candidate', 'cand'], retired: ['Retired', 'ret'], rejected: ['Rejected', 'rej'] };
