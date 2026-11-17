@@ -849,6 +849,48 @@ def read_tef(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: CA Rachana Ranade Combined Framework -- "Trade Probability Scoring Model"
+# Distinct from "tef" above: tef is a different pasted checklist (Business
+# Quality + Fundamentals/Valuation/Turnaround + VCP timing) that also cites
+# Rachana Ranade's style; this one is the pure price-action scanner (trend,
+# chart pattern, RSI, volume, Fibonacci pivots, candlestick, VCP, risk/reward
+# -- 175-point Decision Matrix), backtested over the full 1,003-symbol/26-yr
+# cache. See RachanaRanade_Strategy/RACHANA_RANADE_BACKTEST_RESULTS.md.
+RACHANA_ROW_COLS = ["symbol", "close", "entry", "stop", "target", "total_score", "grade", "best_pattern",
+                     "trend_score", "pattern_score", "rsi_score", "rsi", "volume_score", "pivot_score",
+                     "candlestick_score", "vcp_score", "rr_score", "rr", "size_caveat"]
+RACHANA_STR_OR_BOOL_FIELDS = ("symbol", "grade", "best_pattern", "size_caveat")
+
+
+def read_rachana(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_RACHANA_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("actionable", []):
+            rec = {}
+            for k in RACHANA_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if k in RACHANA_STR_OR_BOOL_FIELDS else num(r[k])
+            recs.append(rec)
+        watch = []
+        for r in j.get("watchlist", []):
+            rec = {}
+            for k in RACHANA_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if k in RACHANA_STR_OR_BOOL_FIELDS else num(r[k])
+            watch.append(rec)
+        out[mk] = {"records": recs, "watchlist": watch, "universe": j.get("universe"),
+                   "asof": j.get("data_through"), "run_at": j.get("run_at"), "counts": j.get("counts")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Break & Retest Master Framework (C.E.S.T, Hourly/Daily/Weekly)
 BREAKRETEST_ROW_COLS = ["symbol", "direction", "pattern", "date", "close", "entry_level1_aggressive",
                          "entry_level2_conservative", "stop", "target", "risk_pct", "rr_multiple",
@@ -1162,7 +1204,7 @@ def main(argv=None) -> int:
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
               "inversehs": read_inversehs(D), "fundamental": read_fundamental(D),
               "master_framework": read_master_framework(D), "akshat": read_akshat(D),
-              "tef": read_tef(D), "vcp": read_vcp(D)}
+              "tef": read_tef(D), "vcp": read_vcp(D), "rachana_tps": read_rachana(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {
         "v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

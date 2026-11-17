@@ -1,19 +1,13 @@
 import { h, $, clear, icon, fmt, sheet, toDate } from './lib/dom.js';
 import { store } from './lib/store.js';
-import { D, setVersion, clearMemo, getJSON } from './lib/data.js';
+import { getJSON, clearMemo } from './lib/data.js';
 
 const NAV = [
   { id: 'overview', label: 'Overview', path: '#/', icon: 'overview' },
-  { id: 'fundamentals', label: 'Fundamentals', path: '#/fundamentals', icon: 'fundamentals' },
-  { id: 'technical', label: 'Technical', path: '#/technical', icon: 'technical' },
-  { id: 'sentiment', label: 'Sentiment', path: '#/sentiment', icon: 'sentiment' },
 ];
 
 const PAGES = {
   overview: () => import('./pages/overview.js'),
-  fundamentals: () => import('./pages/fundamentals.js'),
-  technical: () => import('./pages/technical.js'),
-  sentiment: () => import('./pages/sentiment.js'),
 };
 
 const view = $('#view');
@@ -49,32 +43,28 @@ function markNav(id) { nav.querySelectorAll('a').forEach((a) => (a.dataset.id ==
 function renderStatus() {
   const chip = $('#status');
   chip.className = 'status-chip';
-  let text = 'No data yet';
-  if (meta) {
-    const when = toDate(meta.generated_at);
+  let text = 'Not published yet';
+  if (meta?.built_at) {
+    const when = toDate(meta.built_at);
     const age = when ? (Date.now() - when.getTime()) / 3600000 : 999;
-    if (meta.demo) { chip.classList.add('demo'); text = 'Sample data'; }
-    else if (age > 36) { chip.classList.add('stale'); text = 'Updated ' + fmt.rel(meta.generated_at); }
-    else text = 'Updated ' + fmt.rel(meta.generated_at);
+    if (age > 36) chip.classList.add('stale');
+    text = 'Updated ' + fmt.rel(meta.built_at);
   } else chip.classList.add('stale');
   $('#status-text').textContent = text;
 }
 $('#status').addEventListener('click', () => {
-  const jobs = meta?.jobs || {};
-  const rows = [['Prices and indices', jobs.quotes], ['Company fundamentals', jobs.fundamentals], ['SEC insider trades and filings', jobs.edgar], ['Sentiment', jobs.sentiment], ['Technical bundle (from your PC)', meta?.technical_built_at]];
   sheet('Data status',
-    meta?.demo ? h('p', { class: 'soft' }, 'The numbers on the Fundamentals and Sentiment pages are sample data so you can try the layout. They are replaced the first time the automatic update runs on GitHub.') : null,
-    h('div', { class: 'ledger' }, rows.map(([l, v]) => h('div', { class: 'lrow', style: { minHeight: '48px' } }, h('span', { class: 'grow' }, l), h('span', { class: 'muted num' }, v ? fmt.rel(v) : 'not yet')))),
-    meta?.errors && Object.keys(meta.errors).length ? h('div', { class: 'banner warn', style: { marginTop: '14px' } }, icon('alert'), h('div', null, h('b', null, 'Last run had problems. '), Object.entries(meta.errors).map(([k, v]) => `${k}: ${v}`).join('. '), '. The pages keep the last good data.')) : null,
-    h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'Prices come from Yahoo Finance and can be delayed by 15 minutes or more. Nothing here is investment advice.'));
+    h('div', { class: 'ledger' }, h('div', { class: 'lrow', style: { minHeight: '48px' } },
+      h('span', { class: 'grow' }, 'Technical bundle (from your PC)'),
+      h('span', { class: 'muted num' }, meta?.built_at ? fmt.rel(meta.built_at) : 'not yet'))),
+    h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'Strategies, backtests and scanner signals, built on your PC and published when you run PUBLISH.bat. Nothing here is investment advice.'));
 });
 
 function banners() {
   const box = h('div');
-  if (meta?.demo) box.append(h('div', { class: 'banner demo' }, icon('info'), h('div', null, h('b', null, 'Sample data. '), 'Fundamentals and Sentiment are showing made-up numbers so you can try the layout. Real data replaces them after the first automatic update.')));
-  else if (meta) {
-    const when = toDate(meta.generated_at);
-    if (when && (Date.now() - when.getTime()) / 3600000 > 36) box.append(h('div', { class: 'banner warn' }, icon('alert'), h('div', null, h('b', null, 'Data is more than a day old. '), 'Open the Actions tab of your GitHub repository and check that "Refresh data and publish" is running.')));
+  if (meta?.built_at) {
+    const when = toDate(meta.built_at);
+    if (when && (Date.now() - when.getTime()) / 3600000 > 36) box.append(h('div', { class: 'banner warn' }, icon('alert'), h('div', null, h('b', null, 'Data is more than a day old. '), 'Run PUBLISH.bat on your PC after your next scan.')));
   }
   if (!navigator.onLine) box.append(h('div', { class: 'banner warn' }, icon('alert'), h('div', null, h('b', null, 'You are offline. '), 'Showing the last data saved on this device.')));
   return box.childNodes.length ? box : null;
@@ -84,7 +74,7 @@ function banners() {
 export const ctx = {
   get meta() { return meta; },
   go(path) { location.hash = path; },
-  setTitle(t) { document.title = t ? `${t} · Trilens` : 'Trilens — fundamentals, technicals and sentiment'; },
+  setTitle(t) { document.title = t ? `${t} · Trilens` : 'Trilens — technical signals and strategies'; },
   keepScroll() { route.keepScroll = true; },
 };
 
@@ -116,10 +106,7 @@ async function route() {
 export function keepScroll() { route.keepScroll = true; }
 
 async function boot(force) {
-  meta = await D.meta();
-  const tm = await getJSON('data/technical/meta.json', { fresh: true }).catch(() => null);
-  if (meta && tm?.built_at) meta = { ...meta, technical_built_at: tm.built_at };
-  setVersion(meta?.generated_at || '');
+  meta = await getJSON('data/technical/meta.json', { fresh: true }).catch(() => null);
   renderStatus();
 }
 

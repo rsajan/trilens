@@ -9,13 +9,11 @@ Does, in order:
 """
 from __future__ import annotations
 
-import json
 import re
 import secrets
 import sys
-import time
 
-from _util import ROOT, ask, git, have, read_local, repo_slug, run, say, write_local, yes
+from _util import ROOT, ask, git, have, read_local, repo_slug, run, say, write_local
 
 WORDS = ("harbour anchor lantern copper maple cobalt tundra violet ember saffron meadow quartz falcon juniper marble orchid pepper "
          "raven summit thistle willow zephyr amber basil cedar delta fjord garnet heron ivory kestrel lagoon mosaic nectar onyx").split()
@@ -78,21 +76,7 @@ def main() -> int:
                 continue
             break
         loc["technical_password"] = pw
-    if not loc.get("sec_user_agent"):
-        say("\nThe US government's EDGAR site (insider trades, filings) asks every visitor to give a name and email.")
-        who = ask("Your name and email, for example  Jane Doe jane@example.com", "")
-        if "@" in who:
-            loc["sec_user_agent"] = who
     write_local(loc)
-
-    cfg_path = ROOT / "config" / "technical_sources.json"
-    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-    if "publish_public_signals" not in loc:
-        say("\nOptional: let the public Fundamentals page show a small badge on tickers your scanners flag (symbols and BUY or WATCH only).")
-        loc["publish_public_signals"] = yes("Show the badges?", False)
-        write_local(loc)
-    cfg["publish_public_signals"] = bool(loc.get("publish_public_signals"))
-    cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
     step(3, "Create the GitHub repository and website")
     if not (ROOT / ".git").exists():
@@ -117,11 +101,6 @@ def main() -> int:
     pages = run(["gh", "api", "-X", "POST", f"repos/{slug}/pages", "-f", "build_type=workflow"])
     if pages.returncode != 0:
         run(["gh", "api", "-X", "PUT", f"repos/{slug}/pages", "-f", "build_type=workflow"])
-    if loc.get("sec_user_agent"):
-        run(["gh", "secret", "set", "SEC_USER_AGENT", "--repo", slug], input_text=loc["sec_user_agent"])
-    for k in ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "YOUTUBE_API_KEY", "BSKY_HANDLE", "BSKY_APP_PASSWORD"):
-        if loc.get(k):
-            run(["gh", "secret", "set", k, "--repo", slug], input_text=loc[k])
     say("Repository ready and GitHub Pages is on.")
 
     step(4, "Build and upload the encrypted Technical page")
@@ -129,23 +108,19 @@ def main() -> int:
     if r.returncode != 0:
         say("The Technical page was not uploaded. Check the message above, then run PUBLISH.bat.")
 
-    step(5, "Start the first data refresh")
-    time.sleep(3)
-    run(["gh", "workflow", "run", "site.yml", "--repo", slug, "-f", "jobs=all"])
     owner, repo = slug.split("/")
     url = f"https://{owner}.github.io/{repo}/"
     say(f"""
 All set.
 
   Your site:   {url}
-  Progress:    https://github.com/{slug}/actions   (the first run takes about 10 minutes)
+  Progress:    https://github.com/{slug}/actions   (the first deploy takes a minute or two)
 
 On your Android phone:
   1. Open Chrome and go to {url}
   2. Tap the three dots, then "Add to Home screen" (or "Install app").
-  3. Open Technical and enter your password once. Tick "Remember on this device".
+  3. Enter your password once. Tick "Remember on this device".
 
-Every day after this, GitHub refreshes prices, filings and sentiment by itself.
 Run PUBLISH.bat after your scans finish, or SCHEDULE_PUBLISH.bat once to do that automatically.
 """)
     return 0

@@ -1537,6 +1537,57 @@
       "docs": []
     },
     {
+      "id": "rachana_tps",
+      "name": "CA Rachana Ranade Combined Framework",
+      "family": "Trend + Chart Pattern + RSI + Volume + Fibonacci Pivot + Candlestick + VCP + Risk/Reward, 175-point \"Trade Probability Scoring Model\"",
+      "status": "shadow",
+      "status_label": "Backtested on 26 years 2026-11-02 (t=27, real edge); scanned live same day, no live track record yet",
+      "universe": "503 US + 500 India names, same watchlist as EMA_VCP_Strategy",
+      "headline": "A pasted 8-step checklist (Weekly/Daily/Hourly trend, named chart patterns incl. Reverse Head & Shoulders and VCP breakout, RSI bands, volume tiers, Fibonacci pivot position, candlestick triggers, VCP quality, risk/reward) turned into one 175-point score with a Decision Matrix from 'No Trade' to 'A+ Setup'. Distinct from the 'tef' strategy above, which also cites Rachana Ranade's style but is a different pasted checklist (fundamentals + VCP timing, not pure price action). Backtested on this project's full 1,003-symbol/26-year cache -- the edge is real, but the pasted Decision Matrix's core assumption (higher score = better setup) does not hold: see Verdict.",
+      "metrics": {
+        "trades": 15079,
+        "win_pct": 55.9,
+        "avg_r": 0.263,
+        "pf": 1.65,
+        "t_stat": 27.16,
+        "total_r": 3962.1,
+        "mdd": -23.69
+      },
+      "entry": [
+        "Trend (25): weekly higher-high+higher-low (+10, hard gate -- weekly bearish forces REJECT regardless of total score), daily close above 50 EMA (+10), daily close above/rising 9 EMA as an hourly-momentum stand-in, no real hourly data exists in this project (+5).",
+        "Pattern (25, best single match not summed): VCP breakout (+25, reuses EMA_VCP_Strategy's contraction-leg detector), Reverse Head & Shoulders breakout (+20), Morning Star at a support level (+15), Range breakout (+15). Cup & Handle (+20 in the pasted checklist) is deliberately NOT implemented -- no reliable, non-curve-fit algorithmic definition exists; faking it was rejected in favour of leaving it out.",
+        "RSI (20, best band not summed): 40-60 neutral (+5), crosses above 60 (+15), 65-75 strong momentum (+20), above 80 the same banded score is halved plus an overbought flag rather than zeroed.",
+        "Volume (20): normal (0), >=1.5x 20-day average (+10), highest of the last 5 sessions (+15), highest of the last 20 sessions (+20); best tier only.",
+        "Fibonacci Pivot (20): from the PRIOR day's H/L/C, P=(H+L+C)/3, R1/R2/R3 and S1/S2/S3 at 0.382/0.618/1.000x the day's range. Below pivot scores 0 and is a hard veto; the ladder up to 'breaking R1' tops out at +20.",
+        "Candlestick (15, sum capped): Morning Star (+15), Bullish Engulfing (+15), Hammer (+10), Strong Breakout Candle (+15) -- entry-day candle only, no location requirement (that's the Pattern step's job).",
+        "VCP quality (30): a 5-item checklist (2+ decreasing contraction legs, final leg <=8% not the pasted checklist's literal 5%, volume dry-up through the base, tight final-week range, >=1.5x breakout volume) scored Weak(10)/Good(20)/Excellent(30) by hit count, rather than hard-coding the pasted framework's specific 25/15/8/5 contraction percentages.",
+        "Risk/Reward (20): entry=breakout close, stop=min(final VCP contraction low, 20-day low), target=a measured-move projection (base height added above the breakout) -- NOT the pasted checklist's own Fibonacci R2, which was tried first and rejected (see Verdict). RR<2 is a hard veto."
+      ],
+      "exit": [
+        "No stop/target/exit timing rule beyond the entry-time RR gate -- same as tef/akshat/master_framework above, this is a scorer with an entry plan, not a managed-trade system."
+      ],
+      "filters": [
+        "Live scanner gate is total_score >= 70 (the pasted checklist's own lowest 'Watchlist' tier), NOT a higher one -- the backtest found zero edge improvement anywhere from 70 to 150, so there is no reason to withhold Watchlist-tier names.",
+        "Grade labels (Watchlist/Small/Standard/Aggressive Position/A+ Setup) are still shown for familiarity with the pasted checklist, but rows scoring 130+ carry an explicit on-page caveat -- see Verdict, that band backtested as the WEAKEST, not strongest.",
+        "Scheduled as 'Rachana Scan_US' (07:00 SGT) and 'Rachana Scan_India' (19:00 SGT) daily, same convention as every other scanner here. Writes LATEST_RACHANA_<market>.json.",
+        "Candidate pre-filter for the backtest only (not a scanner rule): new 20-day high, volume pickup, above 50 EMA, within 20% of the 252-day high -- a performance filter before the exact scoring, same technique EMA_VCP_Strategy's own backtest uses; it can produce false negatives relative to running exact scoring on every bar.",
+        "No position-concurrency cap -- and unlike Weinstein_Stage2 and the reversal scanner, applying this project's standard cap (20) made max drawdown WORSE here (-23.7R to -54.1R on a 2,221-trade sample, too large to dismiss as the usual small-N artifact), pointing at real cross-symbol signal clustering this framework produces. A smarter cap (keep the highest-scoring names in a same-day cluster, not just the first N) is flagged, not built."
+      ],
+      "verdict": "Built 2026-11-01/02 from a pasted 'CA Rachana Ranade Combined Framework -- Trade Probability Scoring Model' checklist. Full write-up: RachanaRanade_Strategy/RACHANA_RANADE_STRATEGY_SPEC.md and RACHANA_RANADE_BACKTEST_RESULTS.md. Backtested across the full 1,003-symbol/26-year cache: 15,079 trades, 55.9% win rate, avg R +0.263, t=27.16 (not noise), PF 1.65 -- a real, statistically solid edge. The single biggest finding contradicts the pasted framework's own Decision Matrix: score bands 70-150 are all statistically indistinguishable (avg R 0.25-0.28), and the top tier, 150+ 'A+ Setup', is actually the WEAKEST of the five (avg R 0.19, lowest win rate and PF) -- consistent with Trend/Pattern/VCP being correlated rather than independent evidence, so stacking points across all three tends to select late/extended setups, not elite ones. Trades where NO chart pattern scored at all performed just as well as trades where one did, reinforcing that the Pattern category adds little independent information once Trend/RSI/Volume/Pivot are already accounted for. A real bug was caught and fixed during backtest setup, not just a theoretical concern: the pasted framework's own Fibonacci R2 pivot is derived from a single prior day's range, so it sits within ~1-2% of price and is almost always already behind a qualifying breakout candle -- using it as the Step 8 swing target produced a ZERO-trade backtest until replaced with a measured-move projection. The edge is roughly 2x stronger in India than the US (PF 2.01 vs 1.44). Every down/choppy year already flagged elsewhere in this project (2001, 2002, 2008, 2011, 2015, 2018, 2022, 2026-to-date) is also a loser here, 2008 catastrophically (133 trades, avg R -0.771, 12% win rate) -- but unlike Weinstein_Stage2 and the reversal scanner, this project's two standard regime fixes (breadth>0.40, index>SMA200) do essentially nothing to rescue it (crash-year avg R barely moves, -0.140 to -0.147/-0.122), implying these are stock-level breakout whipsaws in choppy regimes, not broad-market-weakness losses -- the likely real fix is a volatility/choppiness filter, not built here.",
+      "caveats": [
+        "Don't read the pasted grade labels as a sizing instruction -- 150+ 'A+ Setup' backtested weakest, not strongest. The live scanner flags total_score>=130 rows with an explicit caveat rather than silently implying 'bigger'.",
+        "Cup & Handle (pasted as a +20 pattern) is not implemented -- no reliable algorithmic definition exists without curve-fitting to specific examples; VCP Breakout and Range Breakout already cover the same 'base, then breakout' idea without needing visual judgment.",
+        "No real hourly data exists anywhere in this project -- the Trend step's 'Hourly short-term uptrend' (+5 of 175) is a daily-bar 9 EMA stand-in, the single biggest deviation from the pasted framework.",
+        "The concurrency-cap finding here is a genuine open risk, not yet resolved: this framework's candidate filter fires on a large fraction of the universe on the same days (real clustering), and a plain 'first N by symbol order' cap concentrates risk into exactly the wrong days instead of diversifying it away.",
+        "No volatility/choppiness regime filter exists yet to address the crash-year losses -- the two filters that worked for other strategies in this project (breadth, index vs. 200-SMA) were tested and explicitly found NOT to fix this one.",
+        "Reverse Head & Shoulders and Head & Shoulders detection are a 3-swing-point geometric approximation (shoulders within 15% of each other's depth, neckline = the bounding swing extreme), not full pattern-recognition -- it will miss shallower or more irregular real-world examples and can occasionally mislabel a different 3-swing structure."
+      ],
+      "rejected": [
+        "Literal Fibonacci R2 (from the prior day's range) as the Step 8 swing target -- structurally too close to price for a multi-day target on a stock that already cleared every other gate; produced zero backtest trades. Replaced with a measured-move projection off the detected base height."
+      ],
+      "docs": []
+    },
+    {
       "id": "vcp",
       "name": "VCP Positional (volatility contraction pattern)",
       "family": "Daily base/contraction detector gated by a weekly trend/RS filter and a market-breadth filter",
