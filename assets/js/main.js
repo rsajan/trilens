@@ -5,11 +5,15 @@ import { getJSON, clearMemo } from './lib/data.js';
 const NAV = [
   { id: 'scanner', label: 'Scanner', path: '#/', icon: 'scanner' },
   { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
+  { id: 'scanner-results', label: 'Scanner Results', path: '#/scanner-results', icon: 'results' },
+  { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
 ];
 
 const PAGES = {
   scanner: () => import('./pages/scanner.js'),
   fundamentals: () => import('./pages/fundamentals.js'),
+  'scanner-results': () => import('./pages/scanner-results.js'),
+  'fundamental-results': () => import('./pages/fundamental-results.js'),
 };
 
 const view = $('#view');

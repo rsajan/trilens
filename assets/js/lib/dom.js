@@ -36,6 +36,7 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const I = {
   scanner: '<path d="M6 3.5v3M6 17.5v3M12 2v3M12 15v6M18 6v2M18 18v3"/><rect x="4" y="6.5" width="4" height="11" rx="1.2"/><rect x="10" y="5" width="4" height="10" rx="1.2"/><rect x="16" y="8" width="4" height="10" rx="1.2"/>',
   fundamentals: '<path d="M3 21h18"/><path d="M5 21V10l7-5.5L19 10v11"/><path d="M9.5 21v-6h5v6"/><path d="M12 10.5h.01"/>',
+  results: '<circle cx="9.5" cy="12" r="6.5"/><circle cx="14.5" cy="12" r="6.5"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>',
   moon: '<path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/>',
   back: '<path d="m15 5-7 7 7 7"/>',
