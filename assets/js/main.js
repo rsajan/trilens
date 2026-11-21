@@ -4,8 +4,8 @@ import { getJSON, clearMemo } from './lib/data.js';
 
 const NAV = [
   { id: 'scanner', label: 'Scanner', path: '#/', icon: 'scanner' },
-  { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'scanner-results', label: 'Scanner Results', path: '#/scanner-results', icon: 'results' },
+  { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
 ];
 
