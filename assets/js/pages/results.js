@@ -20,6 +20,9 @@ export async function renderResultsPage(ctx, { title, sub, keys, showScore, scor
   const occurrences = collectOccurrences(b.signals || {}, keys);
   const allRanked = rankBySymbol(occurrences, 2);
   const sectors = [...new Set(allRanked.map((r) => r.sector).filter(Boolean))].sort();
+  // No hardcoded cap -- goes up to however many sources actually agree on one symbol today.
+  const maxCount = allRanked.reduce((m, r) => Math.max(m, r.count), 2);
+  const countOptions = Array.from({ length: maxCount - 1 }, (_, i) => i + 2);
 
   let minCount = 2, market = 'all', sector = 'all', sortBy = 'count';
   const box = h('div');
@@ -64,7 +67,7 @@ export async function renderResultsPage(ctx, { title, sub, keys, showScore, scor
 
   root.append(
     h('div', { class: 'row wrap', style: { gap: '10px', marginBottom: '14px', alignItems: 'center' } },
-      segmented([2, 3, 4, 5].map((n) => ({ id: String(n), label: `${n}+` })), String(minCount), (v) => { minCount = +v; paint(); }, 'Minimum occurrences'),
+      segmented(countOptions.map((n) => ({ id: String(n), label: `${n}+` })), String(minCount), (v) => { minCount = +v; paint(); }, 'Minimum occurrences'),
       segmented([{ id: 'all', label: 'All markets' }, { id: 'US', label: 'US' }, { id: 'India', label: 'India' }], market, (v) => { market = v; paint(); }),
       sectorSelect, sortSelect),
     box);
