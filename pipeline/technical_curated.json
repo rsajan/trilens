@@ -917,7 +917,7 @@
       "name": "BB Ladder: trough + ascending ladder + breakout",
       "family": "Bollinger Band bottom-fish: lower-band touch, failed-rally ladder, basis-reclaim breakout",
       "status": "validated",
-      "status_label": "Validated, not live",
+      "status_label": "Backtested, scanned live",
       "universe": "1,003 names: S&P 500 + Nifty 500",
       "headline": "Buys a breakout above a ladder of rising, rejected rally highs that formed after price touched the lower Bollinger Band. Transcribed from a hand-annotated chart on 2026-10-31; the one lever the honest protocol kept is requiring the breakout bar's close, not just its high, back above the Bollinger basis.",
       "metrics": {
@@ -975,6 +975,7 @@
       ],
       "verdict": "192 pre-declared configs, each backtested once: selected on 2000-2015 only and run once on 2016-2026, this lever returned +0.3121R over 189 trades never seen during selection (t=3.43) -- a real pass, though a steeper haircut from its +0.6038R training value than Logic 3 took. The stronger finding: the plain, fixed reclaim-basis build with every other knob left at the chart's own defaults beats BOTH that train-selected pick and a yearly walk-forward re-selection (+0.5456R / t=5.60 fixed, against +0.3121R selected and +0.4025R walk-forward, over the identical 2008-2026 window). Three independent reads of the data -- the one-at-a-time sweep, the train-only pick, and the fixed build beating its own re-optimised descendants -- agree on the same single lever. Confirmed within noise on a second cache rebuilt straight from the current EOD workbooks, 2.5 months of fresh data later.",
       "caveats": [
+        "Wired into the daily live scan on 2026-11-21 (daily timeframe only; weekly is not scanned live). No live track record yet -- watch it before sizing, the same caution given to EMA20 cross + confirm and VCP when they went live.",
         "Weekly is directional only (66-75 trades over 26 years, misses a cell in 3 of 5 variants) -- not run through the honest protocol.",
         "Hourly has no data behind it yet (see above).",
         "Not yet checked for monthly-R correlation against v5/v6/Logic 3 -- structurally close to Logic 3's double bottom, so it may not be as diversifying as it looks until that check runs.",
@@ -1990,8 +1991,8 @@
     ],
     "bat_notes": {
       "SCAN_NOW.bat": "Runs the US and India reversal scans, revenue and dip scans, the market context classifier, the analog setup scanner, the paper-trade update and the summary page, in that order.",
-      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, paper trade, summary. Logs to the scans folder, inverse head & shoulders live scan.",
-      "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat, same steps as scan_US.bat.",
+      "scan_US.bat": "The unattended US run used by the 07:00 task: reversal scan, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, paper trade, summary. Logs to the scans folder, inverse head & shoulders live scan, BB Ladder live scan.",
+      "scan_India.bat": "The unattended India run used by the 19:00 task. Same steps as scan_US.bat.",
       "market_context.py": "Structural context classifier (new ATH / 300-day range / trendline / pullback depth), run per market. Writes LATEST_CONTEXT_<market>.json to the scans folder.",
       "analog_setup.py": "Stage-1 context gate (NEW_ATH_BREAKOUT or DOWNTREND_BREAK only) plus weekly base+breakout precedent search and daily-bar retest backtest (stages 2-4), run per market. Writes LATEST_ANALOG_<market>.json to the scans folder.",
       "base_breakout_scan.py": "Same stage-1 context gate as analog_setup.py, plus stage-2 base+breakout detection only (no retest backtest, no 2-confirmed-analog gate) -- the wider candidate list. Writes LATEST_BASEBREAKOUT_<market>.json to the scans folder.",

@@ -15,7 +15,7 @@ export const TABS = [
 // Which sg.<key> sections each page's Signals tab shows. Strategies/Results/Automation/Library
 // are identical on every page - only the Signals tab is split, by the owner's own request.
 export const SCANNER_KEYS = new Set(['accumulation', 'reversal', 'revenue_dip', 'context', 'analog',
-  'basebreakout', 'weinstein', 'vcp', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs', 'ema_playbook']);
+  'basebreakout', 'weinstein', 'vcp', 'bbladder', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs', 'ema_playbook']);
 export const FUNDAMENTAL_KEYS = new Set(['master_framework', 'alpha_framework', 'fundamental', 'akshat', 'tef', 'rachana_tps']);
 
 export async function renderPage(ctx, { title, sub, allow }) {
@@ -139,6 +139,32 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('VCP Positional scanner (volatility contraction pattern)', sg.vcp[cur]?.run_at, 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'),
       Object.keys(sg.vcp).length > 1 ? segmented(Object.keys(sg.vcp).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('bbladder') && sg.bbladder && Object.keys(sg.bbladder).length) {
+    let cur = Object.keys(sg.bbladder)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.bbladder[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current ladder, breakout or open position.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'close', align: 'r', render: (row) => cell(row.last_close) },
+        { label: 'resistance', align: 'r', render: (row) => cell(row.resistance) },
+        { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        { label: 'pivots', align: 'r', render: (row) => row.n_pivots != null ? fmt.int(row.n_pivots) : '—' },
+        { label: 'trough', render: (row) => row.trough_date || '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+    };
+    root.append(h('section', null, ...sigHead('BB Ladder (trough + ascending ladder + breakout)', sg.bbladder[cur]?.run_at, 'TRIGGER: broke above the ladder resistance, with the close back above the Bollinger basis, on the most recently closed bar. MISSED: triggered a few bars ago, still open. ARMED: the ladder is confirmed and the breakout order is live, not yet triggered. Backtested: 305 trades 2000-2026, 53.1% win, avg R +0.57, profit factor 2.19, t=6.64.'),
+      Object.keys(sg.bbladder).length > 1 ? segmented(Object.keys(sg.bbladder).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
