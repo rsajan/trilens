@@ -861,6 +861,37 @@ def read_master_framework(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Ultimate Hedge Fund Manager Alpha Framework (Multi-Market)
+ALPHA_FRAMEWORK_ROW_COLS = ["symbol", "sector", "currency", "totalScore", "tier", "action",
+                             "priceDislocationScore", "drawdownFromHigh", "valuationScore", "dcfUpside",
+                             "qualityScore", "qualityGateFailed", "institutionalScore", "growthScore",
+                             "growthBucket", "revenueCagr", "epsCagr", "catalystScore", "catalystSignals",
+                             "hardFilterFailed", "riskPct", "allocationPct", "dataGap"]
+ALPHA_FRAMEWORK_STR_FIELDS = ("symbol", "sector", "currency", "tier", "action", "growthBucket",
+                               "riskPct", "allocationPct", "dataGap")
+
+
+def read_alpha_framework(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_ALPHAFRAMEWORK_{mk}.json")
+        if not j:
+            continue
+        recs = []
+        for r in j.get("rows", []):
+            rec = {}
+            for k in ALPHA_FRAMEWORK_ROW_COLS:
+                if k not in r or r[k] is None:
+                    continue
+                rec[k] = r[k] if (k in ALPHA_FRAMEWORK_STR_FIELDS or k in ("catalystSignals", "hardFilterFailed", "qualityGateFailed")) else num(r[k])
+            recs.append(rec)
+        out[mk] = {"records": recs, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "tier_counts": j.get("tier_counts")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Akshat Shrivastava Fundamental + VCP Hybrid Framework
 AKSHAT_ROW_COLS = ["symbol", "sector", "industry", "price", "industry_score", "business_score",
                     "valuation_score", "supply_demand_score", "vcp_score", "total_score", "grade",
@@ -1273,7 +1304,7 @@ def main(argv=None) -> int:
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
               "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
               "inversehs": read_inversehs(D), "fundamental": read_fundamental(D),
-              "master_framework": read_master_framework(D), "akshat": read_akshat(D),
+              "master_framework": read_master_framework(D), "alpha_framework": read_alpha_framework(D), "akshat": read_akshat(D),
               "tef": read_tef(D), "vcp": read_vcp(D), "rachana_tps": read_rachana(D)}
     signals = {k: v for k, v in signals.items() if v}
     bundle = {

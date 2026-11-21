@@ -1467,6 +1467,46 @@
       "docs": []
     },
     {
+      "id": "alpha_framework",
+      "name": "Ultimate Hedge Fund Manager Alpha Framework (Multi-Market)",
+      "family": "90-point oversold-opportunity scanner: price dislocation, valuation, quality, institutional, growth, catalyst",
+      "status": "candidate",
+      "status_label": "Checklist scorer on financial statements, not backtested -- track its tiers against real outcomes before trusting it",
+      "universe": "StockLens's own watchlist only (8 US + 4 NSE names), NOT the 1,003-name universe every other strategy here scans",
+      "headline": "A pasted 'Ultimate Hedge Fund Manager Alpha Framework' (US + India oversold-opportunity screen) turned into a 90-point Stage 2-4 scanner: Price Dislocation 15pts, Valuation 15pts, Quality 20pts, Institutional Validation 10pts, Growth 15pts, Catalyst 15pts, rolled into a conviction tier (Tier 1 Strong Buy through Tier 4 Reject). Runs inside the StockLens app (G:\\STOCK) against its own tracked watchlist, same reasoning as the Master Framework above -- fundamentals need several separate Yahoo Finance calls per symbol, so this scores the curated watchlist rather than the 1,003-name price universe.",
+      "metrics": {},
+      "entry": [
+        "Price Dislocation (15pts, hard filter -- must satisfy at least one): down >20% from the 52-week high, OR a negative 1-year return worse than the benchmark index (reuses the app's existing regression-beta benchmark-relative stats).",
+        "Valuation (15pts, hard filter -- must satisfy at least one): PEG < 1.5, DCF fair-value upside > 25% (reused from the app's own DCF engine), EV/EBITDA below the sector median (computed fresh each run from this watchlist's peers, same cross-sectional approach as Master Framework's sector-average PE), or consensus analyst target price > 25% above the current price. The pasted framework's 5th check (forward PE below its own 5-year average) is dropped -- no historical PE time series is available.",
+        "Quality (20pts, MANDATORY -- all five checked): ROIC > 10%, ROE > 15%, positive free cash flow, interest coverage > 5x, debt/equity < 1. A stock that explicitly fails any one of these (not just 'unknown, no data') is gated, regardless of its raw point total.",
+        "Institutional Validation (10pts): proxied by analyst recommendation-mean <= 2.0 (1.0=Strong Buy..5.0=Strong Sell) since yfinance has no buy/hold/sell count. Insider buying and an institutional-ownership trend aren't computable from a single data snapshot and are shown as a level only, not scored.",
+        "Growth (15pts): Deep-Value bucket at revenue AND EPS CAGR both > 5%, High-Growth bucket at both > 15% -- the bucket a stock lands in is what the pasted framework's own Stage-5 output format (Deep Value Bucket / High-Growth Bucket) groups it under.",
+        "Catalyst (15pts, hard filter -- must have at least one): industry tailwind/AI-adoption sector-keyword match, operating-margin expansion, EPS growth accelerating YoY, forward PE below trailing PE, or a buyback (no net share dilution) -- the same computable-proxy substitution Master Framework already makes for the original rubric's news-driven catalysts (product launches, regulatory approvals, management changes)."
+      ],
+      "exit": [
+        "No stop/target/exit rule -- this is a conviction tier and the framework's own stated position-sizing band (Tier 1: 5-10% allocation, Tier 2: 3-5%, Tier 3/4: 0%), not a timed trade signal."
+      ],
+      "filters": [
+        "Runs inside StockLens's own backend (app/analysis/alpha_framework.py), reusing the Master Framework's cagr()/eps_growth_accelerating()/margin-trend helpers directly rather than re-implementing them -- AlphaFramework_Strategy/alpha_framework_scan.py imports the app directly, same pattern as MasterFramework_Strategy.",
+        "Scheduled as 'AlphaFramework Scan_US' (07:00 SGT) and 'AlphaFramework Scan_India' (19:00 SGT) daily, both calling the SAME underlying watchlist scan and filtering by exchange. Writes LATEST_ALPHAFRAMEWORK_<market>.json.",
+        "Stage 1 of the pasted framework (macro/sentiment regime: interest-rate trend, inflation, GDP outlook, market liquidity, VIX, put-call ratio, fund flows, retail sentiment) is deliberately NOT implemented. yfinance only covers 2 of its 8 factors (VIX level, 10-year-yield trend) -- rather than ship a score that's 75% data gaps, it was scoped out entirely on 2026-11-21. A free FRED API key would unlock the rest (CPI, Fed funds rate, GDP) if revisited later.",
+        "Price Dislocation and the Quality Filter are true hard filters, not just scored categories: when there's enough data to know one is definitively failed, the stock is forced to Tier 4 regardless of its raw point total -- a stock that isn't actually oversold, or that fails the mandatory quality gate, isn't a candidate at all no matter how it scores elsewhere."
+      ],
+      "verdict": "Built 2026-11-21 from a pasted 'Ultimate Hedge Fund Manager Alpha Framework (Multi-Market)' document -- first run live-tested end to end with real web research against 8 current US/India names before being coded up as a proper scanner. 5 new unit tests (synthetic oversold-quality fixture, plus explicit tests for each of the two hard-filter overrides), 44/44 backend tests pass overall. Same caveat as every fundamentals scorer on this page: no win rate or forward-return number exists yet, since this is a financial-statement screen, not a priced entry/exit system.",
+      "caveats": [
+        "Not backtested -- no win rate or forward-return number exists for these tiers yet, same caveat as Master Framework above.",
+        "Scans a 12-symbol watchlist, not the 1,003-name universe -- the sector-median EV/EBITDA check is a real cross-sectional comparison, just over a much smaller peer set than a proper industry benchmark.",
+        "'Minimum 75% Buy Ratings' (the pasted framework's actual institutional-validation bar) is proxied by a single recommendation-mean figure, not real buy/hold/sell analyst counts -- yfinance doesn't expose those.",
+        "Stage 1 (macro/sentiment regime) isn't scored at all here -- this scanner only ever reflects Stage 2-4 (the per-stock screen), never the framework's own Risk-Off/Defensive/Neutral/Risk-On market-regime read.",
+        "Catalyst detection reuses the same sector-keyword/margin-trend/EPS-acceleration proxies as Master Framework -- a real news-driven catalyst (product launch, regulatory approval, management change) can be happening and still score 0 here."
+      ],
+      "rejected": [
+        "A thin best-effort Stage 1 using only VIX level + 10-year-yield trend (2 of 8 macro factors): considered and explicitly declined by the owner in favor of skipping Stage 1 entirely for now, rather than shipping a score that's mostly data gaps.",
+        "Wiring in FRED's free API for the rest of Stage 1 (CPI, Fed funds rate, GDP): offered, owner declined the account signup for now -- left as a documented option to revisit, not built."
+      ],
+      "docs": []
+    },
+    {
       "id": "akshatvcp",
       "name": "Akshat Shrivastava Fundamental + VCP Hybrid",
       "family": "5-step 100-point checklist: Industry, Business Quality, Valuation, Supply/Demand, VCP Technical",
@@ -1647,7 +1687,7 @@
       {
         "time": "07:00",
         "title": "US scans",
-        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, VCP Positional scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_US (fundamental_scan.py --market US, in Fundamental_Scanner) also runs at the same time -- writes LATEST_FUNDAMENTAL_US.json; the underlying statements are cached ~7 days, so most days this just re-ranks on the latest price. Akshat Scan_US and MasterFramework Scan_US (akshat_scan.py / the StockLens app, both in/via Fundamental_Scanner) also run at the same time.",
+        "detail": "ReversalScan_US runs scan_US.bat: Reversal bot, revenue and dip scan, market context classifier, analog setup scanner, base+breakout scanner, Weinstein Stage-2 scanner, VCP Positional scanner, paper-trade update, summary page. Accumulation bot Scan_US and MTF Scan_US (mtf_scan.py --market US, in MTF_Strategy) run at the same time. BreakRetest Scan_US (br_scan.py --market US, in BreakRetest_Strategy) runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_US (fundamental_scan.py --market US, in Fundamental_Scanner) also runs at the same time -- writes LATEST_FUNDAMENTAL_US.json; the underlying statements are cached ~7 days, so most days this just re-ranks on the latest price. Akshat Scan_US and MasterFramework Scan_US (akshat_scan.py / the StockLens app, both in/via Fundamental_Scanner) also run at the same time. AlphaFramework Scan_US (alpha_framework_scan.py --market US, in AlphaFramework_Strategy, via the StockLens app) also runs at the same time -- writes LATEST_ALPHAFRAMEWORK_US.json.",
         "tag": "your PC"
       },
       {
@@ -1659,7 +1699,7 @@
       {
         "time": "19:00",
         "title": "India scans",
-        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_India (fundamental_scan.py --market India, in Fundamental_Scanner) runs at the same time -- writes LATEST_FUNDAMENTAL_India.json.",
+        "detail": "ReversalScan_India runs scan_India.bat, same steps as the US run. Accumulation bot Scan_India and MTF Scan_India run at the same time, an hour after the NSE closes. BreakRetest Scan_India runs at the same time, and the inverse head & shoulders live scanner. Fundamental Scan_India (fundamental_scan.py --market India, in Fundamental_Scanner) runs at the same time -- writes LATEST_FUNDAMENTAL_India.json. AlphaFramework Scan_India (alpha_framework_scan.py --market India, in AlphaFramework_Strategy) also runs at the same time -- writes LATEST_ALPHAFRAMEWORK_India.json.",
         "tag": "your PC"
       },
       {

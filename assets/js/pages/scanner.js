@@ -16,7 +16,7 @@ export const TABS = [
 // are identical on every page - only the Signals tab is split, by the owner's own request.
 export const SCANNER_KEYS = new Set(['accumulation', 'reversal', 'revenue_dip', 'context', 'analog',
   'basebreakout', 'weinstein', 'vcp', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs']);
-export const FUNDAMENTAL_KEYS = new Set(['master_framework', 'fundamental', 'akshat', 'tef', 'rachana_tps']);
+export const FUNDAMENTAL_KEYS = new Set(['master_framework', 'alpha_framework', 'fundamental', 'akshat', 'tef', 'rachana_tps']);
 
 export async function renderPage(ctx, { title, sub, allow }) {
   ctx.setTitle(title);
@@ -312,6 +312,35 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Fundamental Analysis Master Framework', sg.master_framework[cur]?.run_at, 'Quality (growth/margins/ROIC/debt/industry rank/management) x 60% + Opportunity (valuation/forecast growth/catalysts) x 40% = Investment Score, graded A+ to D. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe -- see the Strategies page for the full write-up.'),
       Object.keys(sg.master_framework).length > 1 ? segmented(Object.keys(sg.master_framework).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('alpha_framework') && sg.alpha_framework && Object.keys(sg.alpha_framework).length) {
+    let cur = Object.keys(sg.alpha_framework)[0];
+    const box = h('div');
+    const TIER_KIND = { 'Tier 1': 'gain', 'Tier 2': 'gain', 'Tier 3': 'outline', 'Tier 4': 'loss' };
+    const paint = () => {
+      const r = sg.alpha_framework[cur];
+      const recs = r.records || [];
+      const counts = r.tier_counts || {};
+      const chips = Object.keys(counts).length ? h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'].filter((t) => counts[t]).map((t) => badge(`${counts[t]} ${t}`, TIER_KIND[t] || 'outline'))) : null;
+      if (!recs.length) { box.replaceChildren(...[chips, h('div', { class: 'empty' }, 'No Alpha Framework score yet -- run the scanner.')].filter(Boolean)); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'sector', render: (row) => row.sector || '—' },
+        { label: 'tier', render: (row) => row.tier ? badge(`${row.tier} (${fmt.num(row.totalScore, 1)})`, TIER_KIND[row.tier] || 'outline') : '—' },
+        { label: 'dislocation / valuation / quality', align: 'r', render: (row) => `${row.priceDislocationScore ?? '—'} / ${row.valuationScore ?? '—'} / ${row.qualityScore != null ? fmt.num(row.qualityScore, 0) : '—'}` },
+        { label: 'institutional / growth / catalyst', align: 'r', render: (row) => `${row.institutionalScore != null ? fmt.num(row.institutionalScore, 0) : '—'} / ${row.growthScore ?? '—'} / ${row.catalystScore ?? '—'}` },
+        { label: 'bucket', render: (row) => row.growthBucket || '—' },
+        { label: 'hard filter', render: (row) => (row.hardFilterFailed && row.hardFilterFailed.length) ? badge(row.hardFilterFailed.join(', '), 'loss') : badge('none', 'gain') },
+        { label: 'action', render: (row) => row.action || '—' },
+        { label: 'sizing', align: 'r', render: (row) => row.riskPct ? `${row.riskPct} · alloc ${row.allocationPct}` : '—' },
+      ];
+      box.replaceChildren(...[chips, dataTable(cols, recs, { compact: true })].filter(Boolean));
+    };
+    root.append(h('section', null, ...sigHead('Ultimate Hedge Fund Manager Alpha Framework (Multi-Market)', sg.alpha_framework[cur]?.run_at, 'Stage 2-4 Oversold Opportunity Scanner: Price Dislocation (15) + Valuation (15) + Quality (20, mandatory) + Institutional (10) + Growth (15) + Catalyst (15) = 90 points. Price Dislocation and Quality are hard filters -- failing either forces Tier 4 regardless of raw score. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe. Stage 1 (macro/sentiment regime) is not scored -- see the Strategies page for why.'),
+      Object.keys(sg.alpha_framework).length > 1 ? segmented(Object.keys(sg.alpha_framework).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
