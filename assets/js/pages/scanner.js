@@ -73,54 +73,28 @@ function sigHead(title, runAt, desc) {
 function signals(b, ctx, allow) {
   const root = h('div', { class: 'stack', style: { '--gap': '30px' } });
   const sg = b.signals || {};
-  const acc = allow.has('accumulation') ? (sg.accumulation || {}) : {};
-  for (const mk of ['US', 'IN']) {
-    const a = acc[mk]; if (!a) continue;
-    root.append(accumulationBlock(mk, a));
-  }
-  if (allow.has('reversal') && sg.reversal && Object.keys(sg.reversal).length) {
-    let cur = Object.keys(sg.reversal)[0];
+  if (allow.has('weinstein') && sg.weinstein && Object.keys(sg.weinstein).length) {
+    let cur = Object.keys(sg.weinstein)[0];
     const box = h('div');
     const paint = () => {
-      const r = sg.reversal[cur] || {};
-      const configs = r.configs || {};
-      const names = Object.keys(configs).sort((x, y) => {
-        const ix = REV_CONFIG_ORDER.indexOf(x), iy = REV_CONFIG_ORDER.indexOf(y);
-        return (ix < 0 ? 999 : ix) - (iy < 0 ? 999 : iy);
-      });
-      if (!names.length) { box.replaceChildren(r.text ? h('pre', { class: 'txt' }, r.text) : h('div', { class: 'empty' }, 'No report found.')); return; }
-      const banners = h('div', null,
-        r.headline ? h('div', { class: 'banner' }, icon('info'), h('div', null, r.headline)) : null,
-        r.throttle ? h('div', { class: 'banner warn' }, icon('alert'), h('div', null, r.throttle)) : null,
-        r.gates ? h('p', { class: 'soft small', style: { margin: '-6px 0 16px', whiteSpace: 'pre-line' } }, r.gates) : null);
-      const blocks = names.map((cfg) => {
-        const rows = configs[cfg];
-        const counts = {};
-        for (const row of rows) counts[row.state] = (counts[row.state] || 0) + 1;
-        const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '8px' } },
-          ...['ACTIONABLE', 'PENDING', 'TRIGGERED'].filter((s) => counts[s]).map((s) => badge(`${counts[s]} ${REV_STATE_LABEL[s]}`, REV_STATE_KIND[s])));
-        const cols = [
-          { label: 'symbol', render: (row) => row.symbol },
-          { label: 'state', render: (row) => badge(REV_STATE_LABEL[row.state] || row.state, REV_STATE_KIND[row.state]) },
-          { label: 'timeframe', render: (row) => row.timeframe || '—' },
-          { label: 'date', render: (row) => row.date || '—' },
-          { label: 'pattern', render: (row) => row.pattern || '—' },
-          { label: 'close', align: 'r', render: (row) => cell(row.close) },
-          { label: 'entry trigger', align: 'r', render: (row) => row.confirm_close != null ? `confirmed @ ${cell(row.confirm_close)}` : row.trigger_above != null ? `needs close > ${cell(row.trigger_above)}` : '—' },
-          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
-          { label: 'target', align: 'r', render: (row) => cell(row.target) },
-          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
-          { label: 'bars ago', align: 'r', render: (row) => cell(row.bars_ago) },
-          { label: 'action', render: (row) => row.action || '—' },
-        ];
-        return h('div', { style: { marginBottom: '28px' } },
-          h('h3', { style: { margin: '0 0 8px' } }, cfg),
-          chips, dataTable(cols, rows.slice(0, 80), { compact: true }));
-      });
-      box.replaceChildren(banners, ...blocks);
+      const r = sg.weinstein[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'close', align: 'r', render: (row) => cell(row.close ?? row.cross_close) },
+        { label: '30w MA', align: 'r', render: (row) => cell(row.ma30w) },
+        { label: 'stop (base low)', align: 'r', render: (row) => cell(row.stop_base_low ?? row.base_low) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_below_ma != null ? `${fmt.num(row.pct_below_ma, 2)}% below MA` : '—') },
+        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'MA flat', align: 'r', render: (row) => row.ma_flat_pct != null ? `${fmt.num(row.ma_flat_pct, 1)}%` : '—' },
+        { label: 'R so far', align: 'r', render: (row) => row.r_so_far != null ? fmt.signed(row.r_so_far, 2) : '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
     };
-    root.append(h('section', null, ...sigHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', sg.reversal[cur]?.run_at, sg.reversal[cur]?.asof ? `Data through ${sg.reversal[cur].asof}.` : ''),
-      Object.keys(sg.reversal).length > 1 ? segmented(Object.keys(sg.reversal).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+    root.append(h('section', null, ...sigHead('Weinstein Stage-2 scanner (30-week MA bull market bottom)', sg.weinstein[cur]?.run_at, 'TRIGGER: crossed back above a flattened-then-rising 30-week MA this week, volume-confirmed, after a genuine prior decline. MISSED: triggered 2-8 weeks ago, still open. SETUP: basing under the MA, not yet triggered. Backtested: 650 trades 2000-2026, 34.5% win, avg R +0.88, profit factor 4.82, t=4.34.'),
+      Object.keys(sg.weinstein).length > 1 ? segmented(Object.keys(sg.weinstein).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
@@ -137,6 +111,34 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Revenue trend and price dip', sg.revenue_dip[cur]?.run_at, 'A watch list, not a trading signal.'),
       Object.keys(sg.revenue_dip).length > 1 ? segmented(Object.keys(sg.revenue_dip).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('vcp') && sg.vcp && Object.keys(sg.vcp).length) {
+    let cur = Object.keys(sg.vcp)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.vcp[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'pivot', align: 'r', render: (row) => cell(row.pivot) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_to_pivot != null ? `${fmt.num(row.pct_to_pivot, 2)}% to pivot` : '—') },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'score', align: 'r', render: (row) => row.score != null ? `${fmt.num(row.score, 0)}/100` : '—' },
+        { label: 'legs / depth', align: 'r', render: (row) => row.n_legs != null ? `${fmt.int(row.n_legs)} legs, ${fmt.num(row.final_depth_pct, 1)}%` : '—' },
+        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
+        { label: 'shares @1% risk', align: 'r', render: (row) => cell(row.shares_1pct_risk) },
+        { label: 'what it needs', render: (row) => row.action || '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+    };
+    root.append(h('section', null, ...sigHead('VCP Positional scanner (volatility contraction pattern)', sg.vcp[cur]?.run_at, 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'),
+      Object.keys(sg.vcp).length > 1 ? segmented(Object.keys(sg.vcp).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
@@ -160,6 +162,44 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Market context classifier', sg.context[cur]?.run_at, sg.context[cur]?.universe ? `${sg.context[cur].universe} symbols scanned.` : ''),
       Object.keys(sg.context).length > 1 ? segmented(Object.keys(sg.context).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('msr') && sg.msr && Object.keys(sg.msr).length) {
+    let curMk = Object.keys(sg.msr)[0];
+    const box = h('div');
+    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
+    const paint = () => {
+      const r = sg.msr[curMk];
+      const strat = r.strategies || {};
+      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
+      let curStrat = names[0];
+      const inner = h('div');
+      const paintInner = () => {
+        const s = strat[curStrat] || {};
+        const recs = s.records || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} setup cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
+          { label: 'grade', render: (row) => badge(`${row.grade} (${row.total})`, GRADE_KIND[row.grade] || 'outline') },
+          { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
+          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
+          { label: 'R:R', align: 'r', render: (row) => row.rr != null ? `${fmt.num(row.rr, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+          { label: 'level (touches)', align: 'r', render: (row) => row.level != null ? `${cell(row.level)} (${row.level_touches ?? 0}x)` : '—' },
+          { label: 'confirmation', render: (row) => row.confirm_label || '—' },
+          { label: 'confluence', render: (row) => row.confluence_label || '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      };
+      box.replaceChildren(
+        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
+        h('div', { style: { height: '10px' } }), inner);
+      paintInner();
+    };
+    root.append(h('section', null, ...sigHead('Master Support & Resistance Framework', sg.msr[curMk]?.run_at, 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
+      Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
@@ -207,59 +247,6 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Base + breakout scanner (stage 1 + stage 2)', sg.basebreakout[cur]?.run_at, 'The wider candidate list: every weekly base-and-breakout within the last 8 weeks on a stock currently tagged a fresh breakout -- no retest backtest or precedent gate yet.'),
       Object.keys(sg.basebreakout).length > 1 ? segmented(Object.keys(sg.basebreakout).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
-  if (allow.has('weinstein') && sg.weinstein && Object.keys(sg.weinstein).length) {
-    let cur = Object.keys(sg.weinstein)[0];
-    const box = h('div');
-    const paint = () => {
-      const r = sg.weinstein[cur];
-      const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
-      const cols = [
-        { label: 'symbol', render: (row) => row.symbol },
-        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
-        { label: 'close', align: 'r', render: (row) => cell(row.close ?? row.cross_close) },
-        { label: '30w MA', align: 'r', render: (row) => cell(row.ma30w) },
-        { label: 'stop (base low)', align: 'r', render: (row) => cell(row.stop_base_low ?? row.base_low) },
-        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_below_ma != null ? `${fmt.num(row.pct_below_ma, 2)}% below MA` : '—') },
-        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
-        { label: 'MA flat', align: 'r', render: (row) => row.ma_flat_pct != null ? `${fmt.num(row.ma_flat_pct, 1)}%` : '—' },
-        { label: 'R so far', align: 'r', render: (row) => row.r_so_far != null ? fmt.signed(row.r_so_far, 2) : '—' },
-      ];
-      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
-    };
-    root.append(h('section', null, ...sigHead('Weinstein Stage-2 scanner (30-week MA bull market bottom)', sg.weinstein[cur]?.run_at, 'TRIGGER: crossed back above a flattened-then-rising 30-week MA this week, volume-confirmed, after a genuine prior decline. MISSED: triggered 2-8 weeks ago, still open. SETUP: basing under the MA, not yet triggered. Backtested: 650 trades 2000-2026, 34.5% win, avg R +0.88, profit factor 4.82, t=4.34.'),
-      Object.keys(sg.weinstein).length > 1 ? segmented(Object.keys(sg.weinstein).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
-  if (allow.has('vcp') && sg.vcp && Object.keys(sg.vcp).length) {
-    let cur = Object.keys(sg.vcp)[0];
-    const box = h('div');
-    const paint = () => {
-      const r = sg.vcp[cur];
-      const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'No current base, breakout or open position.')); return; }
-      const cols = [
-        { label: 'symbol', render: (row) => row.symbol },
-        { label: 'state', render: (row) => badge(row.state, row.state === 'TRIGGER' ? 'gain' : 'outline') },
-        { label: 'close', align: 'r', render: (row) => cell(row.close) },
-        { label: 'pivot', align: 'r', render: (row) => cell(row.pivot) },
-        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
-        { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : (row.pct_to_pivot != null ? `${fmt.num(row.pct_to_pivot, 2)}% to pivot` : '—') },
-        { label: 'target', align: 'r', render: (row) => cell(row.target) },
-        { label: 'score', align: 'r', render: (row) => row.score != null ? `${fmt.num(row.score, 0)}/100` : '—' },
-        { label: 'legs / depth', align: 'r', render: (row) => row.n_legs != null ? `${fmt.int(row.n_legs)} legs, ${fmt.num(row.final_depth_pct, 1)}%` : '—' },
-        { label: 'vol x avg', align: 'r', render: (row) => row.vol_x_avg != null ? `${fmt.num(row.vol_x_avg, 2)}x` : '—' },
-        { label: 'shares @1% risk', align: 'r', render: (row) => cell(row.shares_1pct_risk) },
-        { label: 'what it needs', render: (row) => row.action || '—' },
-      ];
-      box.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
-    };
-    root.append(h('section', null, ...sigHead('VCP Positional scanner (volatility contraction pattern)', sg.vcp[cur]?.run_at, 'TRIGGER: a 3+ leg shrinking base broke its pivot on expanding volume this close, with the weekly trend/RS gate and market breadth both open. MISSED: triggered 1-5 bars ago, still open. SETUP: basing under the pivot, not yet triggered. Backtested: 169 trades 2000-2026, avg R +0.25, t=2.20 -- but that edge is almost entirely India (t=2.59); the US leg alone is statistical noise (t=0.66). Provisional, watch only.'),
-      Object.keys(sg.vcp).length > 1 ? segmented(Object.keys(sg.vcp).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
@@ -341,44 +328,6 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Ultimate Hedge Fund Manager Alpha Framework (Multi-Market)', sg.alpha_framework[cur]?.run_at, 'Stage 2-4 Oversold Opportunity Scanner: Price Dislocation (15) + Valuation (15) + Quality (20, mandatory) + Institutional (10) + Growth (15) + Catalyst (15) = 90 points. Price Dislocation and Quality are hard filters -- failing either forces Tier 4 regardless of raw score. Scans StockLens’s own watchlist (8 US + 4 NSE), not the 1,003-name universe. Stage 1 (macro/sentiment regime) is not scored -- see the Strategies page for why.'),
       Object.keys(sg.alpha_framework).length > 1 ? segmented(Object.keys(sg.alpha_framework).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
-  if (allow.has('msr') && sg.msr && Object.keys(sg.msr).length) {
-    let curMk = Object.keys(sg.msr)[0];
-    const box = h('div');
-    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', C: 'outline', D: 'loss' };
-    const paint = () => {
-      const r = sg.msr[curMk];
-      const strat = r.strategies || {};
-      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
-      let curStrat = names[0];
-      const inner = h('div');
-      const paintInner = () => {
-        const s = strat[curStrat] || {};
-        const recs = s.records || [];
-        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} setup cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
-        const cols = [
-          { label: 'symbol', render: (row) => row.symbol },
-          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
-          { label: 'grade', render: (row) => badge(`${row.grade} (${row.total})`, GRADE_KIND[row.grade] || 'outline') },
-          { label: 'entry', align: 'r', render: (row) => cell(row.entry) },
-          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
-          { label: 'R:R', align: 'r', render: (row) => row.rr != null ? `${fmt.num(row.rr, 2)}R` : '—' },
-          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
-          { label: 'level (touches)', align: 'r', render: (row) => row.level != null ? `${cell(row.level)} (${row.level_touches ?? 0}x)` : '—' },
-          { label: 'confirmation', render: (row) => row.confirm_label || '—' },
-          { label: 'confluence', render: (row) => row.confluence_label || '—' },
-        ];
-        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
-      };
-      box.replaceChildren(
-        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
-        h('div', { style: { height: '10px' } }), inner);
-      paintInner();
-    };
-    root.append(h('section', null, ...sigHead('Master Support & Resistance Framework', sg.msr[curMk]?.run_at, 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
-      Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
@@ -604,6 +553,57 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Inverse head & shoulders', sg.inversehs[cur]?.run_at, 'Live setups only -- forming, awaiting a retest/reclaim, or an open trade -- not the backtest.'),
       Object.keys(sg.inversehs).length > 1 ? segmented(Object.keys(sg.inversehs).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  const acc = allow.has('accumulation') ? (sg.accumulation || {}) : {};
+  for (const mk of ['US', 'IN']) {
+    const a = acc[mk]; if (!a) continue;
+    root.append(accumulationBlock(mk, a));
+  }
+  if (allow.has('reversal') && sg.reversal && Object.keys(sg.reversal).length) {
+    let cur = Object.keys(sg.reversal)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.reversal[cur] || {};
+      const configs = r.configs || {};
+      const names = Object.keys(configs).sort((x, y) => {
+        const ix = REV_CONFIG_ORDER.indexOf(x), iy = REV_CONFIG_ORDER.indexOf(y);
+        return (ix < 0 ? 999 : ix) - (iy < 0 ? 999 : iy);
+      });
+      if (!names.length) { box.replaceChildren(r.text ? h('pre', { class: 'txt' }, r.text) : h('div', { class: 'empty' }, 'No report found.')); return; }
+      const banners = h('div', null,
+        r.headline ? h('div', { class: 'banner' }, icon('info'), h('div', null, r.headline)) : null,
+        r.throttle ? h('div', { class: 'banner warn' }, icon('alert'), h('div', null, r.throttle)) : null,
+        r.gates ? h('p', { class: 'soft small', style: { margin: '-6px 0 16px', whiteSpace: 'pre-line' } }, r.gates) : null);
+      const blocks = names.map((cfg) => {
+        const rows = configs[cfg];
+        const counts = {};
+        for (const row of rows) counts[row.state] = (counts[row.state] || 0) + 1;
+        const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '8px' } },
+          ...['ACTIONABLE', 'PENDING', 'TRIGGERED'].filter((s) => counts[s]).map((s) => badge(`${counts[s]} ${REV_STATE_LABEL[s]}`, REV_STATE_KIND[s])));
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'state', render: (row) => badge(REV_STATE_LABEL[row.state] || row.state, REV_STATE_KIND[row.state]) },
+          { label: 'timeframe', render: (row) => row.timeframe || '—' },
+          { label: 'date', render: (row) => row.date || '—' },
+          { label: 'pattern', render: (row) => row.pattern || '—' },
+          { label: 'close', align: 'r', render: (row) => cell(row.close) },
+          { label: 'entry trigger', align: 'r', render: (row) => row.confirm_close != null ? `confirmed @ ${cell(row.confirm_close)}` : row.trigger_above != null ? `needs close > ${cell(row.trigger_above)}` : '—' },
+          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+          { label: 'target', align: 'r', render: (row) => cell(row.target) },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+          { label: 'bars ago', align: 'r', render: (row) => cell(row.bars_ago) },
+          { label: 'action', render: (row) => row.action || '—' },
+        ];
+        return h('div', { style: { marginBottom: '28px' } },
+          h('h3', { style: { margin: '0 0 8px' } }, cfg),
+          chips, dataTable(cols, rows.slice(0, 80), { compact: true }));
+      });
+      box.replaceChildren(banners, ...blocks);
+    };
+    root.append(h('section', null, ...sigHead('Reversal bot: v5, v6, S1, S3 and EMA20 cross + confirm', sg.reversal[cur]?.run_at, sg.reversal[cur]?.asof ? `Data through ${sg.reversal[cur].asof}.` : ''),
+      Object.keys(sg.reversal).length > 1 ? segmented(Object.keys(sg.reversal).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
