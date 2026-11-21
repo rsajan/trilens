@@ -43,8 +43,8 @@ export async function renderResultsPage(ctx, { title, sub, keys, showScore, scor
       { label: 'sector', render: (r) => r.sector || '—' },
       { label: 'occurrences', align: 'r', render: (r) => badge(`${r.count}`, COUNT_KIND(r.count)) },
       showScore ? { label: scoreLabel || 'best score', align: 'r', render: (r) => r.bestScore != null ? Math.round(r.bestScore * 10) / 10 : '—' } : null,
-      { label: 'matching sources', render: (r) => r.sourceNames.join(', ') },
-      { label: 'last updated', render: (r) => r.lastUpdated || '—' },
+      { label: 'last updated', nw: true, render: (r) => r.lastUpdated || '—' },
+      { label: 'matching sources', wrap: true, render: (r) => r.sourceNames.join(', ') },
     ].filter(Boolean);
 
     const shown = rows.slice(0, 150);

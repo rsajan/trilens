@@ -306,6 +306,7 @@ a.lrow:hover, button.lrow:hover { background: var(--surface-1); }
 .tbl .r, .tbl th.r { text-align: right; font-variant-numeric: tabular-nums; }
 .tbl td.nw { white-space: nowrap; }
 .tbl.compact td { white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.tbl.compact td.wrap { white-space: normal; max-width: 380px; overflow: visible; text-overflow: clip; }
 .tbl.compact th { position: static; }
 .tbl tr:hover td { background: color-mix(in srgb, var(--surface-1) 70%, transparent); }
 .tbl .sticky { position: sticky; left: 0; background: var(--bg); z-index: 1; }

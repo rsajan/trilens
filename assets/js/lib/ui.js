@@ -41,13 +41,16 @@ export function tabsBar(options, active, onChange) {
   return box;
 }
 
-/** Simple responsive table. cols: [{label, align:'r', nw:true, render:(row)=>node|string}] */
+/** Simple responsive table. cols: [{label, align:'r', nw:true, wrap:true, render:(row)=>node|string}]
+ * wrap: true lets that column's cells break onto multiple lines instead of being ellipsis-truncated
+ * at compact mode's default 240px cap -- for a column like "matching sources" that is the whole point
+ * of the row and must stay readable rather than hidden behind a hover tooltip. */
 export function dataTable(cols, rows, opts = {}) {
   const t = h('table', { class: 'tbl' + (opts.compact ? ' compact' : '') },
     h('thead', null, h('tr', null, cols.map((c) => h('th', { class: c.align === 'r' ? 'r' : '' }, c.label)))),
     h('tbody', null, rows.map((r) => h('tr', null, cols.map((c) => {
       const v = c.render(r);
-      return h('td', { class: (c.align === 'r' ? 'r ' : '') + (c.nw ? 'nw' : ''), title: opts.compact && typeof v === 'string' && v.length > 28 ? v : null }, v);
+      return h('td', { class: (c.align === 'r' ? 'r ' : '') + (c.nw ? 'nw' : '') + (c.wrap ? ' wrap' : ''), title: opts.compact && !c.wrap && typeof v === 'string' && v.length > 28 ? v : null }, v);
     })))));
   return h('div', { class: 'tbl-wrap' }, t);
 }

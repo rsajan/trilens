@@ -1,5 +1,5 @@
 // Trilens service worker: app shell works offline; data is network-first with a saved fallback.
-const VERSION = 'trilens-v16';
+const VERSION = 'trilens-v17';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
