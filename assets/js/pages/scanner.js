@@ -243,29 +243,6 @@ function signals(b, ctx, allow) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (allow.has('context') && sg.context && Object.keys(sg.context).length) {
-    let cur = Object.keys(sg.context)[0];
-    const box = h('div');
-    const paint = () => {
-      const r = sg.context[cur];
-      const counts = r.tag_counts || {};
-      const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
-        ...CONTEXT_TAGS.filter((t) => counts[t]).map((t) => badge(`${counts[t]} ${CONTEXT_LABEL[t]}`, CONTEXT_KIND[t])));
-      const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(chips, h('div', { class: 'empty' }, 'No actionable context signals today.')); return; }
-      const cols = [
-        { label: 'symbol', render: (row) => row.symbol },
-        { label: 'context', render: (row) => badge(CONTEXT_LABEL[row.context] || row.context, CONTEXT_KIND[row.context]) },
-        { label: 'close', align: 'r', render: (row) => cell(row.close) },
-        { label: 'detail', render: (row) => contextDetail(row) },
-      ];
-      box.replaceChildren(chips, dataTable(cols, recs.slice(0, 60), { compact: true }));
-    };
-    root.append(h('section', null, ...sigHead('Market context classifier', sg.context[cur]?.run_at, sg.context[cur]?.universe ? `${sg.context[cur].universe} symbols scanned.` : ''),
-      Object.keys(sg.context).length > 1 ? segmented(Object.keys(sg.context).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
   if (allow.has('msr') && sg.msr && Object.keys(sg.msr).length) {
     let curMk = Object.keys(sg.msr)[0];
     const box = h('div');
@@ -301,6 +278,29 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Master Support & Resistance Framework', sg.msr[curMk]?.run_at, 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
       Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('context') && sg.context && Object.keys(sg.context).length) {
+    let cur = Object.keys(sg.context)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.context[cur];
+      const counts = r.tag_counts || {};
+      const chips = h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+        ...CONTEXT_TAGS.filter((t) => counts[t]).map((t) => badge(`${counts[t]} ${CONTEXT_LABEL[t]}`, CONTEXT_KIND[t])));
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(chips, h('div', { class: 'empty' }, 'No actionable context signals today.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'context', render: (row) => badge(CONTEXT_LABEL[row.context] || row.context, CONTEXT_KIND[row.context]) },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'detail', render: (row) => contextDetail(row) },
+      ];
+      box.replaceChildren(chips, dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, ...sigHead('Market context classifier', sg.context[cur]?.run_at, sg.context[cur]?.universe ? `${sg.context[cur].universe} symbols scanned.` : ''),
+      Object.keys(sg.context).length > 1 ? segmented(Object.keys(sg.context).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
