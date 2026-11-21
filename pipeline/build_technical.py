@@ -155,6 +155,7 @@ class Dirs:
         self.reversal = pick(a.reversal_dir, "reversal_dir")
         self.accumulation = pick(a.accumulation_dir, "accumulation_dir")
         self.ema = pick(getattr(a, "ema_dir", None), "ema_dir")
+        self.playbook = pick(getattr(a, "playbook_dir", None), "playbook_dir")
         self.scans = pick(a.scans_dir, "scans_dir")
         self.paper = pick(a.paper_book, "paper_book")
         up = cfg.get("uploads_dir", "technical_uploads")
@@ -164,6 +165,7 @@ class Dirs:
         return (s.replace("{reversal_dir}", str(self.reversal or ""))
                  .replace("{accumulation_dir}", str(self.accumulation or ""))
                  .replace("{ema_dir}", str(self.ema or ""))
+                 .replace("{playbook_dir}", str(self.playbook or ""))
                  .replace("{scans_dir}", str(self.scans or "")))
 
     def path(self, s: str) -> Path:
@@ -831,6 +833,40 @@ def read_ema_vcp(D: Dirs) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ signals: Multi-Timeframe EMA Trading Playbook (S1/S2/S3/S5/S6 -- S4/S7 excluded, see spec)
+PLAYBOOK_ROW_COLS = ["symbol", "grade", "total_score", "A_score", "B_score", "C_score", "D_score", "E_score",
+                     "F_score", "close", "atr14", "stop", "risk_pct", "runner_trail", "position_size_shares_1pct_100k"]
+PLAYBOOK_GRADE_ORDER = {"A": 0, "B": 1, "C": 2, "X": 3}
+
+
+def read_playbook(D: Dirs) -> dict:
+    out = {}
+    if not D.scans or not D.scans.exists():
+        return out
+    for mk in ("US", "India"):
+        j = read_json(D.scans / f"LATEST_PLAYBOOK_{mk}.json")
+        if not j:
+            continue
+        strategies = {}
+        for name, sv in (j.get("strategies") or {}).items():
+            recs = []
+            for r in sv.get("rows", []):
+                rec = {}
+                for k in PLAYBOOK_ROW_COLS:
+                    if k in r and r[k] is not None:
+                        rec[k] = r[k] if k in ("symbol", "grade", "runner_trail") else num(r[k])
+                for k, v in r.items():
+                    if (k.startswith("t1_") or k.startswith("t2_")) and v is not None:
+                        rec[k] = num(v)
+                recs.append(rec)
+            recs.sort(key=lambda r: (PLAYBOOK_GRADE_ORDER.get(r.get("grade"), 9), -(r.get("total_score") or 0)))
+            strategies[name] = {"records": recs}
+        out[mk] = {"strategies": strategies, "universe": j.get("universe"), "asof": j.get("data_through"),
+                   "run_at": j.get("run_at"), "live_strategies": j.get("live_strategies"),
+                   "excluded_strategies": j.get("excluded_strategies")}
+    return out
+
+
 # ------------------------------------------------------------------ signals: Fundamental Analysis Master Framework (StockLens watchlist, not the 1,003-name universe)
 MASTER_FRAMEWORK_ROW_COLS = ["symbol", "sector", "currency", "investmentScore", "grade", "action", "finalBuy",
                               "qualityScore", "opportunityScore", "technicalScore", "industryRank",
@@ -1225,7 +1261,7 @@ def read_automation(cur: dict, D: Dirs) -> dict:
     A = dict(cur.get("automation", {}))
     notes = A.pop("bat_notes", {})
     files = []
-    for folder in (D.reversal, D.accumulation, D.ema):
+    for folder in (D.reversal, D.accumulation, D.ema, D.playbook):
         if not folder or not folder.exists():
             continue
         for p in sorted(folder.glob("*.bat")):
@@ -1273,6 +1309,7 @@ def main(argv=None) -> int:
     ap.add_argument("--reversal-dir")
     ap.add_argument("--accumulation-dir")
     ap.add_argument("--ema-dir")
+    ap.add_argument("--playbook-dir")
     ap.add_argument("--scans-dir")
     ap.add_argument("--paper-book")
     ap.add_argument("--uploads-dir")
@@ -1285,7 +1322,7 @@ def main(argv=None) -> int:
     D = Dirs(a)
     cur = read_json(ROOT / "pipeline" / "technical_curated.json", {}) or {}
     print("Reading your scanner folders...")
-    for label, p in (("Reversal bot", D.reversal), ("Accumulation bot", D.accumulation), ("EMA Positional", D.ema), ("Scans", D.scans), ("Paper book", D.paper)):
+    for label, p in (("Reversal bot", D.reversal), ("Accumulation bot", D.accumulation), ("EMA Positional", D.ema), ("EMA Playbook", D.playbook), ("Scans", D.scans), ("Paper book", D.paper)):
         print(f"  {label:<17}", "found" if p and p.exists() else "NOT FOUND", f"({p})" if p else "(not set)")
 
     strategies = []
@@ -1302,7 +1339,7 @@ def main(argv=None) -> int:
               "context": read_context(D), "analog": read_analog(D), "basebreakout": read_basebreakout(D),
               "weinstein": read_weinstein(D), "mtf": read_mtf(D), "dbe": read_dbe(D),
               "dbpyramid": read_dbpyramid(D), "msr": read_msr(D), "pbmtf": read_pbmtf(D),
-              "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D),
+              "breakretest": read_breakretest(D), "ema_vcp": read_ema_vcp(D), "ema_playbook": read_playbook(D),
               "inversehs": read_inversehs(D), "fundamental": read_fundamental(D),
               "master_framework": read_master_framework(D), "alpha_framework": read_alpha_framework(D), "akshat": read_akshat(D),
               "tef": read_tef(D), "vcp": read_vcp(D), "rachana_tps": read_rachana(D)}

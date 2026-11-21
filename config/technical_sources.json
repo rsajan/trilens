@@ -3,6 +3,7 @@
   "reversal_dir": "G:\\DANGLING\\reversal_strategy",
   "accumulation_dir": "G:\\trading\\Accumulation_Bot_v2.3\\Accumulation_Bot",
   "ema_dir": "G:\\trading\\EMA_Positional_Strategy",
+  "playbook_dir": "G:\\trading\\EMA_Playbook_Strategy",
   "scans_dir": "G:\\trading\\new back test\\scans",
   "paper_book": "G:\\trading\\new back test\\PAPER_TRADING.xlsx",
   "uploads_dir": "technical_uploads"

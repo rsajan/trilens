@@ -15,7 +15,7 @@ export const TABS = [
 // Which sg.<key> sections each page's Signals tab shows. Strategies/Results/Automation/Library
 // are identical on every page - only the Signals tab is split, by the owner's own request.
 export const SCANNER_KEYS = new Set(['accumulation', 'reversal', 'revenue_dip', 'context', 'analog',
-  'basebreakout', 'weinstein', 'vcp', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs']);
+  'basebreakout', 'weinstein', 'vcp', 'mtf', 'msr', 'breakretest', 'pbmtf', 'dbe', 'dbpyramid', 'inversehs', 'ema_playbook']);
 export const FUNDAMENTAL_KEYS = new Set(['master_framework', 'alpha_framework', 'fundamental', 'akshat', 'tef', 'rachana_tps']);
 
 export async function renderPage(ctx, { title, sub, allow }) {
@@ -415,6 +415,46 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Break & Retest Master Framework (C.E.S.T)', sg.breakretest[curMk]?.run_at, 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'),
       Object.keys(sg.breakretest).length > 1 ? segmented(Object.keys(sg.breakretest).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('ema_playbook') && sg.ema_playbook && Object.keys(sg.ema_playbook).length) {
+    let curMk = Object.keys(sg.ema_playbook)[0];
+    const box = h('div');
+    const GRADE_KIND = { A: 'gain', B: 'outline', C: 'outline', X: 'loss' };
+    const t1t2 = (row) => {
+      const t1k = Object.keys(row).find((k) => k.startsWith('t1_'));
+      const t2k = Object.keys(row).find((k) => k.startsWith('t2_'));
+      return t1k && t2k ? `${cell(row[t1k])} / ${cell(row[t2k])}` : '—';
+    };
+    const paint = () => {
+      const r = sg.ema_playbook[curMk];
+      const strat = r.strategies || {};
+      const names = Object.keys(strat);
+      let curStrat = names[0];
+      const inner = h('div');
+      const paintInner = () => {
+        const s = strat[curStrat] || {};
+        const recs = s.records || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat} signal today.`)); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'grade (score)', render: (row) => badge(`${row.grade} (${fmt.num(row.total_score, 0)})`, GRADE_KIND[row.grade] || 'outline') },
+          { label: 'close', align: 'r', render: (row) => cell(row.close) },
+          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+          { label: 'T1 / T2', align: 'r', render: t1t2 },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+          { label: 'runner trail', render: (row) => row.runner_trail || '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      };
+      box.replaceChildren(
+        names.length > 1 ? segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }) : null,
+        h('div', { style: { height: '10px' } }), inner);
+      paintInner();
+    };
+    root.append(h('section', null, ...sigHead('Multi-Timeframe EMA Trade Execution Checklist', sg.ema_playbook[curMk]?.run_at, 'Monthly → Weekly → Daily EMA scanner, five live strategies (S1, S2, S3, S5, S6 — S4 and S7 excluded outright, see the Strategies tab), 100-point scorecard, grade A–X.'),
+      Object.keys(sg.ema_playbook).length > 1 ? segmented(Object.keys(sg.ema_playbook).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }

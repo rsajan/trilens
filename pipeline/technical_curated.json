@@ -1679,6 +1679,147 @@
       "docs": [
         "vcp-positional-spec"
       ]
+    },
+    {
+      "id": "playbook_s1",
+      "name": "Playbook S1: Monthly50+Weekly200+Daily20",
+      "family": "Multi-Timeframe EMA Trading Playbook",
+      "status": "validated",
+      "status_label": "Backtested 2026-11-21, scanned live from 2026-11-21",
+      "universe": "1,003 names: S&P 500 + Nifty 500, 2008-2026 (2008 and 2020 excluded)",
+      "headline": "Price pulls back deep enough to touch both the monthly 50 EMA and the weekly 200 EMA at the same time -- a rare double-timeframe value zone -- then the daily close reclaims its 20 EMA. The strongest combination of volume and quality of the five live strategies.",
+      "metrics": {
+        "trades": 39912,
+        "win_pct": 52.9,
+        "avg_r": 0.458,
+        "pf": 2.01
+      },
+      "entry": [
+        "Monthly close within 1x ATR(14) of the monthly 50 EMA.",
+        "Weekly close within 1x ATR(14) of the weekly 200 EMA, in the same window.",
+        "Daily close reclaims the daily 20 EMA (closes above it, having been below within the trailing 3 days)."
+      ],
+      "exit": [
+        "Stop: 1.5x ATR(14) below the lower of the monthly 50 EMA or the signal low.",
+        "T1 = entry + 1.5R (sell 50%); T2 = entry + 3.0R (sell 25%); runner (25%) trailed on the weekly 20 EMA, closes on the first weekly close below it."
+      ],
+      "verdict": "One of the two strongest live strategies -- see Multi-Timeframe EMA Trading Playbook results doc for the full backtest comparison against S2/S3/S5/S6 and why S4/S7 were excluded outright.",
+      "docs": [
+        "playbook-spec",
+        "playbook-results"
+      ]
+    },
+    {
+      "id": "playbook_s2",
+      "name": "Playbook S2: Weekly 50 EMA Reclaim",
+      "family": "Multi-Timeframe EMA Trading Playbook",
+      "status": "validated",
+      "status_label": "Backtested 2026-11-21, scanned live from 2026-11-21",
+      "universe": "1,003 names: S&P 500 + Nifty 500, 2008-2026 (2008 and 2020 excluded)",
+      "headline": "The classic early re-entry signal: price closes back above the weekly 50 EMA after closing below it the prior week.",
+      "metrics": {
+        "trades": 27206,
+        "win_pct": 54.9,
+        "avg_r": 0.376,
+        "pf": 1.86
+      },
+      "entry": [
+        "Weekly close crosses back above the weekly 50 EMA this week.",
+        "Weekly close was at or below the 50 EMA the prior week (a genuine reclaim, not already-above noise)."
+      ],
+      "exit": [
+        "Stop: 1.5x ATR(14) below the reclaim week's low.",
+        "T1 = entry + 1.3R (sell 50%); T2 = entry + 2.2R (sell 25%); runner (25%) trailed on the weekly 20 EMA."
+      ],
+      "verdict": "Solid secondary live strategy -- highest win rate of the five (54.9%) though a smaller average R than S1/S5/S6.",
+      "docs": [
+        "playbook-spec",
+        "playbook-results"
+      ]
+    },
+    {
+      "id": "playbook_s3",
+      "name": "Playbook S3: Weekly20+Daily Crossover (smaller-weight fifth)",
+      "family": "Multi-Timeframe EMA Trading Playbook",
+      "status": "validated",
+      "status_label": "Backtested 2026-11-21, scanned live from 2026-11-21",
+      "universe": "1,003 names: S&P 500 + Nifty 500, 2008-2026 (2008 and 2020 excluded)",
+      "headline": "A fast, higher-beta setup: the weekly close reclaims the weekly 20 EMA in the same week the daily 20/50 EMA golden-crosses. Kept as an optional, smaller-weight fifth strategy -- smallest sample and weakest of the five live strategies, but still clearly positive.",
+      "metrics": {
+        "trades": 13677,
+        "win_pct": 52.6,
+        "avg_r": 0.309,
+        "pf": 1.84
+      },
+      "entry": [
+        "Weekly close reclaims the weekly 20 EMA this week.",
+        "Daily 20 EMA crosses above the daily 50 EMA within the same 5-trading-day window."
+      ],
+      "exit": [
+        "Stop: 2.0x ATR(14) below the signal low (wider than the other four -- this is the highest-risk-rated live strategy).",
+        "T1 = entry + 1.0R (sell 50%); T2 = entry + 2.0R (sell 50%); no runner."
+      ],
+      "verdict": "Weakest of the five live strategies by every metric, but still positive and not disqualified the way S4/S7 were -- trade at smaller size than S1/S2/S5/S6.",
+      "docs": [
+        "playbook-spec",
+        "playbook-results"
+      ]
+    },
+    {
+      "id": "playbook_s5",
+      "name": "Playbook S5: Weekly 50/200 EMA Confluence",
+      "family": "Multi-Timeframe EMA Trading Playbook",
+      "status": "validated",
+      "status_label": "Backtested 2026-11-21, scanned live from 2026-11-21",
+      "universe": "1,003 names: S&P 500 + Nifty 500, 2008-2026 (2008 and 2020 excluded)",
+      "headline": "The weekly 50 and 200 EMAs have converged to within 3% of each other -- a structurally significant, rarely-revisited level -- and the weekly low enters that combined zone. Has the single best average R of all seven original strategies, but is by far the rarest live signal.",
+      "metrics": {
+        "trades": 4832,
+        "win_pct": 53.3,
+        "avg_r": 0.496,
+        "pf": 2.09
+      },
+      "entry": [
+        "Weekly 50 EMA and weekly 200 EMA within 3% of each other (confluence).",
+        "Weekly low enters that combined band."
+      ],
+      "exit": [
+        "Stop: below the confluence zone's low, plus 0.5x ATR(14) buffer.",
+        "T1 = entry + 1.5R (sell 50%); T2 = entry + 3.5R (sell 25%); runner (25%) trailed on the weekly 20 EMA."
+      ],
+      "verdict": "Best average R of any live strategy, but only about 1/8 as common as S6 -- expect long stretches with no S5 signal at all; that is normal, not a scanner fault.",
+      "docs": [
+        "playbook-spec",
+        "playbook-results"
+      ]
+    },
+    {
+      "id": "playbook_s6",
+      "name": "Playbook S6: Weekly 50 EMA Value Zone",
+      "family": "Multi-Timeframe EMA Trading Playbook",
+      "status": "validated",
+      "status_label": "Backtested 2026-11-21, scanned live from 2026-11-21",
+      "universe": "1,003 names: S&P 500 + Nifty 500, 2008-2026 (2008 and 2020 excluded)",
+      "headline": "The highest-frequency live strategy: the standard pullback-to-value-zone entry, price returning to the weekly 50 EMA inside an established uptrend and reclaiming it.",
+      "metrics": {
+        "trades": 51452,
+        "win_pct": 51.8,
+        "avg_r": 0.434,
+        "pf": 1.92
+      },
+      "entry": [
+        "Weekly low within 1x ATR(14) of the weekly 50 EMA.",
+        "Weekly close reclaims the weekly 50 EMA (closes back above it)."
+      ],
+      "exit": [
+        "Stop: 1.5x ATR(14) below the weekly 50 EMA.",
+        "T1 = entry + 1.4R (sell 50%); T2 = entry + 2.0R (sell 25%); runner (25%) trailed on the weekly 20 EMA."
+      ],
+      "verdict": "The other of the two strongest live strategies alongside S1, and by far the most frequent -- the workhorse of the five.",
+      "docs": [
+        "playbook-spec",
+        "playbook-results"
+      ]
     }
   ],
   "automation": {
@@ -2113,6 +2254,18 @@
       "id": "ema_vcp-results",
       "path": "G:/trading/EMA_VCP_Strategy/EMA_VCP_BACKTEST_RESULTS.md",
       "title": "EMA-VCP Positional Strategy: backtest and threshold-sweep results",
+      "kind": "doc"
+    },
+    {
+      "id": "playbook-spec",
+      "path": "{playbook_dir}/PLAYBOOK_SPEC.md",
+      "title": "Multi-Timeframe EMA Trading Playbook: complete specification",
+      "kind": "doc"
+    },
+    {
+      "id": "playbook-results",
+      "path": "{playbook_dir}/PLAYBOOK_BACKTEST_RESULTS.md",
+      "title": "Multi-Timeframe EMA Trading Playbook: backtest and validation results",
       "kind": "doc"
     }
   ]
