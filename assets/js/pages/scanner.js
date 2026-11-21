@@ -182,6 +182,67 @@ function signals(b, ctx, allow) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
+  if (allow.has('inversehs') && sg.inversehs && Object.keys(sg.inversehs).length) {
+    let cur = Object.keys(sg.inversehs)[0];
+    const box = h('div');
+    const paint = () => {
+      const r = sg.inversehs[cur];
+      const recs = r.records || [];
+      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'Nothing live right now.')); return; }
+      const cols = [
+        { label: 'symbol', render: (row) => row.symbol },
+        { label: 'tf', render: (row) => row.timeframe || '—' },
+        { label: 'status', render: (row) => badge(INVERSEHS_LABEL[row.status] || row.status, INVERSEHS_KIND[row.status]) },
+        { label: 'close', align: 'r', render: (row) => cell(row.close) },
+        { label: 'watch / entry', align: 'r', render: (row) => cell(row.watch_level ?? row.entry) },
+        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+        { label: 'target', align: 'r', render: (row) => cell(row.target) },
+        { label: 'unrealized R', align: 'r', render: (row) => row.unrealized_r != null ? `${row.unrealized_r > 0 ? '+' : ''}${fmt.num(row.unrealized_r, 2)}R` : '—' },
+        { label: 'config', render: (row) => row.config || '—' },
+      ];
+      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+    };
+    root.append(h('section', null, ...sigHead('Inverse head & shoulders', sg.inversehs[cur]?.run_at, 'Live setups only -- forming, awaiting a retest/reclaim, or an open trade -- not the backtest.'),
+      Object.keys(sg.inversehs).length > 1 ? segmented(Object.keys(sg.inversehs).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('breakretest') && sg.breakretest && Object.keys(sg.breakretest).length) {
+    let curMk = Object.keys(sg.breakretest)[0];
+    const box = h('div');
+    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', 'NO_TRADE': 'loss' };
+    const paint = () => {
+      const r = sg.breakretest[curMk];
+      const strat = r.strategies || {};
+      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
+      let curStrat = names[0];
+      const inner = h('div');
+      const paintInner = () => {
+        const s = strat[curStrat] || {};
+        const recs = s.records || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} break-and-retest cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
+          { label: 'pattern', render: (row) => (row.pattern || '—').replace(/_/g, ' ') },
+          { label: 'score', render: (row) => badge(`${row.grade} (${row.total_score})`, GRADE_KIND[row.grade] || 'outline') },
+          { label: 'entry (L1 / L2)', align: 'r', render: (row) => `${cell(row.entry_level1_aggressive)} / ${cell(row.entry_level2_conservative)}` },
+          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
+          { label: 'R:R', align: 'r', render: (row) => row.rr_multiple != null ? `${fmt.num(row.rr_multiple, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
+      };
+      box.replaceChildren(
+        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
+        h('div', { style: { height: '10px' } }), inner);
+      paintInner();
+    };
+    root.append(h('section', null, ...sigHead('Break & Retest Master Framework (C.E.S.T)', sg.breakretest[curMk]?.run_at, 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'),
+      Object.keys(sg.breakretest).length > 1 ? segmented(Object.keys(sg.breakretest).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
   if (allow.has('context') && sg.context && Object.keys(sg.context).length) {
     let cur = Object.keys(sg.context)[0];
     const box = h('div');
@@ -371,42 +432,6 @@ function signals(b, ctx, allow) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (allow.has('breakretest') && sg.breakretest && Object.keys(sg.breakretest).length) {
-    let curMk = Object.keys(sg.breakretest)[0];
-    const box = h('div');
-    const GRADE_KIND = { 'A+': 'gain', A: 'gain', B: 'outline', 'NO_TRADE': 'loss' };
-    const paint = () => {
-      const r = sg.breakretest[curMk];
-      const strat = r.strategies || {};
-      const names = ['Hourly', 'Daily', 'Weekly'].filter((n) => strat[n]);
-      let curStrat = names[0];
-      const inner = h('div');
-      const paintInner = () => {
-        const s = strat[curStrat] || {};
-        const recs = s.records || [];
-        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, `No ${curStrat.toLowerCase()} break-and-retest cleared the ${s.min_score ?? '—'}-point minimum today.`)); return; }
-        const cols = [
-          { label: 'symbol', render: (row) => row.symbol },
-          { label: 'direction', render: (row) => badge(row.direction === 'long' ? 'long' : 'short', row.direction === 'long' ? 'gain' : 'loss') },
-          { label: 'pattern', render: (row) => (row.pattern || '—').replace(/_/g, ' ') },
-          { label: 'score', render: (row) => badge(`${row.grade} (${row.total_score})`, GRADE_KIND[row.grade] || 'outline') },
-          { label: 'entry (L1 / L2)', align: 'r', render: (row) => `${cell(row.entry_level1_aggressive)} / ${cell(row.entry_level2_conservative)}` },
-          { label: 'stop / target', align: 'r', render: (row) => `${cell(row.stop)} / ${cell(row.target)}` },
-          { label: 'R:R', align: 'r', render: (row) => row.rr_multiple != null ? `${fmt.num(row.rr_multiple, 2)}R` : '—' },
-          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
-        ];
-        inner.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
-      };
-      box.replaceChildren(
-        segmented(names.map((n) => ({ id: n, label: `${n} (${(strat[n]?.records || []).length})` })), curStrat, (v) => { curStrat = v; paintInner(); }),
-        h('div', { style: { height: '10px' } }), inner);
-      paintInner();
-    };
-    root.append(h('section', null, ...sigHead('Break & Retest Master Framework (C.E.S.T)', sg.breakretest[curMk]?.run_at, 'Conditions (trend continuation / consolidation / triangle break) → Entry (L1 aggressive at the retest, L2 conservative on the rejection candle) → Stop → Target, scored 0-100 across three timeframe pairings. Hourly is live-only (no 26-year free intraday history to backtest); Daily and Weekly are backtested -- see the Strategies tab.'),
-      Object.keys(sg.breakretest).length > 1 ? segmented(Object.keys(sg.breakretest).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
   if (allow.has('pbmtf') && sg.pbmtf && Object.keys(sg.pbmtf).length) {
     let curMk = Object.keys(sg.pbmtf)[0];
     const box = h('div');
@@ -528,31 +553,6 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Fundamental Analysis screen', sg.fundamental[cur]?.run_at, 'The automatable slice only -- screening, financials and sector-relative valuation. SWOT, management and thesis review stay a manual call. Score is scaled to the data actually available; "quality veto" means 4+ combined red flags/shenanigans forced a Reject regardless of score. See the Strategies tab.'),
       Object.keys(sg.fundamental).length > 1 ? segmented(Object.keys(sg.fundamental).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
-  if (allow.has('inversehs') && sg.inversehs && Object.keys(sg.inversehs).length) {
-    let cur = Object.keys(sg.inversehs)[0];
-    const box = h('div');
-    const paint = () => {
-      const r = sg.inversehs[cur];
-      const recs = r.records || [];
-      if (!recs.length) { box.replaceChildren(h('div', { class: 'empty' }, 'Nothing live right now.')); return; }
-      const cols = [
-        { label: 'symbol', render: (row) => row.symbol },
-        { label: 'tf', render: (row) => row.timeframe || '—' },
-        { label: 'status', render: (row) => badge(INVERSEHS_LABEL[row.status] || row.status, INVERSEHS_KIND[row.status]) },
-        { label: 'close', align: 'r', render: (row) => cell(row.close) },
-        { label: 'watch / entry', align: 'r', render: (row) => cell(row.watch_level ?? row.entry) },
-        { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
-        { label: 'target', align: 'r', render: (row) => cell(row.target) },
-        { label: 'unrealized R', align: 'r', render: (row) => row.unrealized_r != null ? `${row.unrealized_r > 0 ? '+' : ''}${fmt.num(row.unrealized_r, 2)}R` : '—' },
-        { label: 'config', render: (row) => row.config || '—' },
-      ];
-      box.replaceChildren(dataTable(cols, recs.slice(0, 60), { compact: true }));
-    };
-    root.append(h('section', null, ...sigHead('Inverse head & shoulders', sg.inversehs[cur]?.run_at, 'Live setups only -- forming, awaiting a retest/reclaim, or an open trade -- not the backtest.'),
-      Object.keys(sg.inversehs).length > 1 ? segmented(Object.keys(sg.inversehs).map((k) => ({ id: k, label: k })), cur, (v) => { cur = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
