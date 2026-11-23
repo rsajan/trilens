@@ -98,44 +98,6 @@ function signals(b, ctx, allow) {
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
-  if (allow.has('pbmtf') && sg.pbmtf && Object.keys(sg.pbmtf).length) {
-    let curMk = Object.keys(sg.pbmtf)[0];
-    const box = h('div');
-    const DEC_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Enter: 'gain', 'Full Position': 'gain', 'Small Position': 'outline', 'Half Position': 'outline', Watchlist: 'outline', Monitor: 'outline', Watch: 'outline', Pass: 'loss', 'No Trade': 'loss', Skip: 'loss' };
-    const decCell = (score, label) => label ? badge(`${label} (${score})`, DEC_KIND[label] || 'outline') : cell(score);
-    const paint = () => {
-      const r = sg.pbmtf[curMk] || {};
-      let curView = (r.signals || []).length ? 'signals' : 'watchlist';
-      const inner = h('div');
-      const paintInner = () => {
-        const recs = r[curView] || [];
-        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, curView === 'signals' ? 'No symbol passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired) today.' : 'No symbol has a clear daily trend today.')); return; }
-        const cols = [
-          { label: 'symbol', render: (row) => row.symbol },
-          { label: 'weekly', render: (row) => decCell(row.weekly_score, row.weekly_decision) },
-          { label: 'daily', render: (row) => decCell(row.daily_score, row.daily_decision) },
-          { label: 'hourly', render: (row) => decCell(row.hourly_score, row.hourly_decision) },
-          { label: 'alignment', align: 'r', render: (row) => badge(`${row.alignment_score}`, row.take_trade ? 'gain' : 'outline') },
-          { label: 'size', align: 'r', render: (row) => row.position_size_R ? `${fmt.num(row.position_size_R, 2)}R${row.position_size_shares != null ? ` (${fmt.int(row.position_size_shares)} sh)` : ''}` : '—' },
-          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
-          { label: 'T1 / T2', align: 'r', render: (row) => row.target_1_5R != null ? `${cell(row.target_1_5R)} / ${cell(row.target_2R)}` : '—' },
-          { label: 'RR vs. swing', align: 'r', render: (row) => row.rr_to_prior_swing != null ? `${fmt.num(row.rr_to_prior_swing, 2)}R` : '—' },
-          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
-        ];
-        inner.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
-      };
-      box.replaceChildren(
-        h('div', { class: 'row between wrap', style: { gap: '8px', marginBottom: '10px' } },
-          segmented([{ id: 'signals', label: `Signals (${(r.signals || []).length})` }, { id: 'watchlist', label: `Watchlist (${(r.watchlist || []).length})` }], curView, (v) => { curView = v; paintInner(); }),
-          h('span', { class: 'tiny muted' }, r.universe ? `${r.hourly_covered ?? '—'}/${r.universe} with hourly data · data through ${r.asof || '—'}` : '')),
-        inner);
-      paintInner();
-    };
-    root.append(h('section', null, ...sigHead('Pullback-Retest MTF Swing Strategy (Weekly → Daily → Hourly)', sg.pbmtf[curMk]?.run_at, 'Long only -- the short side is disabled after the backtest showed it loses money. Signals = passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired now). Watchlist = every symbol with a clear daily trend, scored on all 3 timeframes either way. See the Strategies tab for the backtest.'),
-      Object.keys(sg.pbmtf).length > 1 ? segmented(Object.keys(sg.pbmtf).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
-      h('div', { style: { height: '10px' } }), box));
-    paint();
-  }
   if (allow.has('revenue_dip') && sg.revenue_dip && Object.keys(sg.revenue_dip).length) {
     let cur = Object.keys(sg.revenue_dip)[0];
     const box = h('div');
@@ -281,6 +243,44 @@ function signals(b, ctx, allow) {
     };
     root.append(h('section', null, ...sigHead('Master Support & Resistance Framework', sg.msr[curMk]?.run_at, 'A trader\'s own 6-step, 100-point checklist (S&R quality, bias, area of value, confirmation pattern, risk:reward, multi-timeframe confluence), scored on three timeframe pairings. Not backtested -- a live checklist score, not a proven edge. See the Strategies tab.'),
       Object.keys(sg.msr).length > 1 ? segmented(Object.keys(sg.msr).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
+      h('div', { style: { height: '10px' } }), box));
+    paint();
+  }
+  if (allow.has('pbmtf') && sg.pbmtf && Object.keys(sg.pbmtf).length) {
+    let curMk = Object.keys(sg.pbmtf)[0];
+    const box = h('div');
+    const DEC_KIND = { 'Aggressive Buy': 'gain', Buy: 'gain', Enter: 'gain', 'Full Position': 'gain', 'Small Position': 'outline', 'Half Position': 'outline', Watchlist: 'outline', Monitor: 'outline', Watch: 'outline', Pass: 'loss', 'No Trade': 'loss', Skip: 'loss' };
+    const decCell = (score, label) => label ? badge(`${label} (${score})`, DEC_KIND[label] || 'outline') : cell(score);
+    const paint = () => {
+      const r = sg.pbmtf[curMk] || {};
+      let curView = (r.signals || []).length ? 'signals' : 'watchlist';
+      const inner = h('div');
+      const paintInner = () => {
+        const recs = r[curView] || [];
+        if (!recs.length) { inner.replaceChildren(h('div', { class: 'empty' }, curView === 'signals' ? 'No symbol passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired) today.' : 'No symbol has a clear daily trend today.')); return; }
+        const cols = [
+          { label: 'symbol', render: (row) => row.symbol },
+          { label: 'weekly', render: (row) => decCell(row.weekly_score, row.weekly_decision) },
+          { label: 'daily', render: (row) => decCell(row.daily_score, row.daily_decision) },
+          { label: 'hourly', render: (row) => decCell(row.hourly_score, row.hourly_decision) },
+          { label: 'alignment', align: 'r', render: (row) => badge(`${row.alignment_score}`, row.take_trade ? 'gain' : 'outline') },
+          { label: 'size', align: 'r', render: (row) => row.position_size_R ? `${fmt.num(row.position_size_R, 2)}R${row.position_size_shares != null ? ` (${fmt.int(row.position_size_shares)} sh)` : ''}` : '—' },
+          { label: 'stop', align: 'r', render: (row) => cell(row.stop) },
+          { label: 'T1 / T2', align: 'r', render: (row) => row.target_1_5R != null ? `${cell(row.target_1_5R)} / ${cell(row.target_2R)}` : '—' },
+          { label: 'RR vs. swing', align: 'r', render: (row) => row.rr_to_prior_swing != null ? `${fmt.num(row.rr_to_prior_swing, 2)}R` : '—' },
+          { label: 'risk', align: 'r', render: (row) => row.risk_pct != null ? fmt.pct(row.risk_pct, 2, false) : '—' },
+        ];
+        inner.replaceChildren(dataTable(cols, recs.slice(0, 80), { compact: true }));
+      };
+      box.replaceChildren(
+        h('div', { class: 'row between wrap', style: { gap: '8px', marginBottom: '10px' } },
+          segmented([{ id: 'signals', label: `Signals (${(r.signals || []).length})` }, { id: 'watchlist', label: `Watchlist (${(r.watchlist || []).length})` }], curView, (v) => { curView = v; paintInner(); }),
+          h('span', { class: 'tiny muted' }, r.universe ? `${r.hourly_covered ?? '—'}/${r.universe} with hourly data · data through ${r.asof || '—'}` : '')),
+        inner);
+      paintInner();
+    };
+    root.append(h('section', null, ...sigHead('Pullback-Retest MTF Swing Strategy (Weekly → Daily → Hourly)', sg.pbmtf[curMk]?.run_at, 'Long only -- the short side is disabled after the backtest showed it loses money. Signals = passed the Final Rule (alignment ≥ 85, all 3 timeframes aligned, hourly trigger fired now). Watchlist = every symbol with a clear daily trend, scored on all 3 timeframes either way. See the Strategies tab for the backtest.'),
+      Object.keys(sg.pbmtf).length > 1 ? segmented(Object.keys(sg.pbmtf).map((k) => ({ id: k, label: k })), curMk, (v) => { curMk = v; paint(); }) : null,
       h('div', { style: { height: '10px' } }), box));
     paint();
   }
