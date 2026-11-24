@@ -151,7 +151,7 @@ input, select { font: inherit; color: inherit; }
 
 .nav {
   position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   padding-bottom: var(--safe-b);
   background: color-mix(in srgb, var(--surface-1) 94%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -209,6 +209,8 @@ input, select { font: inherit; color: inherit; }
 .tabs button { flex: none; position: relative; height: 44px; color: var(--ink-3); font-weight: 500; font-size: 14.5px; }
 .tabs button[aria-selected="true"] { color: var(--ink); }
 .tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+.ipt { height: 42px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-1); color: var(--ink); font: inherit; }
+.ipt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); font-weight: 600; background: var(--surface-1); }
 .btn:hover { border-color: var(--ink-3); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }

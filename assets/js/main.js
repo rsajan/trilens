@@ -7,6 +7,7 @@ const NAV = [
   { id: 'scanner-results', label: 'Scanner Results', path: '#/scanner-results', icon: 'results' },
   { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
+  { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
 ];
 
 const PAGES = {
@@ -14,6 +15,7 @@ const PAGES = {
   fundamentals: () => import('./pages/fundamentals.js'),
   'scanner-results': () => import('./pages/scanner-results.js'),
   'fundamental-results': () => import('./pages/fundamental-results.js'),
+  watchlists: () => import('./pages/watchlists.js'),
 };
 
 const view = $('#view');
