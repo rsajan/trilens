@@ -309,6 +309,8 @@ a.lrow:hover, button.lrow:hover { background: var(--surface-1); }
 .tbl td.nw { white-space: nowrap; }
 .tbl.compact td { white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .tbl.compact td.wrap { white-space: normal; max-width: 380px; overflow: visible; text-overflow: clip; }
+.cell-btn { display: block; width: 100%; background: none; border: none; padding: 0; margin: 0; font: inherit; text-align: left; color: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.cell-btn:hover { text-decoration-color: var(--accent); color: var(--accent); }
 .tbl.compact th { position: static; }
 .tbl tr:hover td { background: color-mix(in srgb, var(--surface-1) 70%, transparent); }
 .tbl .sticky { position: sticky; left: 0; background: var(--bg); z-index: 1; }

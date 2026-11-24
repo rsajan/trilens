@@ -2,12 +2,25 @@
 // scanners/signals/frameworks, ranked by how many agree. Computed entirely client-side from
 // the already-published bundle (see lib/crosscheck.js), so it updates automatically every time
 // a fresh bundle is published -- there is no separate data file to keep in sync.
-import { h, badge } from '../lib/dom.js';
+import { h, badge, sheet } from '../lib/dom.js';
 import { pageHead, segmented, dataTable } from '../lib/ui.js';
 import { loadBundle, notPublished, lockScreen } from '../lib/bundle.js';
 import { collectOccurrences, rankBySymbol } from '../lib/crosscheck.js';
 
 const COUNT_KIND = (n) => (n >= 5 ? 'gain' : n >= 3 ? 'accent' : 'outline');
+
+// A long agreeing-sources list (6-8+ names) used to blow up that row's height far past its
+// neighbours once it wrapped onto its own lines. Keep every row the same single-line height
+// instead - truncate with an ellipsis like any other compact cell, and let the full list open
+// in a sheet on click/tap (works on mobile too, unlike a hover tooltip).
+function sourcesCell(names, symbol) {
+  const full = names.join(', ');
+  return h('button', {
+    class: 'cell-btn', type: 'button', title: full,
+    onClick: () => sheet(`Matching sources — ${symbol}`,
+      h('div', { class: 'stack', style: { '--gap': '10px' } }, names.map((n) => h('p', { style: { margin: 0 } }, n)))),
+  }, full);
+}
 
 export async function renderResultsPage(ctx, { title, sub, keys, showScore, scoreLabel }) {
   ctx.setTitle(title);
@@ -44,7 +57,7 @@ export async function renderResultsPage(ctx, { title, sub, keys, showScore, scor
       { label: 'occurrences', align: 'r', render: (r) => badge(`${r.count}`, COUNT_KIND(r.count)) },
       showScore ? { label: scoreLabel || 'best score', align: 'r', render: (r) => r.bestScore != null ? Math.round(r.bestScore * 10) / 10 : '—' } : null,
       { label: 'last updated', nw: true, render: (r) => r.lastUpdated || '—' },
-      { label: 'matching sources', wrap: true, render: (r) => r.sourceNames.join(', ') },
+      { label: 'matching sources', render: (r) => sourcesCell(r.sourceNames, r.symbol) },
     ].filter(Boolean);
 
     const shown = rows.slice(0, 150);
