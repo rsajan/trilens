@@ -47,6 +47,7 @@ const I = {
   watchlist: '<path d="M12 3.5 14.5 9l6 .7-4.4 4 1.2 5.8L12 16.6 6.7 19.5l1.2-5.8-4.4-4 6-.7z"/>',
   edit: '<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5.5 17z"/><path d="M13.7 6.8l3.5 3.5"/>',
   summary: '<rect x="4" y="3.5" width="16" height="17" rx="2.2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  cloud: '<path d="M7 18h10.5a3.5 3.5 0 0 0 .6-6.95 5 5 0 0 0-9.68-1.7A4 4 0 0 0 7 18z"/>',
 };
 
 export function icon(name, cls) {
