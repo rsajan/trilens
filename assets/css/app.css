@@ -151,7 +151,7 @@ input, select { font: inherit; color: inherit; }
 
 .nav {
   position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding-bottom: var(--safe-b);
   background: color-mix(in srgb, var(--surface-1) 94%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
