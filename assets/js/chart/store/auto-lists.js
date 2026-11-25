@@ -5,7 +5,7 @@
 import { loadBundle } from '../../lib/bundle.js';
 import { store } from '../../lib/store.js';
 import { stockData } from '../data/stocks.js';
-import { buildSignalLists, installLists, SIGNAL_LISTS } from './library.js';
+import { buildSignalLists, installLists, SIGNAL_LISTS, watchlists, addList, selectList } from './library.js';
 
 /** Names of the automatic lists, in display order. */
 export const AUTO_LIST_NAMES = [...SIGNAL_LISTS.map(([, name]) => name), 'Crypto', 'US top 500', 'India top 500'];
@@ -26,4 +26,14 @@ export async function refreshAutoLists(auto = false) {
   installLists(lists);
   store.set('signalListsAt', stamp);
   return { state: 'built', lists, stocks: tops.length > 0 };
+}
+
+/** Five empty lists for adding symbols by hand. Created once per browser: rename or delete them freely. */
+export function ensureMyLists() {
+  if (store.get('myListsAdded')) return;
+  const { active } = watchlists.get();
+  const have = new Set(watchlists.get().lists.map((l) => l.name));
+  for (let i = 1; i <= 5; i++) if (!have.has(`My list ${i}`)) addList(`My list ${i}`);
+  store.set('myListsAdded', true);
+  selectList(active); // adding a list selects it; keep the list you were on
 }

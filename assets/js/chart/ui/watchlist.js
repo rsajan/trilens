@@ -4,7 +4,7 @@
 
 import { h, clear, sheet } from '../../lib/dom.js';
 import { lockScreen, notPublished } from '../../lib/bundle.js';
-import { refreshAutoLists } from '../store/auto-lists.js';
+import { refreshAutoLists, ensureMyLists } from '../store/auto-lists.js';
 import { fmtNum } from '../engine/chart-engine.js';
 import { kindLabel } from '../data/stocks.js';
 import { promptDialog } from './dialogs.js';
@@ -112,6 +112,7 @@ export function createWatchlist(o) {
     status.textContent = `${r.lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols).${r.stocks ? '' : ' No end-of-day stock prices are published yet, so stock rows show no price. Run PUBLISH.bat (needs pandas).'}`;
   }
 
+  ensureMyLists();
   const unsub = watchlists.subscribe((s) => s, paint);
   paint();
   fromSignals(true).catch((err) => console.error(err));

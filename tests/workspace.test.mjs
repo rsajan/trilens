@@ -104,3 +104,17 @@ test('signal watchlists: symbols from every row shape, India tagged, deduped, re
   assert.equal(wl().id, id, 'same list, refreshed');
   assert.deepEqual(wl().items, [{ symbol: 'BBB', flag: '#ff7a73' }, { symbol: 'ZZZ', flag: null }]);
 });
+
+test('five empty "My list" watchlists are added once and keep the selected list', async () => {
+  const { ensureMyLists } = await import('../assets/js/chart/store/auto-lists.js');
+  const { watchlists, deleteList } = await import('../assets/js/chart/store/library.js');
+  const before = watchlists.get().active;
+  ensureMyLists();
+  const mine = watchlists.get().lists.filter((l) => /^My list [1-5]$/.test(l.name));
+  assert.equal(mine.length, 5);
+  assert.ok(mine.every((l) => l.items.length === 0));
+  assert.equal(watchlists.get().active, before);
+  deleteList(mine[0].id);
+  ensureMyLists();
+  assert.equal(watchlists.get().lists.filter((l) => /^My list [1-5]$/.test(l.name)).length, 4, 'a deleted one stays deleted');
+});
