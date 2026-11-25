@@ -22,16 +22,21 @@ export function tvSymbol(s) {
   return s;
 }
 
-export async function render(ctx) {
-  ctx.setTitle('TradingView');
-  const sym = tvSymbol(ctx.params[0] || store.get('tvSymbol', 'NASDAQ:MU'));
-  store.set('tvSymbol', sym);
+/** TradingView's chart as a plain frame: no TradingView script runs on this site at all. */
+export function tvFrame(sym) {
   const dark = document.documentElement.getAttribute('data-theme') !== 'light';
-  // TradingView's chart as a plain frame: no TradingView script runs on this site at all
   const q = new URLSearchParams({ symbol: sym, interval: 'D', symboledit: '1', saveimage: '0', toolbarbg: dark ? '0d1b2a' : 'f1f3f6',
     studies: '[]', theme: dark ? 'dark' : 'light', style: '1', timezone: 'Etc/UTC', locale: 'en', hideideas: '1', withdateranges: '1' });
   const frame = h('iframe', { src: FRAME + '?' + q, title: 'TradingView chart: ' + sym, allow: 'fullscreen', allowfullscreen: true,
     referrerpolicy: 'origin', style: { width: '100%', height: '100%', border: '0', display: 'block' } });
+  return frame;
+}
+
+export async function render(ctx) {
+  ctx.setTitle('TradingView');
+  const sym = tvSymbol(ctx.params[0] || store.get('tvSymbol', 'NASDAQ:MU'));
+  store.set('tvSymbol', sym);
+  const frame = tvFrame(sym);
   const open = h('a', { href: 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(sym), target: '_blank', rel: 'noopener noreferrer' }, 'Open ' + sym + ' on tradingview.com ↗');
   return h('div', { class: 'tv-page' },
     h('p', { class: 'tiny muted tv-note' }, 'TradingView\'s own chart: live or slightly delayed prices for every market. Search any symbol in its top-left box (e.g. MU, NSE:CIPLA). Blank? ', open, '. Your Trilens scripts, drawings and alerts are on the Chart page.'),

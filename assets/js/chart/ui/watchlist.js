@@ -13,7 +13,7 @@ import { watchlists, activeList, addList, renameList, deleteList, selectList, ad
 const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
 /**
- * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onClose: () => void }} o
+ * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onPickExternal?: (symbol: string) => void, onClose: () => void }} o
  */
 export function createWatchlist(o) {
   const listSel = h('select', { class: 'ipt wl-sel', 'aria-label': 'Watchlist' });
@@ -68,10 +68,11 @@ export function createWatchlist(o) {
         h('button', { type: 'button', class: 'wl-mini', title: 'Move up', 'aria-label': 'Move up', onClick: (e) => { e.stopPropagation(); moveInList(list.id, item.symbol, -1); } }, '↑'),
         h('button', { type: 'button', class: 'wl-mini', title: 'Move down', 'aria-label': 'Move down', onClick: (e) => { e.stopPropagation(); moveInList(list.id, item.symbol, 1); } }, '↓'),
         h('button', { type: 'button', class: 'wl-mini', title: 'Remove from list', 'aria-label': 'Remove from list', onClick: (e) => { e.stopPropagation(); removeFromList(list.id, item.symbol); } }, '✕'));
-      const row = h('div', { class: 'wl-row' + (item.symbol === cur ? ' on' : '') + (c ? '' : ' off'), role: 'listitem', tabindex: '0', title: c ? c.name : 'Not offered by the current feed',
-        onClick: () => { if (c) o.onPick(item.symbol); },
-        onKeydown: (e) => { if (e.key === 'Enter' && c) o.onPick(item.symbol); } },
-        flag, h('span', { class: 'wl-sym' }, item.symbol, h('small', null, c ? kindLabel(c) : 'Not on this feed')), last, chg, actions);
+      // a symbol Trilens has no prices for opens in TradingView's chart, on this page
+      const pick = () => { if (c) o.onPick(item.symbol); else if (o.onPickExternal) o.onPickExternal(item.symbol); };
+      const row = h('div', { class: 'wl-row' + (item.symbol === cur ? ' on' : '') + (c ? '' : ' ext'), role: 'listitem', tabindex: '0', title: c ? c.name : 'No Trilens prices for this symbol: opens TradingView\'s live chart',
+        onClick: pick, onKeydown: (e) => { if (e.key === 'Enter') pick(); } },
+        flag, h('span', { class: 'wl-sym' }, item.symbol, h('small', null, c ? kindLabel(c) : 'TradingView chart ↗')), last, chg, actions);
       rows.append(row);
       cells.set(item.symbol, { last, chg, row });
       if (c) {

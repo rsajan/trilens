@@ -19,6 +19,7 @@ import { AlertEngine, alertDialog, alertsListDialog } from './alerts.js';
 import { templatesDialog } from './workspace-dialogs.js';
 import { fmtNum } from '../engine/chart-engine.js';
 import { stockData } from '../data/stocks.js';
+import { tvFrame, tvSymbol } from '../../pages/tv.js';
 import { lockScreen } from '../../lib/bundle.js';
 import { store } from '../../lib/store.js';
 import { installLists } from '../store/library.js';
@@ -90,7 +91,7 @@ export function mountChartPage(root) {
   function paintFeed() {
     const a = adapterFor(workspace.get().feed);
     const live = a.id !== 'synthetic' && !(a.source === 'synthetic');
-    feedChip.className = 'cx-feedchip ' + (live ? 'live' : 'off');
+    feedChip.className = 'cx-feedchip cx-trl ' + (live ? 'live' : 'off');
     feedChip.textContent = a.id === 'stocks' ? '◷ End of day' : live ? (a.source || a.id !== 'live' ? '● Live · ' + (a.chosen ? a.chosen.short : a.short) : '○ Connecting…') : '○ Synthetic';
     const st = stockData.status;
     unlockBtn.style.display = st === 'locked' ? '' : 'none';
@@ -106,7 +107,8 @@ export function mountChartPage(root) {
   const symText = h('span', { class: 'cx-symtext' }, '—');
   const symBtn = h('button', { type: 'button', class: 'cx-symbox', title: 'Search contracts', 'aria-label': 'Search contracts', onClick: () => {
     const c = active();
-    symbolDialog({ contracts: c.contracts, current: c.state.symbol, feedLabel: c.adapter ? c.adapter.label : '', onPick: (symbol) => setCell(workspace.get().active, { symbol }) });
+    symbolDialog({ contracts: c.contracts, current: tv.on ? '' : c.state.symbol, feedLabel: c.adapter ? c.adapter.label : '',
+      onPick: (symbol) => { hideTV(); setCell(workspace.get().active, { symbol }); }, onExternal: (t) => showTV(t) });
   } }, svg('search'), symText);
   // 3. chart type
   const typeBtn = h('button', { type: 'button', class: 'cx-iconbtn', 'aria-haspopup': 'menu', onClick: () => {
@@ -129,6 +131,25 @@ export function mountChartPage(root) {
       { label: 'Manage alerts', hint: `${armed} armed`, onClick: () => alertsListDialog({ fmt: fmtFor }) },
     ]);
   } }, 'Alert', svg('chev'));
+  // TradingView's own chart in place of the Trilens charts (live prices for every market)
+  const tv = { on: false, symbol: '' };
+  const tvPane = h('div', { class: 'cx-tvpane' });
+  const tvBtn = btn('TradingView', 'Show TradingView\'s live chart here (every stock, index and crypto); press again for the Trilens chart', () => (tv.on ? hideTV() : showTV(tv.symbol || activeCell().symbol)));
+  function showTV(symbol) {
+    const s = tvSymbol(symbol);
+    if (!tv.on || s !== tv.symbol) tvPane.replaceChildren(tvFrame(s));
+    tv.on = true; tv.symbol = s;
+    store.set('chart:tv', { on: true, symbol: s });
+    page.classList.add('tv-on');
+    paintToolbar();
+  }
+  function hideTV() {
+    if (!tv.on) return;
+    tv.on = false; tvPane.replaceChildren();
+    store.set('chart:tv', { on: false, symbol: tv.symbol });
+    page.classList.remove('tv-on');
+    paintToolbar();
+  }
   const watchBtn = btn('Watchlist', 'Show or hide the watchlist', () => workspace.set({ watchOpen: !workspace.get().watchOpen }));
   const sep = () => h('span', { class: 'cx-sep', 'aria-hidden': 'true' });
   const toolbar = h('div', { class: 'cx-toolbar' },
@@ -140,8 +161,10 @@ export function mountChartPage(root) {
     h('span', { class: 'grow' }),
     watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
-    savedChip, unlockBtn, feedChip, feedSel,
-    btn('TradingView ↗', 'Open this symbol in TradingView\'s own chart (live prices for every market)', () => { location.hash = '#/tv/' + encodeURIComponent(activeCell().symbol); }));
+    savedChip, unlockBtn, feedChip, feedSel, tvBtn);
+  // controls that only work on the Trilens chart hide while TradingView's chart is shown
+  for (const el of [typeBtn, tfSel, drawSwitch, editorBtn, replayBtn, alertBtn, layoutSeg, syncSeg, unlockBtn, feedChip, feedSel, savedChip, ...toolbar.querySelectorAll('.cx-sep')]) el.classList.add('cx-trl');
+  for (const b of toolbar.querySelectorAll('.cx-tool')) if (/^(Indicators|Templates|Latest)$/.test(b.textContent)) b.classList.add('cx-trl');
 
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
@@ -149,10 +172,11 @@ export function mountChartPage(root) {
     getAdapter: () => adapterFor(workspace.get().feed),
     getContracts: () => adapterFor(workspace.get().feed).contracts(),
     currentSymbol: () => activeCell().symbol,
-    onPick: (symbol) => setCell(workspace.get().active, { symbol }),
+    onPick: (symbol) => { hideTV(); setCell(workspace.get().active, { symbol }); },
+    onPickExternal: (symbol) => showTV(symbol),
     onClose: () => workspace.set({ watchOpen: false }),
   });
-  const main = h('div', { class: 'cx-main' }, grid, watch.el, toasts);
+  const main = h('div', { class: 'cx-main' }, tvPane, grid, watch.el, toasts);
   const drawer = createPineDrawer({
     pine,
     onApply: (scriptId) => {
@@ -231,7 +255,8 @@ export function mountChartPage(root) {
     [...syncSeg.children].forEach((b, i) => b.setAttribute('aria-pressed', String([w.sync.symbol, w.sync.tf, w.sync.crosshair][i])));
     syncSeg.classList.toggle('hide', w.layout === '1x1');
     tfSel.value = c.tf;
-    symText.textContent = c.symbol || '—';
+    symText.replaceChildren(tv.on ? tv.symbol : c.symbol || '—', tv.on ? h('span', { class: 'cx-tvtag' }, 'TradingView') : '');
+    tvBtn.classList.toggle('on', tv.on);
     const type = c.chartType || 'candles';
     typeBtn.replaceChildren(svg(type));
     typeBtn.title = `Chart type: ${CHART_TYPE_LABEL[type]}`;
@@ -333,6 +358,8 @@ export function mountChartPage(root) {
 
   layoutCells();
   paintToolbar();
+  const lastTv = store.get('chart:tv');
+  if (lastTv && lastTv.on && lastTv.symbol) showTV(lastTv.symbol); // reopen the way you left it
   saveAll();
   paintFeed();
   adapterFor(workspace.get().feed).contracts().then(paintFeed, paintFeed);
