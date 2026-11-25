@@ -22,7 +22,10 @@ export function symbolDialog(o) {
         h('span', { class: 'who' }, h('span', { class: 'sym' }, c.symbol), h('div', { class: 'name' }, c.name)),
         h('span', { class: 'badge' }, kindLabel(c))));
     }
-    if (!list.childNodes.length) list.append(h('p', { class: 'muted', style: { padding: '14px 2px' } }, 'No contract matches.'));
+    if (!list.childNodes.length) list.append(h('p', { class: 'muted', style: { padding: '14px 2px 4px' } }, 'Not in Trilens data. Trilens has crypto, plus your US and India stocks by ticker (e.g. MU, CIPLA.NS) once PUBLISH.bat has run.'));
+    // anything else (company names, indices, other markets): TradingView's own search
+    if (term) list.append(h('button', { type: 'button', class: 'lrow cx-pickrow', style: { width: '100%', textAlign: 'left', minHeight: '52px' }, onClick: () => { bg.remove(); location.hash = '#/tv/' + encodeURIComponent(q.value.trim().toUpperCase()); } },
+      h('span', { class: 'who' }, h('span', { class: 'sym' }, `Search "${q.value.trim()}" on TradingView ↗`), h('div', { class: 'name' }, 'Live chart for any stock, index or crypto; pick the exact one in its search box'))));
   };
   q.addEventListener('input', draw);
   draw();
