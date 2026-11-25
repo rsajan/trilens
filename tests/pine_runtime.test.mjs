@@ -158,3 +158,85 @@ test('alertcondition() is recorded per bar with its title and message', () => {
   for (let i = 0; i < C.length; i++) assert.equal(green.at[i], C[i] > bars.open[i] ? 1 : 0);
   assert.equal(compile('indicator("a")\nalertcondition(close > open, "x")').diagnostics.length, 0, 'no "ignored" warning any more');
 });
+
+// ---------------------------------------------------------------- incremental (rollback) execution
+import { createSession } from '../assets/js/chart/pine/runtime.js';
+import { BUILTINS, NEW_SCRIPT } from '../assets/js/chart/indicators/builtins.js';
+
+const TRICKY = [
+  ['var counters and barstate', 'indicator("t")\nvar int ups = 0\nvar float firstLast = na\nif close > open\n    ups += 1\nif barstate.islast and na(firstLast)\n    firstLast := close\nplot(ups)\nplot(firstLast)\nplot(barstate.isconfirmed ? 1 : 0)'],
+  ['user function with ta state, history of expressions', 'indicator("t")\nf(x, n) =>\n    m = ta.sma(x, n)\n    (x - m)[1]\nplot(f(close, 10))\nplot((high - low)[3])\nplot(ta.valuewhen(close > open, close, 1))\nplot(ta.barssince(ta.crossover(close, ta.ema(close, 9))))'],
+  ['shapes, colours, bgcolor, barcolor, alertcondition', 'indicator("t", overlay=true)\nup = ta.crossover(ta.ema(close, 3), ta.ema(close, 8))\nplotshape(up, style=shape.triangleup, location=location.belowbar, color=color.green)\nplotshape(close > high[1], title="hh", location=location.abovebar)\nplot(close, color=close > open ? color.green : color.red)\nbgcolor(up ? color.new(color.blue, 80) : na)\nbarcolor(close < open ? color.orange : na)\nalertcondition(up, "Up")'],
+  ['fixnan, cum, rising, stoch, cci, vwma', 'indicator("t")\nplot(fixnan(close > open ? close : na))\nplot(ta.cum(volume))\nplot(ta.rising(close, 3) ? 1 : 0)\nplot(ta.stoch(close, high, low, 14))\nplot(ta.cci(hlc3, 20))\nplot(ta.vwma(close, 10))\nplot(ta.vwap(hlc3))'],
+];
+
+/** Feed `final` bars to a session: first `start` bars at once, then each later bar as three partial ticks plus its final values. */
+function replayTicks(ast, final, start, opts) {
+  const n = final.length;
+  const work = { time: new Float64Array(n), open: new Float64Array(n), high: new Float64Array(n), low: new Float64Array(n), close: new Float64Array(n), volume: new Float64Array(n) };
+  for (const f of Object.keys(work)) work[f].set(final[f].subarray(0, start));
+  const view = (len) => { const v = { length: len }; for (const f of Object.keys(work)) v[f] = work[f].subarray(0, len); return v; };
+  const sess = createSession(ast, opts);
+  let res = sess.update(view(start));
+  let maxRan = 0;
+  for (let k = start; k < n; k++) {
+    const o = final.open[k];
+    for (const frac of [0.2, 0.6, 1]) {
+      const c = o + (final.close[k] - o) * frac;
+      work.time[k] = final.time[k]; work.open[k] = o;
+      work.high[k] = frac === 1 ? final.high[k] : Math.max(o, c); work.low[k] = frac === 1 ? final.low[k] : Math.min(o, c);
+      work.close[k] = frac === 1 ? final.close[k] : c; work.volume[k] = final.volume[k] * frac;
+      res = sess.update(view(k + 1));
+      assert.ok(res.ok, JSON.stringify(res.diagnostics));
+      maxRan = Math.max(maxRan, res.ran);
+    }
+  }
+  return { res, maxRan };
+}
+
+function assertSameResult(a, b, label) {
+  assert.equal(a.plots.length, b.plots.length, label + ' plot count');
+  a.plots.forEach((p, k) => {
+    assertSeries(Array.from(p.values), Array.from(b.plots[k].values), `${label} plot ${k} (${p.title})`);
+    assert.deepEqual(p.colors, b.plots[k].colors, `${label} plot ${k} colours`);
+  });
+  assert.deepEqual(a.shapes.map((s) => s.points), b.shapes.map((s) => s.points), label + ' shapes');
+  assert.deepEqual(a.bgcolors, b.bgcolors, label + ' bgcolor');
+  assert.deepEqual(a.barcolors, b.barcolors, label + ' barcolor');
+  assert.deepEqual(a.alertconds.map((x) => Array.from(x.at)), b.alertconds.map((x) => Array.from(x.at)), label + ' alertconditions');
+}
+
+const SCRIPTS = [...BUILTINS.map((b) => [b.id, b.source]), ['starter', NEW_SCRIPT], ...TRICKY];
+for (const [label, src] of SCRIPTS) {
+  test(`incremental ticks give exactly the full run's result: ${label}`, () => {
+    const c = compile(src);
+    assert.ok(c.ast, JSON.stringify(c.diagnostics));
+    const opts = { realtime: true, timeframe: { period: '60', seconds: 3600 } };
+    const { res, maxRan } = replayTicks(c.ast, bars, 340, opts);
+    const full = run(compile(src).ast, bars, opts);
+    assertSameResult(res, full, label);
+    assert.ok(maxRan <= 2, `a tick should run at most the closed bar and the forming bar, ran ${maxRan}`);
+  });
+}
+
+test('incremental: several bars appended at once, then ticks', () => {
+  const c = compile(BUILTINS.find((b) => b.id === 'macd').source);
+  const sess = createSession(c.ast, {});
+  const slice = (len) => { const v = { length: len }; for (const f of ['time', 'open', 'high', 'low', 'close', 'volume']) v[f] = bars[f].subarray(0, len); return v; };
+  sess.update(slice(100));
+  const r = sess.update(slice(150)); // 50 new bars in one go (e.g. a tab woke up)
+  // the old forming bar (99) and 49 new bars close for good, then the new forming bar (149) runs
+  assert.equal(r.ran, 51);
+  const full = run(c.ast, slice(150), {});
+  assertSameResult(r, full, 'jump');
+});
+
+test('incremental: a session that hit a runtime error stays broken', () => {
+  const c = compile('indicator("e")\nx = 0\nif bar_index == 120\n    while true\n        x := x + 1\nplot(x)');
+  const sess = createSession(c.ast, {});
+  const slice = (len) => { const v = { length: len }; for (const f of ['time', 'open', 'high', 'low', 'close', 'volume']) v[f] = bars[f].subarray(0, len); return v; };
+  assert.equal(sess.update(slice(100)).ok, true);
+  assert.equal(sess.update(slice(130)).ok, false);
+  assert.equal(sess.broken, true);
+  assert.equal(sess.update(slice(131)).ok, false);
+});

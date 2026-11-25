@@ -196,7 +196,12 @@ export function createPineDrawer(o) {
       if (!s || s.id !== scriptId) return;
       if (error) runNote = { text: error, diags: [{ severity: 'error', line: 1, col: 1, message: error }] };
       else if (!res.ok || res.diagnostics.some((d) => d.severity === 'error')) runNote = { text: 'Error on the chart', diags: res.diagnostics };
-      else runNote = { text: `On the chart · ${res.bars.toLocaleString()} bars in ${res.ms} ms · ${res.plots.length} plot${res.plots.length === 1 ? '' : 's'}${res.inputs.length ? ' · ' + res.inputs.length + ' inputs' : ''}`, diags: res.diagnostics };
+      else {
+        // a full run executes every bar; a live update only re-runs the bars that changed
+        const ran = res.ran ?? res.bars;
+        const work = ran >= res.bars ? `${res.bars.toLocaleString()} bars in ${res.ms} ms` : `${res.bars.toLocaleString()} bars · last update re-ran ${ran} bar${ran === 1 ? '' : 's'} in ${res.ms} ms`;
+        runNote = { text: `On the chart · ${work} · ${res.plots.length} plot${res.plots.length === 1 ? '' : 's'}${res.inputs.length ? ' · ' + res.inputs.length + ' inputs' : ''}`, diags: res.diagnostics };
+      }
       paintConsole();
     },
     dispose() { unsubs.forEach((u) => u()); clearTimeout(checkTimer); clearTimeout(draftTimer); },
