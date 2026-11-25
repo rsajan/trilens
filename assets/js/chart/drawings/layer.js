@@ -42,6 +42,7 @@ export class DrawingLayer {
     this.loadToken = 0;
     this.requestUpdate = () => {};
     this.touch = false;
+    this.boxes = new Map(); // text-note boxes from the last paint, for hit-testing
 
     const self = this;
     this.primitive = {
@@ -60,6 +61,7 @@ export class DrawingLayer {
       ['pointermove', (e) => this.move(e)],
       ['pointerup', (e) => this.up(e)],
       ['pointercancel', (e) => this.up(e)],
+      ['dblclick', (e) => this.dbl(e)],
       ['mousedown', (e) => { if (this.swallow) e.stopPropagation(); }],
       ['touchstart', (e) => { if (this.swallow) e.stopPropagation(); }],
       ['touchmove', (e) => { if (this.swallow) { e.stopPropagation(); e.preventDefault(); } }],
@@ -166,6 +168,22 @@ export class DrawingLayer {
       case 'trend': return G.distToSegment(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
       case 'ray': return G.distToRay(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
       case 'hline': return Math.abs(y - s[0].y) <= tol;
+      case 'channel': {
+        const off = G.channelOffset(...d.points);
+        const q1 = this.toY(d.points[0].price + off), q2 = this.toY(d.points[1].price + off);
+        if (q1 == null || q2 == null) return false;
+        if (G.distToSegment(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol || G.distToSegment(x, y, s[0].x, q1, s[1].x, q2) <= tol) return true;
+        // inside the band
+        const xl = Math.min(s[0].x, s[1].x), xr = Math.max(s[0].x, s[1].x);
+        if (x < xl || x > xr || xr === xl) return false;
+        const f = (x - s[0].x) / (s[1].x - s[0].x);
+        const ya = s[0].y + f * (s[1].y - s[0].y), yb = q1 + f * (q2 - q1);
+        return y >= Math.min(ya, yb) && y <= Math.max(ya, yb);
+      }
+      case 'text': {
+        const b = this.boxes.get(d.id);
+        return !!b && x >= b.x - tol && x <= b.x + b.w + tol && y >= b.y - tol && y <= b.y + b.h + tol;
+      }
       case 'fib': {
         const xl = Math.min(s[0].x, s[1].x), xr = Math.max(s[0].x, s[1].x);
         if (x < xl - tol || x > xr + tol) return false;
@@ -214,13 +232,17 @@ export class DrawingLayer {
       if (!pt) return;
       this.grab();
       e.preventDefault();
+      const n = G.TOOL_POINTS[this.tool];
       if (!this.creating) {
-        const n = G.TOOL_POINTS[this.tool];
+        // points[placed] is the preview point that follows the pointer
         this.creating = { type: this.tool, points: [pt, pt], placed: 1 };
         if (n === 1) this.finishCreate();
       } else {
-        this.creating.points[1] = pt;
-        this.finishCreate();
+        const c = this.creating;
+        c.points[c.placed] = pt;
+        c.placed++;
+        if (c.placed >= n) this.finishCreate();
+        else c.points.push(pt);
       }
       this.requestUpdate();
       return;
@@ -239,24 +261,49 @@ export class DrawingLayer {
 
   finishCreate() {
     const c = this.creating;
-    const color = c.type === 'long' || c.type === 'short' ? css('--s1', '#3987e5') : css('--accent', '#f0b849');
-    let points = c.type === 'hline' ? [c.points[0]] : c.points.map((p) => ({ time: p.time, price: p.price }));
+    const n = G.TOOL_POINTS[c.type];
+    const color = c.type === 'long' || c.type === 'short' || c.type === 'channel' ? css('--s1', '#3987e5') : css('--accent', '#f0b849');
+    let points = c.points.slice(0, n).map(({ time, price }) => ({ time, price }));
     if (c.type === 'long' || c.type === 'short') points = G.defaultPosition(c.type, points[0], points[1]);
-    const d = { id: uid(), type: c.type, points: points.map(({ time, price }) => ({ time, price })), color, width: c.type === 'fib' ? 1 : 2, created: Date.now() };
+    const d = { id: uid(), type: c.type, points, color, width: c.type === 'fib' || c.type === 'text' ? 1 : 2, created: Date.now() };
     this.creating = null;
-    this.drawings.push(d);
-    this.selected = d.id;
     this.tool = 'cursor';
     this.el.style.cursor = '';
+    if (c.type === 'text') {
+      // the note's words come from a dialog; nothing is added if it is cancelled or empty
+      this.release();
+      const ask = this.hooks.askText ? this.hooks.askText('') : Promise.resolve(null);
+      ask.then((text) => {
+        if (text) { d.text = text; this.drawings.push(d); this.selected = d.id; }
+        this.changed(!!text);
+      });
+      this.hooks.onToolDone && this.hooks.onToolDone();
+      return;
+    }
+    this.drawings.push(d);
+    this.selected = d.id;
     this.changed();
     this.hooks.onToolDone && this.hooks.onToolDone();
+  }
+
+  /** Double-click a text note to change its words. */
+  dbl(e) {
+    const { x, y } = this.local(e);
+    const h = this.inPricePane(x, y) && this.hit(x, y);
+    if (!h || h.d.type !== 'text' || !this.hooks.askText) return;
+    e.stopPropagation();
+    this.hooks.askText(h.d.text || '').then((text) => {
+      if (text === null) return;
+      if (!text) { this.selected = h.d.id; this.deleteSelected(); return; }
+      h.d.text = text; this.changed();
+    });
   }
 
   move(e) {
     const { x, y } = this.local(e);
     if (this.creating) {
       const pt = this.fromXY(x, y);
-      if (pt) { this.creating.points[1] = pt; this.requestUpdate(); }
+      if (pt) { const c = this.creating; c.points[c.points.length - 1] = pt; this.requestUpdate(); }
       return;
     }
     if (this.drag) {
@@ -332,7 +379,8 @@ export class DrawingLayer {
     const color = css('--accent', '#f0b849');
     let points = c.points;
     if (c.type === 'long' || c.type === 'short') points = G.defaultPosition(c.type, c.points[0], c.points[1]);
-    return { id: '__preview', type: c.type, points, color, width: c.type === 'fib' ? 1 : 2, preview: true };
+    if (c.type === 'channel' && points.length < 3) return { id: '__preview', type: 'trend', points, color, width: 2, preview: true };
+    return { id: '__preview', type: c.type, points, color, width: c.type === 'fib' ? 1 : 2, preview: true, text: '…' };
   }
 
   label(ctx, text, x, y, color, align = 'left', bg = null) {
@@ -361,6 +409,35 @@ export class DrawingLayer {
       case 'trend': if (s[0].x != null && s[1].x != null) line(s[0].x, s[0].y, s[1].x, s[1].y); break;
       case 'ray': if (s[0].x != null && s[1].x != null) { const [ex, ey] = G.rayEnd(s[0].x, s[0].y, s[1].x, s[1].y); line(s[0].x, s[0].y, ex, ey); } break;
       case 'hline': if (s[0].y != null) line(0, s[0].y, W, s[0].y); break;
+      case 'channel': {
+        if (s.some((p) => p.x == null || p.y == null)) break;
+        const off = G.channelOffset(...d.points);
+        const q1 = this.toY(d.points[0].price + off), q2 = this.toY(d.points[1].price + off);
+        if (q1 == null || q2 == null) break;
+        ctx.fillStyle = hexA(d.color, 0.1);
+        ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y); ctx.lineTo(s[1].x, s[1].y); ctx.lineTo(s[1].x, q2); ctx.lineTo(s[0].x, q1); ctx.closePath(); ctx.fill();
+        line(s[0].x, s[0].y, s[1].x, s[1].y);
+        line(s[0].x, q1, s[1].x, q2);
+        ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+        line(s[0].x, (s[0].y + q1) / 2, s[1].x, (s[1].y + q2) / 2); // midline
+        ctx.setLineDash([]);
+        break;
+      }
+      case 'text': {
+        if (s[0].x == null || s[0].y == null) break;
+        const fam = getComputedStyle(document.body).fontFamily;
+        ctx.font = `13px ${fam}`;
+        const lines = String(d.text || '').split('\n').slice(0, 8);
+        const w = Math.max(...lines.map((t) => ctx.measureText(t).width)) + 14, lh = 17, hgt = lines.length * lh + 8;
+        const bx = s[0].x, by = s[0].y - hgt / 2;
+        ctx.fillStyle = hexA(css('--bg', '#0d1b2a'), 0.86); ctx.fillRect(bx, by, w, hgt);
+        ctx.strokeStyle = d.color; ctx.lineWidth = 1; ctx.strokeRect(bx + 0.5, by + 0.5, w - 1, hgt - 1);
+        ctx.fillStyle = css('--ink', '#e8eef4'); ctx.textAlign = 'left';
+        lines.forEach((t, i) => ctx.fillText(t, bx + 7, by + 4 + lh / 2 + i * lh));
+        ctx.font = `11px ${fam}`;
+        if (!d.preview) this.boxes.set(d.id, { x: bx, y: by, w, h: hgt });
+        break;
+      }
       case 'fib': {
         if (s[0].x == null || s[1].x == null) break;
         const xl = Math.min(s[0].x, s[1].x), xr = Math.max(s[0].x, s[1].x);

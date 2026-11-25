@@ -6,14 +6,15 @@
 // between two bars it interpolates, past either end it extrapolates by the bar length.
 
 /** @typedef {{ time: number, price: number }} Pt */
-/** @typedef {'trend'|'ray'|'hline'|'fib'|'long'|'short'} DrawingType */
+/** @typedef {'trend'|'ray'|'hline'|'fib'|'long'|'short'|'channel'|'text'} DrawingType */
 /**
  * @typedef {Object} Drawing
  * @property {string} id @property {DrawingType} type @property {Pt[]} points
  * @property {string} color @property {number} width @property {number} created
+ * @property {string=} text  for text notes
  */
 
-export const TOOL_POINTS = { trend: 2, ray: 2, hline: 1, fib: 2, long: 2, short: 2 };
+export const TOOL_POINTS = { trend: 2, ray: 2, hline: 1, fib: 2, long: 2, short: 2, channel: 3, text: 1 };
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
 
 /**
@@ -115,4 +116,14 @@ export function magnetPrice(price, y, bar, toY, radius = 14) {
     if (d <= bestD) { bestD = d; best = p; }
   }
   return best;
+}
+
+/**
+ * Parallel channel: the base line runs p1 -> p2; the third point sets how far (in price) the
+ * parallel line sits from it, measured at the third point's time.
+ */
+export function channelOffset(p1, p2, p3) {
+  const dt = p2.time - p1.time;
+  const base = dt ? p1.price + (p2.price - p1.price) * (p3.time - p1.time) / dt : p1.price;
+  return p3.price - base;
 }

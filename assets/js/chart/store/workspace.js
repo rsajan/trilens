@@ -10,30 +10,40 @@ import { store } from '../../lib/store.js';
 /**
  * @typedef {{ id: string, name: string, source: string, createdAt: number, updatedAt: number }} Script
  * @typedef {{ uid: string, ref: string, inputs: Record<string, any>, styles: Record<string, { color?: string, hidden?: boolean }>, hidden: boolean }} Study
+ * @typedef {{ symbol: string, tf: string, studies: Study[] }} Cell  one chart of the split-screen layout
  * @typedef {Object} Workspace
- * @property {'synthetic'|'binance'} feed @property {string} symbol @property {string} tf
- * @property {Study[]} studies
+ * @property {'synthetic'|'binance'} feed
+ * @property {'1x1'|'1x2'|'2x2'} layout @property {number} active index of the focused cell
+ * @property {{ symbol: boolean, tf: boolean, crosshair: boolean }} sync  what follows the focused cell
+ * @property {Cell[]} cells  always four; the layout decides how many are shown
  * @property {{ open: boolean, height: number, scriptId: string|null, draft: string, tab: 'editor'|'library' }} editor
  * @property {{ magnet: boolean, hidden: boolean }} draw  drawing-tool preferences
+ * @property {boolean} watchOpen  watchlist panel shown
  */
 
 const KEY_WS = 'chart:workspace';
 const KEY_SCRIPTS = 'chart:scripts';
+export const LAYOUT_CELLS = { '1x1': 1, '1x2': 2, '2x2': 4 };
 
+const study = (uidv, ref) => ({ uid: uidv, ref, inputs: {}, styles: {}, hidden: false });
 /** @type {Workspace} */
 const DEFAULT_WS = {
-  feed: 'synthetic', symbol: 'BTCUSDT.P', tf: '1h',
-  studies: [
-    { uid: 's1', ref: 'builtin:ema', inputs: {}, styles: {}, hidden: false },
-    { uid: 's2', ref: 'builtin:rsi', inputs: {}, styles: {}, hidden: false },
+  feed: 'synthetic', layout: '1x1', active: 0,
+  sync: { symbol: false, tf: false, crosshair: true },
+  cells: [
+    { symbol: 'BTCUSDT.P', tf: '1h', studies: [study('s1', 'builtin:ema'), study('s2', 'builtin:rsi')] },
+    { symbol: 'ETHUSDT.P', tf: '1h', studies: [study('s3', 'builtin:ema')] },
+    { symbol: 'BTCUSDT.P', tf: '15m', studies: [study('s4', 'builtin:vwap')] },
+    { symbol: 'SOLUSDT.P', tf: '4h', studies: [study('s5', 'builtin:bb')] },
   ],
   editor: { open: false, height: 300, scriptId: null, draft: '', tab: 'editor' },
   draw: { magnet: true, hidden: false },
+  watchOpen: true,
 };
 
 export function uid(prefix = 'x') { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function createStore(initial, persist) {
+export function createStore(initial, persist) {
   let state = initial;
   const subs = new Set();
   let saveTimer = 0;
@@ -63,14 +73,29 @@ function createStore(initial, persist) {
   };
 }
 
+const cleanStudies = (list) => (Array.isArray(list) ? list.filter((x) => x && x.uid && x.ref).map((x) => ({ inputs: {}, styles: {}, hidden: false, ...x })) : []);
+
 function loadWs() {
   const w = store.get(KEY_WS, null);
-  if (!w || typeof w !== 'object') return structuredClone(DEFAULT_WS);
+  const d = structuredClone(DEFAULT_WS);
+  if (!w || typeof w !== 'object') return d;
+  let cells = Array.isArray(w.cells) ? w.cells : null;
+  // single-chart workspaces saved before split layouts existed become cell 0
+  if (!cells && w.symbol) cells = [{ symbol: w.symbol, tf: w.tf || '1h', studies: w.studies }];
+  cells = d.cells.map((dc, i) => {
+    const c = cells && cells[i];
+    return c && typeof c === 'object' ? { symbol: typeof c.symbol === 'string' ? c.symbol : dc.symbol, tf: typeof c.tf === 'string' ? c.tf : dc.tf, studies: cleanStudies(c.studies) } : dc;
+  });
+  const layout = LAYOUT_CELLS[w.layout] ? w.layout : '1x1';
   return {
-    ...structuredClone(DEFAULT_WS), ...w,
-    editor: { ...DEFAULT_WS.editor, ...(w.editor || {}) },
-    draw: { ...DEFAULT_WS.draw, ...(w.draw || {}) },
-    studies: Array.isArray(w.studies) ? w.studies.filter((s) => s && s.uid && s.ref).map((s) => ({ inputs: {}, styles: {}, hidden: false, ...s })) : [],
+    feed: w.feed === 'binance' ? 'binance' : 'synthetic',
+    layout,
+    active: Number.isInteger(w.active) && w.active >= 0 && w.active < LAYOUT_CELLS[layout] ? w.active : 0,
+    sync: { ...d.sync, ...(w.sync || {}) },
+    cells,
+    editor: { ...d.editor, ...(w.editor || {}) },
+    draw: { ...d.draw, ...(w.draw || {}) },
+    watchOpen: w.watchOpen !== false,
   };
 }
 
@@ -112,18 +137,45 @@ export function duplicateScript(id) {
 
 export function deleteScript(id) {
   scripts.set(scripts.get().filter((s) => s.id !== id));
-  workspace.set((w) => ({ ...w, studies: w.studies.filter((st) => st.ref !== 'script:' + id), editor: w.editor.scriptId === id ? { ...w.editor, scriptId: null } : w.editor }));
+  workspace.set((w) => ({ ...w, cells: w.cells.map((c) => ({ ...c, studies: c.studies.filter((st) => st.ref !== 'script:' + id) })), editor: w.editor.scriptId === id ? { ...w.editor, scriptId: null } : w.editor }));
 }
 
-// ---- studies on the chart
-export function addStudy(ref) {
-  const st = { uid: uid('s'), ref, inputs: {}, styles: {}, hidden: false };
-  workspace.set((w) => ({ ...w, studies: [...w.studies, st] }));
+// ---- cells, layout and sync
+export const activeCell = () => workspace.get().cells[workspace.get().active];
+export const visibleCount = () => LAYOUT_CELLS[workspace.get().layout];
+export function setLayout(layout) {
+  if (!LAYOUT_CELLS[layout]) return;
+  workspace.set((w) => ({ ...w, layout, active: w.active < LAYOUT_CELLS[layout] ? w.active : 0 }));
+}
+export function setActive(i) { workspace.set((w) => (w.active === i ? w : { ...w, active: i })); }
+export function setSync(patch) { workspace.set((w) => ({ ...w, sync: { ...w.sync, ...patch } })); }
+/** Change a cell's symbol or timeframe; with sync on, every visible cell follows. */
+export function setCell(i, patch) {
+  workspace.set((w) => {
+    const n = LAYOUT_CELLS[w.layout];
+    const cells = w.cells.map((c, k) => {
+      const p = {};
+      if (patch.symbol !== undefined && (k === i || (w.sync.symbol && k < n))) p.symbol = patch.symbol;
+      if (patch.tf !== undefined && (k === i || (w.sync.tf && k < n))) p.tf = patch.tf;
+      if (patch.studies !== undefined && k === i) p.studies = patch.studies;
+      return Object.keys(p).length ? { ...c, ...p } : c;
+    });
+    return { ...w, cells };
+  });
+}
+
+// ---- studies on a chart (default: the focused cell); uids are unique across cells
+export function addStudy(ref, cell = workspace.get().active) {
+  const st = study(uid('s'), ref);
+  setCell(cell, { studies: [...workspace.get().cells[cell].studies, st] });
   return st;
 }
-export function removeStudy(uidv) { workspace.set((w) => ({ ...w, studies: w.studies.filter((s) => s.uid !== uidv) })); }
-export function patchStudy(uidv, patch) {
-  workspace.set((w) => ({ ...w, studies: w.studies.map((s) => (s.uid === uidv ? { ...s, ...patch } : s)) }));
+const mapStudies = (fn) => workspace.set((w) => ({ ...w, cells: w.cells.map((c) => { const next = fn(c.studies); return next === c.studies ? c : { ...c, studies: next }; }) }));
+export function removeStudy(uidv) { mapStudies((list) => (list.some((s) => s.uid === uidv) ? list.filter((s) => s.uid !== uidv) : list)); }
+export function patchStudy(uidv, patch) { mapStudies((list) => (list.some((s) => s.uid === uidv) ? list.map((s) => (s.uid === uidv ? { ...s, ...patch } : s)) : list)); }
+/** Replace a cell's studies with copies of a template's (fresh uids). */
+export function applyStudies(cell, list) {
+  setCell(cell, { studies: list.map((s) => ({ ...study(uid('s'), s.ref), inputs: { ...(s.inputs || {}) }, styles: structuredClone(s.styles || {}), hidden: !!s.hidden })) });
 }
 export function setDraw(patch) { workspace.set((w) => ({ ...w, draw: { ...w.draw, ...patch } })); }
 export function setEditor(patch) { workspace.set((w) => ({ ...w, editor: { ...w.editor, ...patch } })); }

@@ -37,7 +37,7 @@ Set `PYTHONUTF8=1` when running Python by hand. `tools\_py.bat` does this for th
 - Adding a JS, CSS, font or icon file to the site means adding it to `SHELL` in `sw.js` and bumping `VERSION`, or phones keep serving the old app.
 - Keep pages light for a phone: no large dependencies, tables scroll inside their own container, touch targets about 44px.
 - Plain, specific wording in the UI. Say what the number is and where it came from.
-- There is no watchlist, no ticker search and no links to a `#/fundamentals/...` or `#/sentiment/...` route anymore - those pages are gone. Symbols in signal tables render as plain text, not links.
+- The scanner pages have no watchlist, no ticker search and no links to a `#/fundamentals/...` or `#/sentiment/...` route anymore - those pages are gone. Symbols in signal tables render as plain text, not links. (The `#/chart` page has its own watchlist of synthetic/public futures contracts; that is separate and holds no scanner data.)
 
 ## Before finishing a change
 

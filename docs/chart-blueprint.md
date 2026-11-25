@@ -131,15 +131,48 @@ loads.
 Moved to M4: incremental Pine (rollback), drawing templates, and parallel channels and text
 notes.
 
-**M4 — workspace.** 1×1 / 1×2 / 2×2 layouts. Each cell is a `mountChartPage`-style controller
-over a shared adapter, with symbol, timeframe and crosshair sync via `setCrosshairPosition`.
-Multi-list watchlists with colour tags and live badges (one telemetry subscription per symbol).
-Indicator templates and layout presets.
+**M4 — workspace (done).** The page shell (`ui/chart-page.js`) lays out 1×1, 1×2 or 2×2
+`ChartCell`s (`ui/chart-cell.js`). Each cell owns its buffer, live feed, Pine dataset, studies,
+drawings and replay. The toolbar, telemetry strip, Pine editor and drawing rail act on the
+focused cell, which is outlined.
 
-**M5 — replay and alerts.** Bar replay: cut the buffer at a chosen bar, then step or play by
-feeding `BarBuffer.apply` from the held-back bars, re-running Pine on each step (the dataset API
-already supports this). Client-side alerts on price crossing a level or on `alertcondition()`,
-evaluated in the Pine worker, using the Notification API while the tab is open.
+- **Sync:** optional symbol and timeframe sync across the visible charts, and crosshair sync
+  that snaps to the bar containing the time in each chart.
+- **Watchlists:** multiple named lists, colour flags, reorder, and a live last price and 24h
+  change per row. Click a row to load it in the focused chart. On phones the panel is an overlay.
+- **Indicator templates:** save the focused chart's indicators, inputs and styles, then apply
+  them to any chart.
+- **Layout presets:** save the split, the sync settings and every chart's contract, timeframe
+  and indicators.
+- **Storage:** `store/library.js`. Workspaces saved before split layouts existed migrate into
+  cell 0.
+- **New drawings:** parallel channel (three clicks, with a midline) and text notes
+  (double-click to edit).
+
+**M5 — replay and alerts (done).**
+
+- **Bar replay** on the focused chart:
+  - pick a start bar, then step, or play at 1–25 bars/s; Shift+→ steps and Shift+Space plays or
+    pauses;
+  - every step feeds the bar to the Pine worker and re-runs every study;
+  - live bars keep arriving into the hidden future, and Exit returns to live;
+  - history paging is off during replay.
+- **Price alerts:**
+  - conditions: crosses, at or above, at or below; set from the toolbar or from a selected
+    horizontal level;
+  - checked against live telemetry about once a second while the page is open (no server, so
+    nothing fires while it's closed);
+  - a firing shows a toast, a browser notification (permission asked on the first alert) and a
+    short tone, then the alert switches off until re-armed;
+  - armed alerts show as dashed price lines on their contract's charts;
+  - the trigger logic (`alertHit`) is tested.
+
+**Not done, on purpose.**
+- *Incremental Pine (re-running only the forming bar).* Measured cost of the full re-run: about
+  2–4 µs per bar per script, so a 1,500-bar chart with five studies costs ~20 ms per update, in a
+  worker, at most 4×/s. Snapshotting every interpreter state object adds a class of subtle bugs
+  for no visible gain at this scale; revisit only if charts grow past ~20k bars.
+- *`alertcondition()` driving alerts*, and drawing templates. Small follow-ups if wanted.
 
 Each milestone ends the same way: `node --test "tests/*.test.mjs"`, then the Playwright flow (desktop and
 phone, both themes, zero console errors).

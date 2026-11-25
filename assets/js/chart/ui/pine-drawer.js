@@ -181,7 +181,7 @@ export function createPineDrawer(o) {
 
   const unsubs = [
     workspace.subscribe((w) => w.editor, paintLayout),
-    workspace.subscribe((w) => w.studies, () => { refreshState(); paintLibrary(); }),
+    workspace.subscribe((w) => w.cells[w.active].studies, () => { refreshState(); paintLibrary(); }),
     scripts.subscribe((s) => s, () => { refreshState(); paintLibrary(); }),
   ];
   paintLayout(); paintLibrary(); refreshState(); scheduleCheck();
