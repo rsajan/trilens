@@ -1,5 +1,6 @@
 // Trilens service worker: app shell works offline; data is network-first with a saved fallback.
-const VERSION = 'trilens-v37';
+// Every network fetch here bypasses the browser's HTTP cache, so a new VERSION always caches the new files.
+const VERSION = 'trilens-v38';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
@@ -21,7 +22,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(SHELL.map((u) => c.add(u)))).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' }))))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -40,9 +41,10 @@ self.addEventListener('fetch', (e) => {
     }).catch(() => caches.match(req, { ignoreSearch: true })));
     return;
   }
-  // shell: stale-while-revalidate
+  // shell: stale-while-revalidate. The refresh skips the browser's HTTP cache (GitHub Pages keeps
+  // files 10 minutes), or a new version could re-save the old file and look stuck.
   e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => {
-    const net = fetch(req).then((res) => {
+    const net = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
       return res;
     }).catch(() => hit);
