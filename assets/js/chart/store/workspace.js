@@ -14,6 +14,7 @@ import { store } from '../../lib/store.js';
  * @property {'synthetic'|'binance'} feed @property {string} symbol @property {string} tf
  * @property {Study[]} studies
  * @property {{ open: boolean, height: number, scriptId: string|null, draft: string, tab: 'editor'|'library' }} editor
+ * @property {{ magnet: boolean, hidden: boolean }} draw  drawing-tool preferences
  */
 
 const KEY_WS = 'chart:workspace';
@@ -27,6 +28,7 @@ const DEFAULT_WS = {
     { uid: 's2', ref: 'builtin:rsi', inputs: {}, styles: {}, hidden: false },
   ],
   editor: { open: false, height: 300, scriptId: null, draft: '', tab: 'editor' },
+  draw: { magnet: true, hidden: false },
 };
 
 export function uid(prefix = 'x') { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -67,6 +69,7 @@ function loadWs() {
   return {
     ...structuredClone(DEFAULT_WS), ...w,
     editor: { ...DEFAULT_WS.editor, ...(w.editor || {}) },
+    draw: { ...DEFAULT_WS.draw, ...(w.draw || {}) },
     studies: Array.isArray(w.studies) ? w.studies.filter((s) => s && s.uid && s.ref).map((s) => ({ inputs: {}, styles: {}, hidden: false, ...s })) : [],
   };
 }
@@ -122,4 +125,5 @@ export function removeStudy(uidv) { workspace.set((w) => ({ ...w, studies: w.stu
 export function patchStudy(uidv, patch) {
   workspace.set((w) => ({ ...w, studies: w.studies.map((s) => (s.uid === uidv ? { ...s, ...patch } : s)) }));
 }
+export function setDraw(patch) { workspace.set((w) => ({ ...w, draw: { ...w.draw, ...patch } })); }
 export function setEditor(patch) { workspace.set((w) => ({ ...w, editor: { ...w.editor, ...patch } })); }

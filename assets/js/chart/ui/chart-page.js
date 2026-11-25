@@ -12,6 +12,8 @@ import { workspace, scripts, getScript, addStudy, removeStudy, patchStudy, setEd
 import { createTelemetryBar } from './telemetry-bar.js';
 import { createPineDrawer } from './pine-drawer.js';
 import { symbolDialog, indicatorDialog, settingsDialog } from './dialogs.js';
+import { DrawingLayer } from '../drawings/layer.js';
+import { createDrawRail } from './draw-rail.js';
 
 const FAV_TF = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
 const MAX_BARS = 20000; // history paging stops here: every live recalculation runs over all loaded bars
@@ -85,7 +87,16 @@ export function mountChartPage(root) {
     onNeedHistory: () => loadHistory(),
     onStudyAction: (uid, action) => studyAction(uid, action),
   });
-  cleanups.push(() => engine.dispose(), () => tele.dispose(), () => drawer.dispose());
+  const layer = new DrawingLayer(engine, {
+    magnet: () => workspace.get().draw.magnet,
+    hidden: () => workspace.get().draw.hidden,
+    onChange: () => rail && rail.paint(),
+    onToolDone: () => rail && rail.paint(),
+  });
+  const rail = createDrawRail(layer);
+  chartWrap.append(rail.rail, rail.bar);
+  // drawings release their listeners (and save) before the chart they draw on goes away
+  cleanups.push(() => rail.dispose(), () => layer.dispose(), () => engine.dispose(), () => tele.dispose(), () => drawer.dispose());
 
   function showStatus(text, kind = '') {
     status.className = 'cx-status ' + kind + (text ? '' : ' hide');
@@ -122,6 +133,7 @@ export function mountChartPage(root) {
       buf = new BarBuffer(bars);
       engine.setBars(buf, { tick: contract.tick, label: `${contract.symbol} · ${tf.label} · ${adapter.id === 'synthetic' ? 'Synthetic' : 'Binance'}` });
       engine.showLatest(tf.calendar ? 120 : 160);
+      layer.setContext(contract.symbol, tf.sec);
       pine.setData(DS, buf.copy(), { ticker: contract.symbol, mintick: contract.tick }, { period: tf.pine, seconds: tf.sec });
       showStatus('');
       runAll(true);

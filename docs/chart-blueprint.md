@@ -100,10 +100,36 @@ errors, My Scripts (save, save as, rename, duplicate, delete, add/remove on char
 kept, overlay vs separate pane chosen from `overlay=`, settings dialog generated from `input.*`
 plus per-plot style overrides, built-ins in Pine, persistence across reloads.
 
-**M3 — drawing tools.** Series primitives (lightweight-charts `ISeriesPrimitive`) for trendline,
-ray, horizontal level, Fibonacci retracement and long/short risk-reward box. Drawings stored per
-symbol in IndexedDB, with hit-testing, drag handles and a magnet to OHLC. Incremental Pine
-(rollback) lands here too.
+**M3 — drawing tools (done).** `assets/js/chart/drawings/` holds the work:
+- **Rendering:** one series primitive draws every drawing (`layer.js`).
+- **Maths:** pure functions in `geometry.js`, tested in `tests/drawings.test.mjs`.
+- **Storage:** IndexedDB per symbol, shared by every timeframe (`store.js`), falling back to
+  localStorage and then memory.
+
+The tools are trend line, ray, horizontal level (with a price-axis label), Fibonacci
+retracement (0 on the second point, 0.236–1.618) and long/short positions. A position
+measures risk/reward only: target/stop percentages and the ratio, and it flags a stop on the
+wrong side of the entry. Nothing is traded.
+
+Drawings are stored as time/price, never pixels or bar indexes. A time maps to a fractional
+logical index (interpolated between bars, extrapolated past either end), so a drawing lands
+correctly on any timeframe and survives history loading.
+
+Interaction:
+- **Selecting and editing:** hit-testing with handles, then drag a handle or the whole body. A
+  selection bar sets colour, width or deletes. Del deletes, Esc cancels.
+- **Shortcuts:** Alt+T/R/H/F/L/S pick the tools.
+- **Magnet and hide:** a magnet snaps to OHLC, and you can hide or clear all drawings.
+- **Touch:** tap-tap works on a phone.
+- **Panning:** the chart stops panning only while a drawing is grabbed. The layer listens in
+  the capture phase and swallows the matching mousedown/touchstart.
+
+Fixed along the way: switching timeframe used to leave the view on old bars, because study
+series still held the previous timeframe's times. They are now emptied when a new dataset
+loads.
+
+Moved to M4: incremental Pine (rollback), drawing templates, and parallel channels and text
+notes.
 
 **M4 — workspace.** 1×1 / 1×2 / 2×2 layouts. Each cell is a `mountChartPage`-style controller
 over a shared adapter, with symbol, timeframe and crosshair sync via `setCrosshairPosition`.

@@ -109,6 +109,18 @@ export class ChartEngine {
     this.symbolLabel = info.label;
     this.candles.applyOptions({ priceFormat: { type: 'price', precision: this.dec, minMove: info.tick } });
     const range = keepRange ? this.chart.timeScale().getVisibleLogicalRange() : null;
+    if (!keepRange) {
+      // A new dataset (symbol or timeframe). The time scale is the union of every series' times,
+      // so study series still holding the previous timeframe's points would skew logical indexes
+      // (and the "show latest" range) until their next run lands. Empty them first.
+      for (const st of this.studies.values()) {
+        if (st.series) for (const x of st.series) x.api.setData([]);
+        if (st.bg) st.bg.setData([]);
+        if (st.markers) st.markers.setMarkers([]);
+        st.filled = false;
+      }
+      this.candleMarkers.setMarkers([]);
+    }
     this.setCandles();
     this.setVolume();
     if (range) this.chart.timeScale().setVisibleLogicalRange({ from: range.from + shiftBy, to: range.to + shiftBy });
