@@ -680,3 +680,6 @@ button.pd-msg:hover { background: var(--surface-2); }
 .cx-feedchip { flex: none; font-size: 12px; font-weight: 600; white-space: nowrap; padding: 0 4px; color: var(--ink-3); }
 .cx-feedchip.live { color: var(--gain); }
 .cx-feedchip.off { color: var(--warn); }
+.pd-import { margin: 8px var(--pad) 0; }
+.pd-import.ok { color: var(--gain); }
+.pd-import.warn { color: var(--warn); }

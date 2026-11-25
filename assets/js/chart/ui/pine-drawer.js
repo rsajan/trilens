@@ -7,6 +7,7 @@ import { createCodeEditor } from './code-editor.js';
 import { promptDialog } from './dialogs.js';
 import { BUILTINS, BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
 import { workspace, scripts, getScript, saveScript, renameScript, duplicateScript, deleteScript, setEditor } from '../store/workspace.js';
+import { parsePack, buildPack } from '../store/script-pack.js';
 
 const titleOf = (src) => { const m = /\b(?:indicator|study)\s*\(\s*(?:title\s*=\s*)?"([^"]+)"/.exec(src); return m ? m[1] : 'Untitled script'; };
 
@@ -146,13 +147,52 @@ export function createPineDrawer(o) {
     refreshState(); scheduleCheck();
   }
 
+  // ---- import / export
+  let importNote = null;
+  const importPicker = h('input', { type: 'file', accept: '.json,.pine,.txt,application/json,text/plain', multiple: true, class: 'hide', 'aria-label': 'Import script files' });
+  el.append(importPicker); // in the document, so every browser opens the picker on click()
+  importPicker.addEventListener('change', async () => {
+    const files = [...importPicker.files];
+    importPicker.value = '';
+    const added = [], updated = [], skipped = [], errors = [];
+    for (const f of files) {
+      const { scripts: found, skipped: sk } = parsePack(f.name, await f.text());
+      skipped.push(...sk);
+      for (const sc of found) {
+        // same name: update that script instead of adding a duplicate
+        const existing = scripts.get().find((x) => x.name === sc.name);
+        saveScript(existing ? { id: existing.id, source: sc.source } : { name: sc.name, source: sc.source });
+        (existing ? updated : added).push(sc.name);
+        try { const r = await o.pine.check(sc.source); if (r && r.diagnostics.some((d) => d.severity === 'error')) errors.push(sc.name); } catch { /* checked again when added to a chart */ }
+      }
+    }
+    const parts = [];
+    if (added.length) parts.push(`${added.length} added`);
+    if (updated.length) parts.push(`${updated.length} updated`);
+    if (skipped.length) parts.push(`${skipped.length} skipped (${skipped.join('; ')})`);
+    if (errors.length) parts.push(`${errors.length} with compile errors: ${errors.join(', ')}`);
+    importNote = h('p', { class: 'small pd-import ' + (errors.length || skipped.length ? 'warn' : 'ok') }, 'Import: ' + (parts.join(' · ') || 'nothing found'));
+    paintLibrary();
+  });
+  function exportAll() {
+    const list = scripts.get();
+    if (!list.length) return;
+    const blob = new Blob([buildPack(list)], { type: 'application/json' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `trilens-scripts-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
   // ---- library
   function paintLibrary() {
     clear(libPane);
     const list = [...scripts.get()].sort((a, b) => b.updatedAt - a.updatedAt);
     tabLib.textContent = `My scripts (${list.length})`;
-    libPane.append(h('div', { class: 'pd-bar' }, h('span', { class: 'muted small' }, 'Saved in this browser. Back up anything important: clearing site data deletes them.'), h('span', { class: 'grow' }),
+    libPane.append(h('div', { class: 'pd-bar' }, h('span', { class: 'muted small' }, 'Saved in this browser. Use Export to back them up: clearing site data deletes them.'), h('span', { class: 'grow' }),
+      h('button', { type: 'button', class: 'btn', title: 'Add scripts from a pack (.json) or .pine / .txt files', onClick: () => importPicker.click() }, 'Import…'),
+      h('button', { type: 'button', class: 'btn', title: 'Save all your scripts as one pack file', onClick: () => exportAll() }, 'Export'),
       h('button', { type: 'button', class: 'btn', onClick: () => openNew(NEW_SCRIPT) }, 'New script')));
+    if (importNote) libPane.append(importNote);
     if (!list.length) { libPane.append(h('div', { class: 'empty', style: { margin: '12px' } }, h('b', null, 'No scripts yet'), 'Write or paste a script in the Pine Editor tab and press Save.')); return; }
     const rows = h('div', { class: 'ledger pd-rows' });
     for (const s of list) {
