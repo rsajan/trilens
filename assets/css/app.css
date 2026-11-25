@@ -461,6 +461,10 @@ pre.txt { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 ui-mon
 @media (min-width: 900px) { .main.wide { padding: 0; } }
 .cx-page { display: flex; flex-direction: column; height: calc(100dvh - var(--head-h) - env(safe-area-inset-top, 0px) - var(--nav-h) - var(--safe-b)); min-height: 420px; background: var(--bg); }
 @media (min-width: 900px) { .cx-page { height: calc(100dvh - var(--head-h) - env(safe-area-inset-top, 0px)); } }
+.tv-page { display: flex; flex-direction: column; height: calc(100dvh - var(--head-h) - env(safe-area-inset-top, 0px) - var(--nav-h) - var(--safe-b)); min-height: 420px; }
+@media (min-width: 900px) { .tv-page { height: calc(100dvh - var(--head-h) - env(safe-area-inset-top, 0px)); } }
+.tv-note { flex: none; margin: 0; padding: 6px 12px; }
+.tv-frame { flex: 1 1 auto; min-height: 0; }
 
 .cx-toolbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); overflow-x: auto; scrollbar-width: none; }
 .cx-toolbar::-webkit-scrollbar { display: none; }

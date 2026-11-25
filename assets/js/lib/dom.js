@@ -44,6 +44,7 @@ const I = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.2M12 7.8h.01"/>',
   alert: '<path d="M12 3.5 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2h.01"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.5-3.5L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 3.5L20 15"/><path d="M20 20v-5h-5"/>',
+  live: '<path d="M3 17l5-5 4 3 7-8"/><path d="M15 7h4v4"/><circle cx="5" cy="20" r="1"/>',
   watchlist: '<path d="M12 3.5 14.5 9l6 .7-4.4 4 1.2 5.8L12 16.6 6.7 19.5l1.2-5.8-4.4-4 6-.7z"/>',
   edit: '<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5.5 17z"/><path d="M13.7 6.8l3.5 3.5"/>',
   summary: '<rect x="4" y="3.5" width="16" height="17" rx="2.2"/><path d="M8 8h8M8 12h8M8 16h5"/>',

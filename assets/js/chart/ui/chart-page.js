@@ -140,7 +140,8 @@ export function mountChartPage(root) {
     h('span', { class: 'grow' }),
     watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
-    savedChip, unlockBtn, feedChip, feedSel);
+    savedChip, unlockBtn, feedChip, feedSel,
+    btn('TradingView ↗', 'Open this symbol in TradingView\'s own chart (live prices for every market)', () => { location.hash = '#/tv/' + encodeURIComponent(activeCell().symbol); }));
 
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
