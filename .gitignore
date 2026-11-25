@@ -3,6 +3,7 @@ config/local.json
 technical_uploads/*
 !technical_uploads/README.txt
 data/technical/bundle.local.json
+data/technical/prices.local.json
 
 __pycache__/
 *.pyc

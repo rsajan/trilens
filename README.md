@@ -44,7 +44,7 @@ It costs nothing. The site is a set of static files on GitHub Pages. There is no
 
 ```
 index.html, assets/, sw.js        the website (no build step, no tracking, no outside fonts or scripts)
-data/technical/                   the only runtime data: the encrypted bundle plus a small public meta.json
+data/technical/                   the only runtime data: the encrypted bundle, the encrypted end-of-day stock prices (prices.json) and a small public meta.json
 pipeline/build_technical.py       reads your scanner folders and builds the encrypted page
 pipeline/technical_curated.json   the strategy library text and automation notes
 config/technical_sources.json     where your scanner folders are

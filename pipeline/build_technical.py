@@ -12,6 +12,8 @@ Writes into data/technical/:
   bundle.json         AES-256-GCM encrypted with your password (this is what gets published)
   bundle.local.json   the same content unencrypted, for PREVIEW.bat only (git-ignored)
   meta.json           build time and counts only
+  prices.json         end-of-day stock prices for the chart, encrypted the same way (needs pandas)
+  prices.local.json   the same prices unencrypted, for PREVIEW.bat only (git-ignored)
   public_signals.json only if publish_public_signals is true (ticker symbols and BUY/WATCH, nothing else)
 
 Needs: openpyxl, cryptography.  Optional: Pillow (shrinks big images), pypdf (reads PDFs).
@@ -1309,6 +1311,245 @@ def read_automation(cur: dict, D: Dirs) -> dict:
     return A
 
 
+# ------------------------------------------------------------------ end-of-day stock prices
+# Daily prices for the chart's "Stocks (end of day)" feed, read from the price files your scanners
+# already keep (default: prices_*.pkl in the Accumulation bot's data folder). Written to
+# data/technical/prices.json, encrypted like the bundle, so nothing about your universe is public.
+PRICE_BARS = 400            # about 19 months of trading days per symbol
+PRICE_TOP = 500             # "US top 500" / "India top 500": highest average traded value
+PRICE_FILES = ["{accumulation_dir}/data/prices_*.pkl"]
+_FIELDS = {"open": "o", "high": "h", "low": "l", "close": "c", "price": "c", "last": "c", "ltp": "c", "volume": "v", "vol": "v"}
+_SYM_COLS = ("symbol", "ticker", "tradingsymbol", "scrip", "code")
+_DATE_COLS = ("date", "datetime", "timestamp", "time", "day")
+
+
+def _field(name) -> str | None:
+    return _FIELDS.get(str(name).strip().lower().replace("_", " "))
+
+
+def _ohlcv(df, pd):
+    """One symbol's frame -> DataFrame[o,h,l,c,v] on a sorted, naive daily DatetimeIndex, or None."""
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return None
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    datec = next((cols[k] for k in _DATE_COLS if k in cols), None)
+    if datec is not None:
+        df = df.set_index(datec)
+    pick = {}
+    for c in df.columns:
+        f = _field(c)
+        if f and f not in pick:
+            pick[f] = c
+    if "c" not in pick:
+        return None
+    out = pd.DataFrame({f: pd.to_numeric(df[c], errors="coerce") for f, c in pick.items()})
+    idx = pd.to_datetime(out.index, errors="coerce")
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    out.index = idx.normalize()
+    out = out[out.index.notna() & out["c"].notna() & (out["c"] > 0)]
+    if out.empty:
+        return None
+    for f in ("o", "h", "l"):
+        out[f] = out[f].fillna(out["c"]) if f in out else out["c"]
+    out["v"] = out["v"].fillna(0).clip(lower=0) if "v" in out else 0.0
+    out["h"] = out[["o", "h", "l", "c"]].max(axis=1)
+    out["l"] = out[["o", "h", "l", "c"]].min(axis=1)
+    out = out[~out.index.duplicated(keep="last")].sort_index()
+    return out[["o", "h", "l", "c", "v"]]
+
+
+def price_frames(obj, pd, depth: int = 0) -> dict:
+    """Any common layout -> {ticker: frame}. Handles a dict of per-ticker frames, a yfinance-style
+    wide table (MultiIndex columns in either order), a long table with a symbol column, a wide
+    close-only table (one column per ticker), and a dict wrapping any of those."""
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if isinstance(v, pd.DataFrame):
+                f = _ohlcv(v, pd)
+                if f is not None:
+                    out[str(k)] = f
+        if out:
+            return out
+        if depth < 2:
+            best = {}
+            for v in obj.values():
+                r = price_frames(v, pd, depth + 1)
+                if len(r) > len(best):
+                    best = r
+            return best
+        return {}
+    if not isinstance(obj, pd.DataFrame) or obj.empty:
+        return {}
+    df = obj
+    if isinstance(df.columns, pd.MultiIndex) and df.columns.nlevels == 2:
+        for lvl in (0, 1):
+            names = set(df.columns.get_level_values(lvl))
+            if "c" in {_field(x) for x in names}:
+                other = 1 - lvl
+                out = {}
+                for t in dict.fromkeys(df.columns.get_level_values(other)):
+                    f = _ohlcv(df.xs(t, axis=1, level=other), pd)
+                    if f is not None:
+                        out[str(t)] = f
+                return out
+        return {}
+    if isinstance(df.index, pd.MultiIndex) and depth < 2:
+        return price_frames(df.reset_index(), pd, depth + 1)
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    symc = next((cols[k] for k in _SYM_COLS if k in cols), None)
+    if symc is not None:
+        out = {}
+        for t, g in df.groupby(symc, sort=False):
+            f = _ohlcv(g.drop(columns=[symc]), pd)
+            if f is not None:
+                out[str(t)] = f
+        return out
+    if _ohlcv(df, pd) is not None:   # a single symbol's table: no ticker to file it under
+        return {}
+    idx = pd.to_datetime(df.index, errors="coerce")
+    if len(df.columns) >= 2 and idx.notna().mean() > 0.9:
+        out = {}
+        for t in df.columns:
+            f = _ohlcv(pd.DataFrame({"close": df[t]}, index=df.index), pd)
+            if f is not None:
+                out[str(t)] = f
+        return out
+    return {}
+
+
+def price_market(name: str, tickers) -> str:
+    n = re.sub(r"[^A-Z]+", " ", name.upper()).split()
+    if {"IN", "INDIA", "NSE", "BSE", "IND"} & set(n):
+        return "IN"
+    if {"US", "USA", "NYSE", "NASDAQ"} & set(n):
+        return "US"
+    tickers = list(tickers)
+    ns = sum(1 for t in tickers if str(t).upper().endswith((".NS", ".BO")))
+    return "IN" if tickers and ns * 2 > len(tickers) else "US"
+
+
+def price_symbol(t, market: str) -> str:
+    s = re.sub(r"^(NSE|BSE|NASDAQ|NYSE|AMEX)[:_]", "", str(t).strip().upper())
+    if market == "IN":
+        return re.sub(r"\.(NS|BO)$", "", s) + ".NS"
+    return s
+
+
+def signal_symbols(signals: dict) -> dict:
+    """Every symbol/ticker in the scanner signals, per market (India tagged .NS), so the watchlists
+    built from the signals have prices too."""
+    out: dict = {}
+
+    def walk(x, mk):
+        if isinstance(x, dict):
+            for k in ("symbol", "ticker"):
+                v = x.get(k)
+                if isinstance(v, str) and v.strip() and len(v) <= 24:
+                    out.setdefault(mk, set()).add(price_symbol(v, mk))
+            for v in x.values():
+                walk(v, mk)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v, mk)
+
+    for per in (signals or {}).values():
+        if isinstance(per, dict):
+            for mk, v in per.items():
+                if mk in ("US", "IN"):
+                    walk(v, mk)
+    return out
+
+
+def encode_prices(sym: str, f, bars: int = PRICE_BARS) -> dict:
+    """Compact integer encoding (gzip shrinks it well): days and closes as deltas, open/high/low
+    as offsets from the close, all in price ticks of 10^-dp."""
+    f = f.iloc[-bars:]
+    med = float(f["c"].median())
+    dp = 2 if med >= 1 else 4
+    m = 10 ** dp
+    day = [int(t.value // 86_400_000_000_000) for t in f.index]
+    o, h, l, c = ([int(round(float(x) * m)) for x in f[k]] for k in ("o", "h", "l", "c"))
+    v = [int(round(float(x))) for x in f["v"]]
+    return {"s": sym, "dp": dp, "d0": day[0], "dd": [b - a for a, b in zip(day, day[1:])],
+            "c": [c[0]] + [b - a for a, b in zip(c, c[1:])],
+            "o": [a - b for a, b in zip(o, c)], "h": [a - max(x, y) for a, x, y in zip(h, o, c)],
+            "l": [min(x, y) - a for a, x, y in zip(l, o, c)], "v": v}
+
+
+def decode_prices(e: dict) -> list[tuple]:
+    """Inverse of encode_prices (the browser does the same in assets/js/chart/data/stocks.js)."""
+    m = 10 ** e["dp"]
+    day, c, rows = e["d0"], 0, []
+    for i in range(len(e["c"])):
+        if i:
+            day += e["dd"][i - 1]
+        c += e["c"][i]
+        o = c + e["o"][i]
+        rows.append((day * 86400, o / m, (max(o, c) + e["h"][i]) / m, (min(o, c) - e["l"][i]) / m, c / m, e["v"][i]))
+    return rows
+
+
+def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
+    globs = cfg.get("price_files") or PRICE_FILES
+    files = []
+    for g in globs:
+        p = Path(D.fill(g))
+        if p.parent.exists():
+            files += sorted(x for x in p.parent.glob(p.name) if x.is_file())
+    if not files:
+        print("  Stock prices      NOT FOUND (looked for " + ", ".join(Path(g).name for g in globs) + ")")
+        return None
+    try:
+        import pandas as pd
+    except ImportError:
+        print("  Stock prices      SKIPPED: your price files need pandas. Install it once with:  python -m pip install pandas")
+        note("End-of-day stock prices were skipped: pandas is not installed on the publishing PC.")
+        return None
+    per: dict = {}
+    for p in files:
+        try:
+            if p.suffix.lower() in (".pkl", ".pickle"):
+                obj = pd.read_pickle(p)   # your own scanner's file, on your own PC
+            elif p.suffix.lower() == ".csv":
+                obj = pd.read_csv(p)
+            elif p.suffix.lower() == ".parquet":
+                obj = pd.read_parquet(p)
+            else:
+                continue
+        except Exception as e:  # noqa: BLE001
+            print(f"  Stock prices      could not open {p.name}: {type(e).__name__}: {e}")
+            continue
+        frames = price_frames(obj, pd)
+        kind = type(obj).__name__ + (f" of {len(obj)}" if isinstance(obj, dict) else f" {getattr(obj, 'shape', '')}")
+        if not frames:
+            cols = list(getattr(obj, "columns", []))[:8] if not isinstance(obj, dict) else list(obj)[:5]
+            print(f"  Stock prices      {p.name}: layout not recognised ({kind}; first columns/keys {cols}). Please send this line to get it supported.")
+            continue
+        mk = price_market(p.stem, frames)
+        print(f"  Stock prices      {p.name}: {len(frames)} symbols, market {mk} ({kind})")
+        dst = per.setdefault(mk, {})
+        for t, f in frames.items():
+            s = price_symbol(t, mk)
+            old = dst.get(s)
+            if old is None or (f.index[-1], len(f)) > (old.index[-1], len(old)):
+                dst[s] = f
+    if not per:
+        return None
+    wanted = signal_symbols(signals)
+    markets = {}
+    for mk, frames in per.items():
+        value = {s: float((f["c"].iloc[-60:] * f["v"].iloc[-60:]).mean()) for s, f in frames.items()}
+        ranked = sorted(frames, key=lambda s: -value[s])
+        top = [s for s in ranked if value[s] > 0][:PRICE_TOP] or ranked[:PRICE_TOP]
+        keep = list(dict.fromkeys(top + sorted(wanted.get(mk, set()) & set(frames))))
+        markets[mk] = {"top": top, "series": [encode_prices(s, frames[s]) for s in keep],
+                       "asof": max(frames[s].index[-1] for s in keep).strftime("%Y-%m-%d")}
+        print(f"  Stock prices      {mk}: {len(keep)} symbols kept ({len(top)} top by traded value, the rest from your signals), last date {markets[mk]['asof']}")
+    return {"v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "markets": markets}
+
+
 # ------------------------------------------------------------------ encryption
 def encrypt(obj: dict, password: str) -> dict:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -1344,6 +1585,7 @@ def main(argv=None) -> int:
     ap.add_argument("--password", help="override; normally read from config/local.json")
     ap.add_argument("--no-local", action="store_true", help="do not write bundle.local.json")
     ap.add_argument("--out", help="output folder (default data/technical)")
+    ap.add_argument("--no-prices", action="store_true", help="skip the end-of-day stock prices")
     a = ap.parse_args(argv)
 
     out_dir = Path(a.out) if a.out else OUT
@@ -1406,6 +1648,18 @@ def main(argv=None) -> int:
         ps.write_text(json.dumps({"asof": bundle["built_at"], "tickers": tick}), encoding="utf-8")
     elif ps.exists():
         ps.unlink()
+
+    # end-of-day stock prices for the chart, encrypted with the same password
+    print("\nReading end-of-day stock prices...")
+    prices = None if a.no_prices else read_prices(D, signals, D.cfg)
+    if prices:
+        if not a.no_local:
+            (out_dir / "prices.local.json").write_text(json.dumps(prices, separators=(",", ":")), encoding="utf-8")
+        if pw:
+            (out_dir / "prices.json").write_text(json.dumps(encrypt(prices, pw), separators=(",", ":")), encoding="utf-8")
+            print(f"  prices.json {(out_dir / 'prices.json').stat().st_size / 1024:.0f} KB, encrypted.")
+    meta["stock_markets"] = sorted(prices["markets"]) if prices else []
+    (out_dir / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
 
     size = (out_dir / ("bundle.json" if published else "bundle.local.json")).stat().st_size
     print(f"\nBuilt: {len(strategies)} strategies, {len(bundle['library'])} library items, signals for {', '.join(signals) or 'none'}.")

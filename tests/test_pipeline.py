@@ -54,3 +54,60 @@ class Technical(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+try:
+    import pandas as _pd
+except ImportError:  # the pipeline only needs pandas for the stock prices
+    _pd = None
+
+
+@unittest.skipIf(_pd is None, "pandas not installed")
+class StockPrices(unittest.TestCase):
+    """Made-up symbols only (rule 1)."""
+
+    def frame(self, n=5, base=10.0):
+        idx = _pd.date_range("2025-01-06", periods=n, freq="B")
+        c = [base + i * 0.5 for i in range(n)]
+        return _pd.DataFrame({"Open": [x - 0.1 for x in c], "High": [x + 0.3 for x in c], "Low": [x - 0.4 for x in c],
+                              "Close": c, "Adj Close": [x * 0.9 for x in c], "Volume": [1000 + i for i in range(n)]}, index=idx)
+
+    def test_layouts(self):
+        pd = _pd
+        a, b = self.frame(), self.frame(base=50)
+        dict_of = bt.price_frames({"AAA": a, "BBB": b}, pd)
+        self.assertEqual(sorted(dict_of), ["AAA", "BBB"])
+        self.assertAlmostEqual(dict_of["AAA"]["c"].iloc[-1], 12.0)  # Close, not Adj Close
+        wide = pd.concat({"AAA": a, "BBB": b}, axis=1)              # (ticker, field)
+        self.assertEqual(sorted(bt.price_frames(wide, pd)), ["AAA", "BBB"])
+        self.assertEqual(sorted(bt.price_frames(wide.swaplevel(axis=1), pd)), ["AAA", "BBB"])  # (field, ticker)
+        long = pd.concat([a.assign(Symbol="AAA"), b.assign(Symbol="BBB")]).rename_axis("Date").reset_index()
+        self.assertEqual(sorted(bt.price_frames(long, pd)), ["AAA", "BBB"])
+        closes = pd.DataFrame({"AAA": a["Close"], "BBB": b["Close"]})
+        got = bt.price_frames(closes, pd)
+        self.assertEqual(sorted(got), ["AAA", "BBB"])
+        self.assertTrue((got["BBB"]["o"] == got["BBB"]["c"]).all())
+        self.assertEqual(sorted(bt.price_frames({"data": {"AAA": a}}, pd)), ["AAA"])
+        self.assertEqual(bt.price_frames(pd.DataFrame({"x": [1, 2]}), pd), {})
+
+    def test_market_and_symbols(self):
+        self.assertEqual(bt.price_market("prices_scan_IN", []), "IN")
+        self.assertEqual(bt.price_market("prices_scan_US", []), "US")
+        self.assertEqual(bt.price_market("prices", ["AAA.NS", "BBB.NS", "CCC"]), "IN")
+        self.assertEqual(bt.price_symbol("aaa.ns", "IN"), "AAA.NS")
+        self.assertEqual(bt.price_symbol("NSE:AAA", "IN"), "AAA.NS")
+        self.assertEqual(bt.price_symbol("bbb", "US"), "BBB")
+        sig = {"x": {"US": {"rows": [{"symbol": "aaa"}]}, "IN": {"buys": [{"ticker": "CCC"}]}}}
+        self.assertEqual(bt.signal_symbols(sig), {"US": {"AAA"}, "IN": {"CCC.NS"}})
+
+    def test_encoding_roundtrip(self):
+        f = bt._ohlcv(self.frame(8, base=123.45), _pd)
+        e = bt.encode_prices("AAA", f)
+        rows = bt.decode_prices(e)
+        self.assertEqual(len(rows), 8)
+        for (t, o, h, l, c, v), (ts, r) in zip(rows, f.iterrows()):
+            self.assertEqual(t, int(ts.timestamp()))
+            for x, y in ((o, r.o), (h, r.h), (l, r.l), (c, r.c)):
+                self.assertAlmostEqual(x, y, places=6)
+            self.assertEqual(v, r.v)
+        self.assertEqual(len(bt.encode_prices("AAA", f, bars=3)["c"]), 3)

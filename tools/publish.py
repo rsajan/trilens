@@ -27,7 +27,7 @@ def main() -> int:
         say("\nThis folder is not connected to GitHub yet. Run SETUP_ONCE.bat first.")
         return 1
     say("\n3/4  Saving the encrypted file...")
-    files = [f for f in ("data/technical/bundle.json", "data/technical/meta.json", "data/technical/public_signals.json") if (ROOT / f).exists()]
+    files = [f for f in ("data/technical/bundle.json", "data/technical/prices.json", "data/technical/meta.json", "data/technical/public_signals.json") if (ROOT / f).exists()]
     git("add", "--", *files)
     gone = git("ls-files", "--deleted", "data/technical/public_signals.json").stdout.strip()
     if gone:

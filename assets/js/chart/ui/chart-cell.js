@@ -113,7 +113,7 @@ export class ChartCell {
 
   label() {
     const tf = this.tf;
-    return `${this.contract.symbol} · ${tf.label} · ${this.adapter.short || this.adapter.id}${this.replay ? ' · Replay' : ''}`;
+    return `${this.contract.symbol} · ${tf.label} · ${this.contract.kind === 'stock' ? 'End of day' : this.adapter.short || this.adapter.id}${this.replay ? ' · Replay' : ''}`;
   }
 
   // ---------------------------------------------------------------- data
@@ -133,6 +133,10 @@ export class ChartCell {
       const contract = this.contracts.find((x) => x.symbol === c.symbol) || this.contracts[0];
       if (contract.symbol !== c.symbol) { // symbol not on this feed: switch this cell to the feed's first contract
         workspace.set((ws) => ({ ...ws, cells: ws.cells.map((x, i) => (i === this.index ? { ...x, symbol: contract.symbol } : x)) }));
+        return;
+      }
+      if (contract.kind === 'stock' && !this.tf.calendar) { // end-of-day prices: daily is the finest timeframe
+        workspace.set((ws) => ({ ...ws, cells: ws.cells.map((x, i) => (i === this.index ? { ...x, tf: '1D' } : x)) }));
         return;
       }
       this.contract = contract;
