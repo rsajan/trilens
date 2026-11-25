@@ -176,7 +176,6 @@ export function compile(source) {
         else if (name === 'indicator' || name === 'study') { if (header) err(n, 'Only one indicator() call is allowed'); header = n; }
         else if (!(name in P) && !funcs.has(name) && !BUILTIN_FNS.has(name)) err(n, `Unknown function '${name}'`);
         if (name === 'fill') warn(n, 'fill() is ignored for now: the area between plots is not shaded.');
-        if (name === 'alertcondition') warn(n, 'alertcondition() is ignored: use the chart\'s price alerts.');
         n.args.forEach(visit); Object.values(n.named).forEach(visit);
         return;
       }
@@ -231,6 +230,9 @@ export function run(ast, bars, opts = {}) {
   const shapeBySite = new Map();
   const hlines = [];
   const hlineSites = new Set();
+  /** @type {{ title: string, message: string, at: Uint8Array }[]} */
+  const alertconds = [];
+  const alertBySite = new Map();
   let bg = null;
   let barColors = null;
 
@@ -631,8 +633,21 @@ export function run(ast, bars, opts = {}) {
       return NaN;
       }
     });
-    def(['fill', 'alertcondition'], (name, node, ctx, path, an, a) => {
-      return NaN; // compile() already warned that these are ignored
+    def(['fill'], (name, node, ctx, path, an, a) => {
+      return NaN; // compile() already warned that fill() is ignored
+    });
+    // alertcondition(condition, title, message): recorded per bar; the alert engine decides when to fire
+    def(['alertcondition'], (name, node, ctx, path, an, a) => {
+      const key = path + ':' + node.id;
+      let ac = alertBySite.get(key);
+      if (!ac) {
+        const title = typeof a[1] === 'string' && a[1] ? a[1] : `Alert ${alertconds.length + 1}`;
+        ac = { title, message: typeof a[2] === 'string' ? a[2] : '', at: new Uint8Array(n) };
+        alertconds.push(ac);
+        alertBySite.set(key, ac);
+      }
+      ac.at[i] = truthy(a[0]) ? 1 : 0;
+      return NaN;
 
       // ----- ta
     });
@@ -914,6 +929,7 @@ export function run(ast, bars, opts = {}) {
 
   return {
     ok: !error,
+    alertconds,
     meta, inputs, plots, shapes, hlines,
     bgcolors: bg, barcolors: barColors,
     diagnostics,

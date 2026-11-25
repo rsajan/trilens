@@ -145,3 +145,16 @@ test('bollinger bands, atr and input.source', () => {
   assert.equal(r.inputs[0].value, 'hl2');
   assert.ok(Number.isFinite(r.plots[3].values[50]));
 });
+
+test('alertcondition() is recorded per bar with its title and message', () => {
+  const r = exec('indicator("a", overlay=true)\nf = ta.ema(close, 5)\ns = ta.ema(close, 20)\nalertcondition(ta.crossover(f, s), "Bull cross", "{{ticker}} up at {{close}}")\nalertcondition(close > open, title="Green bar")');
+  assert.equal(r.alertconds.length, 2);
+  const [bull, green] = r.alertconds;
+  assert.equal(bull.title, 'Bull cross');
+  assert.equal(bull.message, '{{ticker}} up at {{close}}');
+  assert.equal(green.title, 'Green bar');
+  const fe = refEma(C, 5), se = refEma(C, 20);
+  for (let i = 1; i < C.length; i++) assert.equal(bull.at[i], fe[i] > se[i] && fe[i - 1] <= se[i - 1] ? 1 : 0, `bar ${i}`);
+  for (let i = 0; i < C.length; i++) assert.equal(green.at[i], C[i] > bars.open[i] ? 1 : 0);
+  assert.equal(compile('indicator("a")\nalertcondition(close > open, "x")').diagnostics.length, 0, 'no "ignored" warning any more');
+});

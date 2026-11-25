@@ -66,7 +66,7 @@ self.onmessage = (e) => {
       const r = run(c.ast, view, { inputs: m.inputs, symbol: d.symbol, timeframe: d.tf, realtime: true });
       r.diagnostics = [...c.diagnostics.filter((x) => x.severity === 'warning'), ...r.diagnostics];
       r.firstTime = view.length ? view.time[0] : 0;
-      self.postMessage({ id: m.id, ok: true, result: r }, r.plots.map((p) => p.values.buffer));
+      self.postMessage({ id: m.id, ok: true, result: r }, [...r.plots.map((p) => p.values.buffer), ...r.alertconds.map((x) => x.at.buffer)]);
       return;
     }
     throw new Error('Unknown message ' + m.type);

@@ -58,3 +58,25 @@ test('watchlist flags cycle through every colour and back to none', () => {
   for (let i = 0; i <= FLAGS.length; i++) { cycleFlag(l.id, 'XAUUSDT.P'); seen.push(flag()); }
   assert.deepEqual(seen, [...FLAGS, null]);
 });
+
+test('alert messages fill TradingView-style placeholders and keep unknown ones', async () => {
+  const { fillMessage } = await import('../assets/js/chart/store/library.js');
+  const v = { ticker: 'BTCUSDT.P', interval: '1h', time: 1_700_000_000, open: 1, high: 2, low: 0.5, close: 1.5, volume: 1234.6, fmt: (x, isVol) => (isVol ? String(Math.round(x)) : x.toFixed(2)) };
+  assert.equal(fillMessage('{{ticker}} {{interval}} closed {{close}} vol {{ volume }} {{plot_0}}', v), 'BTCUSDT.P 1h closed 1.50 vol 1235 {{plot_0}}');
+  assert.equal(fillMessage('at {{time}}', v), 'at 2023-11-14 22:13 UTC');
+});
+
+test('drawing templates: per-tool defaults, cleaned styles, delete', async () => {
+  const { drawStyles, saveDrawTemplate, deleteDrawTemplate, setDefaultStyle, defaultStyle } = await import('../assets/js/chart/store/library.js');
+  const t = saveDrawTemplate('Thick dashed', 'trend', { color: '#ff7a73', width: 3, dash: 'dashed', junk: 1 });
+  assert.deepEqual(t.style, { color: '#ff7a73', width: 3, dash: 'dashed' });
+  setDefaultStyle('trend', t.style);
+  assert.deepEqual(defaultStyle('trend'), t.style);
+  assert.equal(defaultStyle('fib'), null);
+  setDefaultStyle('trend', { color: '#fff', width: 9, dash: 'wavy' });
+  assert.deepEqual(defaultStyle('trend'), { color: '#fff', width: 2, dash: 'solid' }, 'invalid width/dash fall back');
+  setDefaultStyle('trend', null);
+  assert.equal(defaultStyle('trend'), null);
+  deleteDrawTemplate(t.id);
+  assert.ok(!drawStyles.get().list.some((x) => x.id === t.id));
+});

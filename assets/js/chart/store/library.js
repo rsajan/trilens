@@ -90,13 +90,23 @@ export function deleteLayout(id) { layouts.set(layouts.get().filter((x) => x.id 
 // ------------------------------------------------------------------ alerts
 /**
  * @typedef {Object} Alert
- * @property {string} id @property {string} symbol @property {'crosses'|'above'|'below'} cond
- * @property {number} price @property {string} note @property {boolean} active
+ * @property {string} id @property {'price'|'script'} kind @property {string} symbol
+ * @property {'crosses'|'above'|'below'} cond  price alerts
+ * @property {number} price  price alerts
+ * @property {string} tf  script alerts: timeframe the script runs on
+ * @property {string} ref  script alerts: 'builtin:x' or 'script:id'
+ * @property {Record<string, any>} inputs  script alerts: input overrides
+ * @property {string} condTitle  script alerts: the alertcondition() title
+ * @property {'once'|'every'} freq  once: switch off after firing; every: fire on every bar close that meets it
+ * @property {string} note @property {boolean} active
  * @property {number} created @property {number|null} firedAt @property {number|null} firedPrice
  */
-export const alerts = createStore(load('chart:alerts', [], Array.isArray), (s) => store.set('chart:alerts', s));
-export function addAlert({ symbol, cond, price, note }) {
-  const a = { id: uid('a'), symbol, cond, price, note: note || '', active: true, created: Date.now(), firedAt: null, firedPrice: null };
+export const alerts = createStore(
+  load('chart:alerts', [], Array.isArray).map((a) => ({ kind: 'price', freq: 'once', ...a })),
+  (s) => store.set('chart:alerts', s),
+);
+export function addAlert(fields) {
+  const a = { id: uid('a'), kind: 'price', freq: 'once', note: '', active: true, created: Date.now(), firedAt: null, firedPrice: null, ...fields };
   alerts.set([...alerts.get(), a]);
   return a;
 }
@@ -115,3 +125,46 @@ export function alertHit(cond, level, prev, last) {
   if (!Number.isFinite(prev)) return false;
   return (prev < level && last >= level) || (prev > level && last <= level);
 }
+
+/**
+ * Fill TradingView-style placeholders in an alertcondition() message:
+ * {{ticker}} {{interval}} {{open}} {{high}} {{low}} {{close}} {{volume}} {{time}}. Unknown ones stay as typed.
+ */
+export function fillMessage(tpl, v) {
+  return String(tpl || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => {
+    const key = k.toLowerCase();
+    if (key === 'ticker') return v.ticker;
+    if (key === 'interval') return v.interval;
+    if (key === 'time') return new Date(v.time * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+    if (['open', 'high', 'low', 'close', 'volume'].includes(key)) return v.fmt(v[key], key === 'volume');
+    return m;
+  });
+}
+
+// ------------------------------------------------------------------ drawing style templates
+/**
+ * @typedef {{ color: string, width: number, dash: 'solid'|'dashed'|'dotted' }} DrawStyle
+ * @typedef {{ id: string, name: string, type: string, style: DrawStyle }} DrawTemplate
+ * Templates are per tool (a trend-line template applies to trend lines). A tool's default style is
+ * used for every new drawing of that tool.
+ */
+const cleanStyle = (s) => ({ color: typeof s.color === 'string' ? s.color : '#f0b849', width: [1, 2, 3, 4].includes(s.width) ? s.width : 2, dash: ['solid', 'dashed', 'dotted'].includes(s.dash) ? s.dash : 'solid' });
+export const drawStyles = createStore(
+  load('chart:drawStyles', { defaults: {}, list: [] }, (v) => v && typeof v.defaults === 'object' && Array.isArray(v.list)),
+  (s) => store.set('chart:drawStyles', s),
+);
+export function saveDrawTemplate(name, type, style) {
+  const t = { id: uid('dt'), name, type, style: cleanStyle(style) };
+  drawStyles.set((s) => ({ ...s, list: [...s.list, t] }));
+  return t;
+}
+export function deleteDrawTemplate(id) { drawStyles.set((s) => ({ ...s, list: s.list.filter((t) => t.id !== id) })); }
+export function setDefaultStyle(type, style) {
+  drawStyles.set((s) => {
+    const defaults = { ...s.defaults };
+    if (style) defaults[type] = cleanStyle(style); else delete defaults[type];
+    return { ...s, defaults };
+  });
+}
+/** @returns {DrawStyle|null} */
+export const defaultStyle = (type) => drawStyles.get().defaults[type] || null;

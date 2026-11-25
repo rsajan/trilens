@@ -1,8 +1,59 @@
 // Drawing tool rail (left edge of the chart) and the small bar that edits the selected drawing.
 // Icons are constant SVG strings, like lib/dom.js icons.
 
-import { h, clear } from '../../lib/dom.js';
+import { h, clear, sheet } from '../../lib/dom.js';
 import { workspace, setDraw } from '../store/workspace.js';
+import { drawStyles, saveDrawTemplate, deleteDrawTemplate, setDefaultStyle, defaultStyle } from '../store/library.js';
+import { promptDialog } from './dialogs.js';
+
+const TOOL_NAMES = { trend: 'trend lines', ray: 'rays', channel: 'parallel channels', hline: 'horizontal levels', fib: 'Fibonacci retracements', long: 'long positions', short: 'short positions', text: 'text notes' };
+const DASHES = [['solid', 'Solid line', []], ['dashed', 'Dashed line', [5, 3]], ['dotted', 'Dotted line', [1.5, 2.5]]];
+const styleOf = (d) => ({ color: d.color, width: d.width, dash: d.dash || 'solid' });
+
+function swatch(style) {
+  const c = document.createElement('canvas');
+  c.width = 44; c.height = 14; c.className = 'dr-prev';
+  const x = c.getContext('2d');
+  x.strokeStyle = style.color; x.lineWidth = style.width;
+  x.setLineDash(DASHES.find((q) => q[0] === style.dash)[2]);
+  x.beginPath(); x.moveTo(2, 7); x.lineTo(42, 7); x.stroke();
+  return c;
+}
+
+/** Template menu for the selected drawing's tool: apply, save, make default, delete. */
+function templateSheet(L) {
+  const d = L().selectedDrawing();
+  if (!d) return;
+  const type = d.type, label = TOOL_NAMES[type] || type;
+  const box = h('div', { class: 'ledger' });
+  const btn = (text, fn, primary) => h('button', { type: 'button', class: 'btn' + (primary ? ' primary' : ''), style: { minHeight: '36px', padding: '0 12px' }, onClick: fn }, text);
+  const paint = () => {
+    clear(box);
+    const list = drawStyles.get().list.filter((t) => t.type === type);
+    const def = defaultStyle(type);
+    if (!list.length) box.append(h('p', { class: 'muted small', style: { padding: '8px 2px' } }, `No templates for ${label} yet.`));
+    for (const t of list) {
+      const isDef = def && def.color === t.style.color && def.width === t.style.width && def.dash === t.style.dash;
+      box.append(h('div', { class: 'lrow', style: { minHeight: '52px' } },
+        swatch(t.style), h('div', { class: 'who' }, h('b', null, t.name), isDef ? h('div', { class: 'name' }, 'Default for new ' + label) : null),
+        h('div', { class: 'row' },
+          btn('Apply', () => { L().patchSelected({ ...t.style }); bg.remove(); }, true),
+          btn('Default', () => setDefaultStyle(type, t.style)),
+          btn('Delete', () => deleteDrawTemplate(t.id)))));
+    }
+  };
+  const unsub = drawStyles.subscribe((x) => x, paint);
+  paint();
+  const cur = L().selectedDrawing();
+  const bg = sheet('Templates · ' + label,
+    h('div', { class: 'row wrap', style: { gap: '8px', marginBottom: '10px' } },
+      btn('Save this style…', async () => { const n = await promptDialog('Save drawing template', 'Name', `${label} ${cur.dash || 'solid'} ${cur.width}px`); if (n) saveDrawTemplate(n, type, styleOf(cur)); }),
+      btn('Use this style for new ' + label, () => setDefaultStyle(type, styleOf(cur))),
+      defaultStyle(type) ? btn('Reset default', () => setDefaultStyle(type, null)) : null),
+    box,
+    h('p', { class: 'muted small', style: { marginTop: '10px' } }, 'A template is a colour, line width and line style for one drawing tool. The default is used for every new drawing of that tool.'));
+  new MutationObserver((_, o) => { if (!bg.isConnected) { o.disconnect(); unsub(); } }).observe(document.body, { childList: true });
+}
 
 const ICONS = {
   cursor: '<path d="M6 3.5l12 7.2-5.3 1.4 3.2 5.8-2.3 1.3-3.2-5.8L6.5 17z"/>',
@@ -86,6 +137,9 @@ export function createDrawRail(L, hooks = {}) {
     bar.append(h('span', { class: 'dr-sep v' }));
     for (const wd of [1, 2, 3]) bar.append(h('button', { type: 'button', class: 'dr-w' + (d.width === wd ? ' on' : ''), title: `Line width ${wd}`, onClick: () => L().patchSelected({ width: wd }) }, h('i', { style: { height: wd + 'px' } })));
     bar.append(h('span', { class: 'dr-sep v' }));
+    for (const [id, title] of DASHES) bar.append(h('button', { type: 'button', class: 'dr-w dr-dash ' + id + ((d.dash || 'solid') === id ? ' on' : ''), title, 'aria-label': title, onClick: () => L().patchSelected({ dash: id }) }, h('i')));
+    bar.append(h('span', { class: 'dr-sep v' }));
+    bar.append(h('button', { type: 'button', class: 'dr-w dr-tpl', title: 'Drawing templates: save, apply, set default', 'aria-label': 'Drawing templates', onClick: () => templateSheet(L) }, 'Tpl'));
     if (d.type === 'hline' && hooks.onAlert) bar.append(h('button', { type: 'button', class: 'dr-w', title: 'Create a price alert at this level', 'aria-label': 'Alert at this level', onClick: () => hooks.onAlert(d.points[0].price) }, svg('bell')));
     bar.append(h('button', { type: 'button', class: 'dr-del', title: 'Delete (Del)', onClick: () => L().deleteSelected() }, svg('trash')));
   }

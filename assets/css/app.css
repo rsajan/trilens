@@ -662,3 +662,8 @@ button.pd-msg:hover { background: var(--surface-2); }
 .cx-toast { position: relative; pointer-events: auto; padding: 10px 36px 10px 12px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 13px; color: var(--ink-2); animation: up .2s ease-out; }
 .cx-toast b { display: block; color: var(--ink); margin-bottom: 2px; }
 .cx-toast-x { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border-radius: 6px; color: var(--ink-3); }
+.dr-dash i { height: 0 !important; background: none !important; border-top: 2px solid currentColor; }
+.dr-dash.dashed i { border-top-style: dashed; }
+.dr-dash.dotted i { border-top-style: dotted; }
+.dr-tpl { width: auto; padding: 0 8px; font-size: 12px; font-weight: 600; }
+.dr-prev { flex: none; }
