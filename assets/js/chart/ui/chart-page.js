@@ -1,15 +1,15 @@
 // Chart page shell. Lays out the split-screen grid of ChartCells and owns everything shared:
-// toolbar, telemetry strip (for the focused chart), Pine editor, drawing rail, watchlist, alerts,
+// toolbar, Pine editor, drawing rail, watchlist, alerts,
 // templates and crosshair sync. Cells never talk to each other; they talk to this shell.
 
 import { h, clear } from '../../lib/dom.js';
-import { TIMEFRAMES, TF } from '../data/timeframes.js';
+import { TIMEFRAMES } from '../data/timeframes.js';
 import { ADAPTERS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
-import { workspace, removeStudy, patchStudy, addStudy, setEditor, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
+import { workspace, removeStudy, patchStudy, addStudy, setEditor, setDraw, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
 import { alerts, defaultStyle } from '../store/library.js';
-import { createTelemetryBar } from './telemetry-bar.js';
+import { popMenu } from './menu.js';
 import { createPineDrawer } from './pine-drawer.js';
 import { symbolDialog, indicatorDialog, settingsDialog, promptDialog } from './dialogs.js';
 import { createDrawRail } from './draw-rail.js';
@@ -19,7 +19,23 @@ import { AlertEngine, alertDialog, alertsListDialog } from './alerts.js';
 import { templatesDialog } from './workspace-dialogs.js';
 import { fmtNum } from '../engine/chart-engine.js';
 
-const FAV_TF = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
+// Toolbar icons: constant SVG strings only (same pattern as lib/dom.js icons).
+const ICON = {
+  search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/>',
+  candles: '<path d="M7 3.5v3.5M7 15v5.5M17 5.5v3.5M17 15v3.5"/><rect x="5" y="7" width="4" height="8" rx="1"/><rect x="15" y="9" width="4" height="6" rx="1"/>',
+  bars: '<path d="M7 4v16M4 8h3M7 15h3M17 6v14M14 10h3M17 17h3"/>',
+  line: '<path d="M3.5 17l5-6 4 3.5 7.5-9"/>',
+  area: '<path d="M3.5 17l5-6 4 3.5 7.5-9V20H3.5z" fill="currentColor" fill-opacity=".25"/><path d="M3.5 17l5-6 4 3.5 7.5-9"/>',
+  chev: '<path d="M7 10l5 5 5-5"/>',
+};
+function svg(name) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  e.setAttribute('viewBox', '0 0 24 24'); e.setAttribute('fill', 'none'); e.setAttribute('stroke', 'currentColor');
+  e.setAttribute('stroke-width', '1.7'); e.setAttribute('stroke-linecap', 'round'); e.setAttribute('stroke-linejoin', 'round'); e.setAttribute('aria-hidden', 'true');
+  e.innerHTML = ICON[name]; // constant strings above only
+  return e;
+}
+const CHART_TYPE_LABEL = { candles: 'Candles', bars: 'Bars', line: 'Line', area: 'Area' };
 
 // Workers survive page re-renders (the theme switch re-renders every page).
 let pine = null;
@@ -36,7 +52,6 @@ export function mountChartPage(root) {
   const cleanups = [];
   /** @type {ChartCell[]} */
   const cells = [];
-  let unsubTele = null, teleSymbol = null;
   const tickOf = new Map(); // symbol -> tick, for formatting alert prices
 
   const active = () => cells[workspace.get().active] || cells[0];
@@ -53,29 +68,51 @@ export function mountChartPage(root) {
     seg('Sym', 'Same contract on every chart', () => setSync({ symbol: !workspace.get().sync.symbol })),
     seg('TF', 'Same timeframe on every chart', () => setSync({ tf: !workspace.get().sync.tf })),
     seg('✛', 'Crosshair follows across charts', () => setSync({ crosshair: !workspace.get().sync.crosshair })));
-  const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'More timeframes' }, TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
-  const tfButtons = h('div', { class: 'seg cx-tfs', role: 'group', 'aria-label': 'Timeframe' },
-    FAV_TF.map((id) => h('button', { type: 'button', dataset: { tf: id }, onClick: () => setCell(workspace.get().active, { tf: id }) }, TF[id].label)));
+  const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'Timeframe', title: 'Timeframe' }, TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
   tfSel.addEventListener('change', () => setCell(workspace.get().active, { tf: tfSel.value }));
   const feedSel = h('select', { class: 'ipt cx-feed', 'aria-label': 'Data feed', title: 'Where prices come from' },
     h('option', { value: 'synthetic' }, 'Synthetic market'), h('option', { value: 'binance' }, 'Binance public (live)'));
   feedSel.addEventListener('change', () => workspace.set({ feed: feedSel.value }));
+
+  // 2. symbol search box (TradingView-style): shows the focused chart's contract, opens search
+  const symText = h('span', { class: 'cx-symtext' }, '—');
+  const symBtn = h('button', { type: 'button', class: 'cx-symbox', title: 'Search contracts', 'aria-label': 'Search contracts', onClick: () => {
+    const c = active();
+    symbolDialog({ contracts: c.contracts, current: c.state.symbol, feedLabel: c.adapter ? c.adapter.label : '', onPick: (symbol) => setCell(workspace.get().active, { symbol }) });
+  } }, svg('search'), symText);
+  // 3. chart type
+  const typeBtn = h('button', { type: 'button', class: 'cx-iconbtn', 'aria-haspopup': 'menu', onClick: () => {
+    const cur = activeCell().chartType || 'candles';
+    popMenu(typeBtn, Object.entries(CHART_TYPE_LABEL).map(([id, label]) => ({ label, icon: svg(id), checked: cur === id, onClick: () => setCell(workspace.get().active, { chartType: id }) })));
+  } });
+  // 5. drawings panel switch
+  const drawSwitch = h('button', { type: 'button', class: 'cx-switch', role: 'switch', title: 'Show or hide the drawing tools', onClick: () => {
+    const on = !workspace.get().draw.panel;
+    if (!on) cells.forEach((c) => c.layer.setTool('cursor'));
+    setDraw({ panel: on });
+  } }, h('span', null, 'Drawings'), h('i', { class: 'cx-knob' }));
   const editorBtn = btn('Pine Editor', 'Open the Pine Script editor (Alt+P)', () => setEditor({ open: !workspace.get().editor.open, tab: 'editor' }));
   const replayBtn = btn('Replay', 'Bar replay: cut the focused chart at a past bar and play it forward', () => { const c = active(); c.replay || c.selecting ? c.exitReplay() : c.startReplaySelect(); });
+  // 8. one Alert button: new alert, or manage the list
+  const alertBtn = h('button', { type: 'button', class: 'btn cx-tool cx-dd', 'aria-haspopup': 'menu', title: 'Create or manage alerts', onClick: () => {
+    const armed = alerts.get().filter((a) => a.active).length;
+    popMenu(alertBtn, [
+      { label: 'New alert…', hint: activeCell().symbol, onClick: () => newAlert() },
+      { label: 'Manage alerts', hint: `${armed} armed`, onClick: () => alertsListDialog({ fmt: fmtFor }) },
+    ]);
+  } }, 'Alert', svg('chev'));
   const watchBtn = btn('Watchlist', 'Show or hide the watchlist', () => workspace.set({ watchOpen: !workspace.get().watchOpen }));
+  const sep = () => h('span', { class: 'cx-sep', 'aria-hidden': 'true' });
   const toolbar = h('div', { class: 'cx-toolbar' },
-    layoutSeg, syncSeg, tfButtons, tfSel,
+    symBtn, typeBtn, tfSel, sep(),
     btn('Indicators', 'Add an indicator or one of your scripts to the focused chart', () => indicatorDialog({ onAdd: (ref) => addStudy(ref), onNewScript: () => drawer.openNew(NEW_SCRIPT) })),
     btn('Templates', 'Indicator templates and saved layouts', () => templatesDialog()),
-    editorBtn, replayBtn,
-    btn('Alert', 'Create a price alert for the focused contract', () => newAlert()),
-    btn('Alerts', 'Your alerts', () => alertsListDialog({ fmt: fmtFor })),
+    sep(), drawSwitch, replayBtn, alertBtn, editorBtn,
     h('span', { class: 'grow' }),
-    watchBtn,
+    layoutSeg, syncSeg, watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
     feedSel);
 
-  const tele = createTelemetryBar({ onPickSymbol: () => { const c = active(); symbolDialog({ contracts: c.contracts, current: c.state.symbol, feedLabel: c.adapter ? c.adapter.label : '', onPick: (symbol) => setCell(workspace.get().active, { symbol }) }); } });
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
   const watch = createWatchlist({
@@ -97,14 +134,14 @@ export function mountChartPage(root) {
     onRemoveFromChart: (scriptId) => { for (const s of activeCell().studies) if (s.ref === 'script:' + scriptId) removeStudy(s.uid); },
     isOnChart: (scriptId) => activeCell().studies.some((s) => s.ref === 'script:' + scriptId),
   });
-  const page = h('div', { class: 'cx-page' }, toolbar, tele.el, main, drawer.el);
+  const page = h('div', { class: 'cx-page' }, toolbar, main, drawer.el);
   clear(root).append(page);
 
   const rail = createDrawRail(() => (active() ? active().layer : null), {
     onAlert: (price) => newAlert(price),
     refreshAll: () => cells.forEach((c) => c.layer.refresh()),
   });
-  cleanups.push(() => rail.dispose(), () => tele.dispose(), () => drawer.dispose(), () => watch.dispose());
+  cleanups.push(() => rail.dispose(), () => drawer.dispose(), () => watch.dispose());
 
   // ---------------------------------------------------------------- cells
   const drawHooks = {
@@ -128,7 +165,7 @@ export function mountChartPage(root) {
       onContract: (cell) => {
         tickOf.set(cell.contract.symbol, cell.contract.tick);
         cell.setAlertLines(priceAlertsFor(cell.contract.symbol));
-        if (cell === active()) { subscribeTele(); watch.markCurrent(cell.contract.symbol); }
+        if (cell === active()) { watch.markCurrent(cell.contract.symbol); paintToolbar(); }
       },
       onReplay: () => paintToolbar(),
     });
@@ -151,19 +188,8 @@ export function mountChartPage(root) {
     a.wrap.append(rail.rail, rail.bar);
     for (const c of cells) if (c !== a) { c.layer.setTool('cursor'); c.layer.selected = null; c.layer.refresh(); }
     rail.paint();
-    if (a.contract) { subscribeTele(); watch.markCurrent(a.contract.symbol); }
+    if (a.contract) watch.markCurrent(a.contract.symbol);
     paintToolbar();
-  }
-
-  function subscribeTele() {
-    const a = active();
-    if (!a.contract) return;
-    const key = workspace.get().feed + '|' + a.contract.symbol;
-    if (key === teleSymbol) return;
-    if (unsubTele) unsubTele();
-    teleSymbol = key;
-    tele.setContract(a.contract, a.adapter.label);
-    unsubTele = a.adapter.subscribeTelemetry(a.contract.symbol, (t) => { if (teleSymbol === key) tele.update(t); });
   }
 
   function paintToolbar() {
@@ -173,9 +199,15 @@ export function mountChartPage(root) {
     [...layoutSeg.children].forEach((b, i) => b.setAttribute('aria-pressed', String(w.layout === lay[i])));
     [...syncSeg.children].forEach((b, i) => b.setAttribute('aria-pressed', String([w.sync.symbol, w.sync.tf, w.sync.crosshair][i])));
     syncSeg.classList.toggle('hide', w.layout === '1x1');
-    for (const b of tfButtons.children) b.setAttribute('aria-pressed', String(b.dataset.tf === c.tf));
     tfSel.value = c.tf;
-    tfSel.classList.toggle('on', !FAV_TF.includes(c.tf));
+    symText.textContent = c.symbol || '—';
+    const type = c.chartType || 'candles';
+    typeBtn.replaceChildren(svg(type));
+    typeBtn.title = `Chart type: ${CHART_TYPE_LABEL[type]}`;
+    typeBtn.setAttribute('aria-label', typeBtn.title);
+    drawSwitch.setAttribute('aria-checked', String(w.draw.panel));
+    rail.rail.classList.toggle('hide', !w.draw.panel);
+    main.classList.toggle('no-rail', !w.draw.panel);
     feedSel.value = w.feed;
     editorBtn.classList.toggle('on', w.editor.open);
     watchBtn.classList.toggle('on', w.watchOpen);
@@ -231,8 +263,8 @@ export function mountChartPage(root) {
   cleanups.push(
     workspace.subscribe((w) => w.layout, layoutCells),
     workspace.subscribe((w) => w.active, focusCell),
-    workspace.subscribe((w) => w.feed, () => { teleSymbol = null; watch.refresh(); alertEngine.sync(); paintToolbar(); }),
-    workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
+    workspace.subscribe((w) => w.feed, () => { watch.refresh(); alertEngine.sync(); paintToolbar(); }),
+    workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.cells[w.active].chartType + '|' + w.draw.panel + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
     alerts.subscribe((x) => x, () => { for (const c of cells) if (c.contract) c.setAlertLines(priceAlertsFor(c.contract.symbol)); }),
   );
 
@@ -248,7 +280,6 @@ export function mountChartPage(root) {
   paintToolbar();
 
   return () => {
-    if (unsubTele) unsubTele();
     for (const f of cleanups) f();
     while (cells.length) cells.pop().dispose();
   };

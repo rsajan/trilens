@@ -1,6 +1,6 @@
 # Chart desk — engineering blueprint
 
-The `#/chart` page: futures charting, futures telemetry and a Pine Script editor/runtime, running
+The `#/chart` page: futures charting, drawing tools and a Pine Script editor/runtime, running
 entirely in the browser. $0, no API keys, no build step, works offline as part of the PWA.
 
 ## 1. The calls that shaped it
@@ -79,7 +79,7 @@ assets/js/chart/
   pine/        lexer.js · parser.js · runtime.js · ta.js · colors.js · pine.worker.js · client.js
   indicators/  builtins.js            (EMA SMA BB VWAP RSI MACD ATR, written in Pine)
   store/       workspace.js           (workspace + script library, persisted)
-  ui/          chart-page.js (controller) · telemetry-bar.js · pine-drawer.js · code-editor.js · dialogs.js
+  ui/          chart-page.js (shell) · chart-cell.js · menu.js · pine-drawer.js · code-editor.js · dialogs.js · watchlist.js · alerts.js
 assets/vendor/lightweight-charts/   vendored library + licence
 tests/pine_runtime.test.mjs         node --test "tests/*.test.mjs"   (checks against independent reference maths)
 ```
@@ -141,7 +141,7 @@ notes.
 
 **M4 — workspace (done).** The page shell (`ui/chart-page.js`) lays out 1×1, 1×2 or 2×2
 `ChartCell`s (`ui/chart-cell.js`). Each cell owns its buffer, live feed, Pine dataset, studies,
-drawings and replay. The toolbar, telemetry strip, Pine editor and drawing rail act on the
+drawings and replay. The toolbar, Pine editor and drawing rail act on the
 focused cell, which is outlined.
 
 - **Sync:** optional symbol and timeframe sync across the visible charts, and crosshair sync
@@ -198,3 +198,17 @@ semantics above. In the editor, the console says how many bars the last update r
 
 Each milestone ends the same way: `node --test "tests/*.test.mjs"`, then the Playwright flow (desktop and
 phone, both themes, zero console errors).
+
+**Toolbar clean-up.** The toolbar follows TradingView's order:
+- **Left:** a symbol search box, a chart-type menu (Candles, Bars, Line, Area; per chart, saved),
+  then the timeframe dropdown.
+- **Middle:** Indicators, Templates, a Drawings switch (shows or hides the tool rail), Replay,
+  one Alert menu (new alert / manage alerts), and the Pine Editor.
+- **Right:** layout, sync, Watchlist, Latest, and the feed.
+
+The futures telemetry strip (mark/index, funding countdown, 24h stats, open interest) was
+removed at the owner's request. The adapters still provide telemetry: the watchlist and the
+price alerts use it.
+
+For bars, line and area charts the candle series stays, made fully transparent, so drawings,
+markers and alert lines keep their anchor; a second series draws the chosen style.

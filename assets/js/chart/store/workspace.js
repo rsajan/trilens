@@ -10,20 +10,21 @@ import { store } from '../../lib/store.js';
 /**
  * @typedef {{ id: string, name: string, source: string, createdAt: number, updatedAt: number }} Script
  * @typedef {{ uid: string, ref: string, inputs: Record<string, any>, styles: Record<string, { color?: string, hidden?: boolean }>, hidden: boolean }} Study
- * @typedef {{ symbol: string, tf: string, studies: Study[] }} Cell  one chart of the split-screen layout
+ * @typedef {{ symbol: string, tf: string, chartType: 'candles'|'bars'|'line'|'area', studies: Study[] }} Cell  one chart of the split-screen layout
  * @typedef {Object} Workspace
  * @property {'synthetic'|'binance'} feed
  * @property {'1x1'|'1x2'|'2x2'} layout @property {number} active index of the focused cell
  * @property {{ symbol: boolean, tf: boolean, crosshair: boolean }} sync  what follows the focused cell
  * @property {Cell[]} cells  always four; the layout decides how many are shown
  * @property {{ open: boolean, height: number, scriptId: string|null, draft: string, tab: 'editor'|'library' }} editor
- * @property {{ magnet: boolean, hidden: boolean }} draw  drawing-tool preferences
+ * @property {{ magnet: boolean, hidden: boolean, panel: boolean }} draw  drawing-tool preferences; panel: show the tool rail
  * @property {boolean} watchOpen  watchlist panel shown
  */
 
 const KEY_WS = 'chart:workspace';
 const KEY_SCRIPTS = 'chart:scripts';
 export const LAYOUT_CELLS = { '1x1': 1, '1x2': 2, '2x2': 4 };
+export const CHART_TYPES = ['candles', 'bars', 'line', 'area'];
 
 const study = (uidv, ref) => ({ uid: uidv, ref, inputs: {}, styles: {}, hidden: false });
 /** @type {Workspace} */
@@ -37,7 +38,7 @@ const DEFAULT_WS = {
     { symbol: 'SOLUSDT.P', tf: '4h', studies: [study('s5', 'builtin:bb')] },
   ],
   editor: { open: false, height: 300, scriptId: null, draft: '', tab: 'editor' },
-  draw: { magnet: true, hidden: false },
+  draw: { magnet: true, hidden: false, panel: true },
   watchOpen: true,
 };
 
@@ -84,7 +85,7 @@ function loadWs() {
   if (!cells && w.symbol) cells = [{ symbol: w.symbol, tf: w.tf || '1h', studies: w.studies }];
   cells = d.cells.map((dc, i) => {
     const c = cells && cells[i];
-    return c && typeof c === 'object' ? { symbol: typeof c.symbol === 'string' ? c.symbol : dc.symbol, tf: typeof c.tf === 'string' ? c.tf : dc.tf, studies: cleanStudies(c.studies) } : dc;
+    return c && typeof c === 'object' ? { symbol: typeof c.symbol === 'string' ? c.symbol : dc.symbol, tf: typeof c.tf === 'string' ? c.tf : dc.tf, chartType: CHART_TYPES.includes(c.chartType) ? c.chartType : 'candles', studies: cleanStudies(c.studies) } : { ...dc, chartType: 'candles' };
   });
   const layout = LAYOUT_CELLS[w.layout] ? w.layout : '1x1';
   return {
@@ -158,6 +159,7 @@ export function setCell(i, patch) {
       if (patch.symbol !== undefined && (k === i || (w.sync.symbol && k < n))) p.symbol = patch.symbol;
       if (patch.tf !== undefined && (k === i || (w.sync.tf && k < n))) p.tf = patch.tf;
       if (patch.studies !== undefined && k === i) p.studies = patch.studies;
+      if (patch.chartType !== undefined && k === i) p.chartType = patch.chartType;
       return Object.keys(p).length ? { ...c, ...p } : c;
     });
     return { ...w, cells };

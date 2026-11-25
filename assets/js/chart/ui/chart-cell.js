@@ -65,6 +65,7 @@ export class ChartCell {
       onStudyAction: (uidv, action) => o.onStudyAction(this, uidv, action),
     });
     this.layer = new DrawingLayer(this.engine, o.drawHooks);
+    this.engine.setChartType(workspace.get().cells[index].chartType || 'candles');
     this.engine.chart.subscribeCrosshairMove((p) => {
       if (this.syncing) return;
       const t = p && p.time !== undefined ? p.time : null;
@@ -83,6 +84,7 @@ export class ChartCell {
     let prevStudies = cell().studies;
     this.unsubs = [
       workspace.subscribe((w) => w.feed + '|' + w.cells[index].symbol + '|' + w.cells[index].tf, () => this.load()),
+      workspace.subscribe((w) => w.cells[index].chartType, (t) => this.engine.setChartType(t || 'candles')),
       workspace.subscribe((w) => w.cells[index].studies, (next) => {
         const prevMap = new Map(prevStudies.map((s) => [s.uid, s]));
         const ids = new Set(next.map((s) => s.uid));
