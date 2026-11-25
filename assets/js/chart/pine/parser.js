@@ -6,7 +6,7 @@ import { lex, PineSyntaxError } from './lexer.js';
 /** Numeric node kinds: the interpreter switches on these (a string switch compares one by one). */
 export const K = Object.freeze(Object.fromEntries(['Num', 'Str', 'Bool', 'Color', 'Na', 'Ident', 'Hist', 'Unary', 'Binary', 'Ternary', 'If', 'Tuple', 'Call', 'Decl', 'TupleDecl', 'Assign', 'ExprStmt', 'FuncDef', 'For', 'While', 'Break', 'Continue'].map((k, i) => [k, i + 1])));
 
-const TYPE_WORDS = new Set(['int', 'float', 'bool', 'string', 'color', 'series', 'simple', 'const', 'input', 'line', 'label', 'box', 'table', 'array']);
+const TYPE_WORDS = new Set(['int', 'float', 'bool', 'string', 'color', 'series', 'simple', 'const', 'input', 'line', 'label', 'box', 'table', 'array', 'matrix', 'map']);
 const BINARY = [
   ['or'],
   ['and'],
@@ -80,6 +80,17 @@ export function parse(src) {
     return -1;
   }
 
+  // A type annotation before a name: float, float[], array<float>, label. True if one was skipped.
+  function skipType() {
+    if (!at('ID') || !TYPE_WORDS.has(peek().v)) return false;
+    let k = 1;
+    if (peek(1).t === 'OP' && peek(1).v === '[' && peek(2).t === 'OP' && peek(2).v === ']') k = 3;
+    else if (peek(1).t === 'OP' && peek(1).v === '<' && peek(2).t === 'ID' && peek(3).t === 'OP' && peek(3).v === '>') k = 4;
+    if (peek(k).t !== 'ID') return false;
+    for (let q = 0; q < k; q++) next();
+    return true;
+  }
+
   /** @returns {Node} */
   function statement() {
     const tok = peek();
@@ -87,7 +98,7 @@ export function parse(src) {
       switch (tok.v) {
         case 'var': case 'varip': {
           next();
-          if (at('ID') && TYPE_WORDS.has(peek().v) && peek(1).t === 'ID') next();
+          skipType();
           if (!at('ID')) fail('Expected a variable name after var');
           const name = next().v;
           expectOp('=');
@@ -110,9 +121,10 @@ export function parse(src) {
         default: break;
       }
     }
-    // typed declaration: float x = ...
-    if (tok.t === 'ID' && TYPE_WORDS.has(tok.v) && peek(1).t === 'ID' && peek(2).t === 'OP' && peek(2).v === '=') {
-      next();
+    // typed declaration: float x = ..., float[] xs = ..., array<float> xs = ...
+    const typedAt = (k) => peek(k).t === 'ID' && peek(k + 1).t === 'OP' && peek(k + 1).v === '=';
+    if (tok.t === 'ID' && TYPE_WORDS.has(tok.v) && (typedAt(1) || (peek(1).v === '[' && peek(2).v === ']' && typedAt(3)) || (peek(1).v === '<' && peek(3).v === '>' && typedAt(4)))) {
+      skipType();
       const nameTok = next();
       next();
       const init = valueExpr();

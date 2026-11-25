@@ -15,6 +15,7 @@ import { parse, K } from './parser.js';
 import { PineSyntaxError } from './lexer.js';
 import * as TA from './ta.js';
 import { PINE_COLORS, toHex8, withTransp, rgb, gradient } from './colors.js';
+import { TIMEFRAMES, bucketStart } from '../data/timeframes.js';
 
 const LOOP_BUDGET = 5_000_000;
 
@@ -78,6 +79,15 @@ const CONSTS = {
   'display.all': 'all', 'display.none': 'none', 'display.pane': 'all', 'display.data_window': 'none', 'display.status_line': 'none', 'display.price_scale': 'all',
   'format.price': 'price', 'format.volume': 'volume', 'format.percent': 'percent', 'format.inherit': 'inherit',
   'scale.right': 'right', 'scale.left': 'left', 'scale.none': 'none',
+  'strategy.long': 'long', 'strategy.short': 'short', 'strategy.percent_of_equity': 'percent_of_equity', 'strategy.cash': 'cash', 'strategy.fixed': 'fixed',
+  'strategy.commission.percent': 'percent', 'strategy.commission.cash_per_order': 'cash_per_order', 'strategy.commission.cash_per_contract': 'cash_per_contract',
+  'strategy.direction.long': 'long', 'strategy.direction.short': 'short', 'strategy.direction.all': 'all', 'strategy.oca.cancel': 'cancel', 'strategy.oca.reduce': 'reduce', 'strategy.oca.none': 'none',
+  'barmerge.lookahead_on': 'lookahead_on', 'barmerge.lookahead_off': 'lookahead_off', 'barmerge.gaps_on': 'gaps_on', 'barmerge.gaps_off': 'gaps_off',
+  'label.style_label_down': 'labeldown', 'label.style_label_up': 'labelup', 'label.style_label_left': 'labeldown', 'label.style_label_right': 'labeldown', 'label.style_label_center': 'labeldown',
+  'label.style_none': 'none', 'label.style_circle': 'circle', 'label.style_square': 'square', 'label.style_diamond': 'square', 'label.style_triangleup': 'labelup', 'label.style_triangledown': 'labeldown',
+  'label.style_arrowup': 'labelup', 'label.style_arrowdown': 'labeldown', 'label.style_xcross': 'circle', 'label.style_cross': 'circle', 'label.style_flag': 'square',
+  'xloc.bar_index': 'bar_index', 'xloc.bar_time': 'bar_time', 'yloc.price': 'price', 'yloc.abovebar': 'abovebar', 'yloc.belowbar': 'belowbar',
+  'text.align_center': 'center', 'text.align_left': 'left', 'text.align_right': 'right',
   'math.pi': Math.PI, 'math.e': Math.E, 'math.phi': 1.618033988749895, 'math.rphi': 0.6180339887498949,
 };
 
@@ -114,6 +124,29 @@ const P = {
   'str.tostring': ['value', 'format'], int: ['x'], float: ['x'], bool: ['x'],
 };
 P.study = P.indicator;
+P.strategy = ['title', 'shorttitle', 'overlay', 'format', 'precision', 'scale', 'pyramiding', 'calc_on_order_fills', 'calc_on_every_tick', 'max_bars_back', 'backtest_fill_limits_assumption', 'default_qty_type', 'default_qty_value', 'initial_capital', 'currency', 'slippage', 'commission_type', 'commission_value', 'process_orders_on_close', 'close_entries_rule', 'margin_long', 'margin_short', 'explicit_plot_zorder', 'max_lines_count', 'max_labels_count', 'max_boxes_count', 'calc_bars_count', 'risk_free_rate', 'use_bar_magnifier', 'fill_orders_on_standard_ohlc', 'max_polylines_count', 'dynamic_requests', 'behind_chart'];
+P['strategy.entry'] = ['id', 'direction', 'qty', 'limit', 'stop', 'oca_name', 'oca_type', 'comment', 'alert_message', 'disable_alert'];
+P['strategy.order'] = P['strategy.entry'];
+P['strategy.exit'] = ['id', 'from_entry', 'qty', 'qty_percent', 'profit', 'limit', 'loss', 'stop', 'trail_price', 'trail_points', 'trail_offset', 'oca_name', 'comment', 'comment_profit', 'comment_loss', 'comment_trailing', 'alert_message', 'alert_profit', 'alert_loss', 'alert_trailing', 'disable_alert'];
+P['strategy.close'] = ['id', 'comment', 'qty', 'qty_percent', 'alert_message', 'immediately', 'disable_alert'];
+P['strategy.close_all'] = ['comment', 'alert_message', 'immediately', 'disable_alert'];
+P['strategy.cancel'] = ['id']; P['strategy.cancel_all'] = [];
+P['request.security'] = ['symbol', 'timeframe', 'expression', 'gaps', 'lookahead', 'ignore_invalid_symbol', 'currency', 'calc_bars_count'];
+P['request.financial'] = ['symbol', 'financial_id', 'period', 'gaps', 'ignore_invalid_symbol', 'currency'];
+P['input.symbol'] = ['defval', 'title', 'tooltip', 'inline', 'group', 'confirm', 'display'];
+P['input.timeframe'] = ['defval', 'title', 'options', 'tooltip', 'inline', 'group', 'confirm', 'display'];
+P['ta.pivothigh'] = null; P['ta.pivotlow'] = null; // (source, left, right) or (left, right)
+P['ta.dmi'] = ['diLength', 'adxSmoothing'];
+P['label.new'] = ['x', 'y', 'text', 'xloc', 'yloc', 'color', 'style', 'textcolor', 'size', 'textalign', 'tooltip', 'text_font_family'];
+P['label.delete'] = ['id'];
+for (const t of ['float', 'int', 'bool', 'string', 'color']) P['array.new_' + t] = ['size', 'initial_value'];
+for (const f of ['push', 'unshift', 'includes', 'indexof']) P['array.' + f] = ['id', 'value'];
+for (const f of ['pop', 'shift', 'size', 'clear', 'first', 'last', 'avg', 'sum']) P['array.' + f] = ['id'];
+P['array.max'] = ['id', 'nth']; P['array.min'] = ['id', 'nth'];
+P['array.get'] = ['id', 'index']; P['array.remove'] = ['id', 'index'];
+P['array.set'] = ['id', 'index', 'value']; P['array.insert'] = ['id', 'index', 'value'];
+P['str.format'] = null;
+const SUPPORTED_LABEL = new Set(['label.new', 'label.delete']);
 
 /** Map positional + named argument nodes onto a builtin's parameter order. */
 function argNodes(node, params) {
@@ -145,6 +178,7 @@ export function compile(source) {
     return { ast: null, diagnostics };
   }
   const declared = new Set();
+  let usesArrays = false, usesLabels = false;
   const funcs = new Map();
   let header = null;
   const walkDecl = (stmts) => {
@@ -169,11 +203,15 @@ export function compile(source) {
     switch (n.k) {
       case K.Call: {
         const name = n.name;
-        if (name === 'strategy' || name.startsWith('strategy.')) err(n, 'strategy() scripts are out of scope here: Trilens charts indicators only, with no order simulation. Use indicator().');
-        else if (name === 'library') err(n, 'library() scripts are not supported; paste the functions into your indicator.');
-        else if (name.startsWith('request.')) err(n, `${name}() is not supported: scripts run on the chart's own bars only.`);
-        else if (name.startsWith('line.') || name.startsWith('label.') || name.startsWith('box.') || name.startsWith('table.') || name.startsWith('array.') || name.startsWith('matrix.') || name.startsWith('map.')) err(n, `${name}() is not supported yet (drawing objects and collections are a later milestone).`);
-        else if (name === 'indicator' || name === 'study') { if (header) err(n, 'Only one indicator() call is allowed'); header = n; }
+        if (name === 'library') err(n, 'library() scripts are not supported; paste the functions into your indicator.');
+        else if (name.startsWith('request.') && name !== 'request.security' && name !== 'request.financial') err(n, `${name}() is not supported: scripts run on the chart's own bars.`);
+        else if (name.startsWith('line.') || name.startsWith('box.') || name.startsWith('table.') || name.startsWith('matrix.') || name.startsWith('map.') || (name.startsWith('label.') && !SUPPORTED_LABEL.has(name)) || (name.startsWith('array.') && !(name in P))) err(n, `${name}() is not supported yet.`);
+        else if (name === 'indicator' || name === 'study' || name === 'strategy') { if (header) err(n, 'Only one indicator() or strategy() call is allowed'); header = n; }
+        else if (name.startsWith('strategy.') && !(name in P)) err(n, `${name}() is not supported.`);
+        if (name === 'strategy') warn(n, 'strategy() runs as signals: entries and exits are marked on the chart, with no orders, equity or performance report.');
+        if (name === 'request.financial') warn(n, 'request.financial() has no data here and returns na: there is no free source of company financials.');
+        if (name.startsWith('array.')) usesArrays = true;
+        if (name === 'label.new') usesLabels = true;
         else if (!(name in P) && !funcs.has(name) && !BUILTIN_FNS.has(name)) err(n, `Unknown function '${name}'`);
         if (name === 'fill') warn(n, 'fill() is ignored for now: the area between plots is not shaded.');
         n.args.forEach(visit); Object.values(n.named).forEach(visit);
@@ -192,12 +230,14 @@ export function compile(source) {
     }
   };
   visit(ast.body);
-  if (!header) diagnostics.push({ severity: 'error', line: 1, col: 1, message: 'Missing indicator("Title") declaration. Every script needs one (study() also works).' });
+  if (!header) diagnostics.push({ severity: 'error', line: 1, col: 1, message: 'Missing indicator("Title") declaration. Every script needs one (study() and strategy() also work).' });
+  if (ast) { ast.usesArrays = usesArrays; ast.usesLabels = usesLabels; ast.usesStrategy = !!header && header.name === 'strategy'; }
   return { ast: diagnostics.some((d) => d.severity === 'error') ? null : ast, diagnostics };
 }
 
 const BUILTIN_FNS = new Set(['ta.tr', 'math.max', 'math.min', 'math.avg', 'plotchar']);
-const BUILTIN_VARS = new Set(['timeframe.period', 'timeframe.multiplier', 'timeframe.isintraday', 'timeframe.isdaily', 'timeframe.isweekly', 'timeframe.ismonthly', 'syminfo.ticker', 'syminfo.tickerid', 'syminfo.mintick', 'barstate.islast', 'barstate.isfirst', 'barstate.isconfirmed', 'barstate.isrealtime', 'barstate.ishistory', 'barstate.isnew']);
+const STRATEGY_VARS = ['strategy.position_size', 'strategy.position_avg_price', 'strategy.equity', 'strategy.initial_capital', 'strategy.opentrades', 'strategy.closedtrades', 'strategy.netprofit', 'strategy.openprofit', 'strategy.wintrades', 'strategy.losstrades'];
+const BUILTIN_VARS = new Set(['timeframe.period', 'timeframe.multiplier', 'timeframe.isintraday', 'timeframe.isdaily', 'timeframe.isweekly', 'timeframe.ismonthly', 'syminfo.ticker', 'syminfo.tickerid', 'syminfo.mintick', 'barstate.islast', 'barstate.isfirst', 'barstate.isconfirmed', 'barstate.isrealtime', 'barstate.ishistory', 'barstate.isnew', 'syminfo.timezone', 'syminfo.currency', 'syminfo.type', ...STRATEGY_VARS]);
 
 // ------------------------------------------------------------------------------------------
 // Run
@@ -342,6 +382,16 @@ export function createSession(ast, opts = {}) {
       case 'barstate.isrealtime': return i === n - 1 && !!opts.realtime;
       case 'barstate.ishistory': return !(i === n - 1 && opts.realtime);
       case 'barstate.isnew': return true;
+      case 'syminfo.timezone': return 'Etc/UTC';
+      case 'syminfo.currency': return 'USD';
+      case 'syminfo.type': return 'futures';
+      case 'strategy.position_size': return strat().pos;
+      case 'strategy.position_avg_price': return strat().pos ? strat().avg : NaN;
+      case 'strategy.equity': case 'strategy.initial_capital': return strat().capital;
+      case 'strategy.opentrades': return strat().pos ? strat().count : 0;
+      case 'strategy.closedtrades': return strat().closed;
+      case 'strategy.netprofit': case 'strategy.openprofit': return 0;
+      case 'strategy.wintrades': case 'strategy.losstrades': return 0;
       default: return undefined;
     }
   };
@@ -553,6 +603,7 @@ export function createSession(ast, opts = {}) {
         else if (type === 'color' && toHex8(ov)) def.value = toHex8(ov);
         else if (type === 'string' && typeof ov === 'string' && (!def.options || def.options.includes(ov))) def.value = ov;
         else if (type === 'source' && SOURCE_NAMES.includes(ov)) def.value = ov;
+        else if ((type === 'symbol' || type === 'timeframe') && typeof ov === 'string') def.value = ov;
       }
       inputs.push(def);
       inputBySite.set(node.id, def);
@@ -563,6 +614,141 @@ export function createSession(ast, opts = {}) {
   // Builtin handlers, looked up once per call site (a string switch here costs ~90 compares/call).
   const H = new Map();
   const def = (names, fn) => { for (const nm of names) H.set(nm, fn); };
+    def(['strategy'], (name, node, ctx, path, an, a) => {
+      if (i === 0) {
+        meta.title = typeof a[0] === 'string' ? a[0] : 'Strategy';
+        meta.shorttitle = typeof a[1] === 'string' ? a[1] : '';
+        meta.overlay = a[2] === true;
+        meta.format = typeof a[3] === 'string' ? a[3] : 'price';
+        meta.precision = Number.isFinite(num(a[4])) ? num(a[4]) : null;
+        meta.strategy = true;
+        const st = strat();
+        st.pyramiding = Math.max(1, Number.isFinite(num(a[6])) ? num(a[6]) : 1);
+        st.onClose = a[18] === true;
+        st.capital = Number.isFinite(num(a[13])) ? num(a[13]) : 100000;
+      }
+      return NaN;
+    });
+    def(['strategy.entry', 'strategy.order'], (name, node, ctx, path, an, a) => {
+      const dir = a[1] === 'short' ? -1 : 1;
+      const order = { kind: 'entry', id: String(a[0] ?? ''), dir, comment: typeof a[7] === 'string' ? a[7] : String(a[0] ?? 'Entry'), limit: num(a[3]), stop: num(a[4]) };
+      const st = strat();
+      if (st.onClose && Number.isNaN(order.limit) && Number.isNaN(order.stop)) fill(st, order, bars.close[i], i);
+      else { st.pending = st.pending.filter((o) => !(o.kind === 'entry' && o.id === order.id)); st.pending.push(order); }
+      return NaN;
+    });
+    def(['strategy.exit'], (name, node, ctx, path, an, a) => {
+      const st = strat();
+      const ex = { id: String(a[0] ?? ''), from: a[1] === undefined ? '' : String(a[1]), stop: num(a[7]), limit: num(a[5]), comment: typeof a[12] === 'string' ? a[12] : String(a[0] ?? 'Exit') };
+      if (Number.isNaN(ex.stop) && Number.isFinite(num(a[6])) && st.pos) ex.stop = st.avg - Math.sign(st.pos) * num(a[6]) * sym.mintick;
+      if (Number.isNaN(ex.limit) && Number.isFinite(num(a[4])) && st.pos) ex.limit = st.avg + Math.sign(st.pos) * num(a[4]) * sym.mintick;
+      st.exits = st.exits.filter((x) => x.id !== ex.id);
+      st.exits.push(ex);
+      return NaN;
+    });
+    def(['strategy.close', 'strategy.close_all'], (name, node, ctx, path, an, a) => {
+      const st = strat();
+      const comment = name === 'strategy.close' ? (typeof a[1] === 'string' ? a[1] : 'Close') : (typeof a[0] === 'string' ? a[0] : 'Close all');
+      if (!st.pos) return NaN;
+      const immediately = name === 'strategy.close' ? a[5] === true : a[2] === true;
+      if (st.onClose || immediately) flat(st, bars.close[i], i, comment);
+      else st.pending.push({ kind: 'close', comment });
+      return NaN;
+    });
+    def(['strategy.cancel', 'strategy.cancel_all'], (name, node, ctx, path, an, a) => {
+      const st = strat();
+      st.pending = name === 'strategy.cancel_all' ? [] : st.pending.filter((o) => o.id !== String(a[0]));
+      return NaN;
+    });
+    def(['request.financial'], () => NaN);
+    def(['input.symbol'], (name, node, ctx, path, an, a) => registerInput(node, 'symbol', a, String(a[0] ?? '')));
+    def(['input.timeframe'], (name, node, ctx, path, an, a) => registerInput(node, 'timeframe', a, String(a[0] ?? '')));
+    def(['ta.pivothigh', 'ta.pivotlow'], (name, node, ctx, path, an, a) => {
+      const two = a.length === 2;
+      const left = lenArg(two ? a[0] : a[1], 'leftbars', node), right = Math.max(0, intArg(two ? a[1] : a[2], 'rightbars', node));
+      const v = two ? (name === 'ta.pivothigh' ? bars.high[i] : bars.low[i]) : num(a[0]);
+      const w = stateFor(path, node, () => new TA.Window(left + right + 1));
+      w.push(v);
+      if (!w.full()) return NaN;
+      const c = w.get(right);
+      if (Number.isNaN(c)) return NaN;
+      const hi = name === 'ta.pivothigh';
+      for (let k = 0; k < left + right + 1; k++) {
+        if (k === right) continue;
+        const x = w.get(k);
+        if (Number.isNaN(x)) return NaN;
+        // strictly beyond the bars on the left; at least equal to those on the right
+        if (k > right ? (hi ? x >= c : x <= c) : (hi ? x > c : x < c)) return NaN;
+      }
+      return c;
+    });
+    def(['ta.dmi'], (name, node, ctx, path, an, a) => {
+      const len = lenArg(a[0], 'diLength', node), sm = lenArg(a[1], 'adxSmoothing', node);
+      const st = stateFor(path, node, () => ({ tr: new TA.TrueRange(), rtr: TA.rma(len), rp: TA.rma(len), rm: TA.rma(len), adx: TA.rma(sm), ph: NaN, pl: NaN }));
+      const up = bars.high[i] - st.ph, dn = st.pl - bars.low[i];
+      st.ph = bars.high[i]; st.pl = bars.low[i];
+      const tr = st.rtr.next(st.tr.next(bars.high[i], bars.low[i], bars.close[i], true));
+      if (Number.isNaN(up)) return [NaN, NaN, NaN];
+      const plus = 100 * st.rp.next(up > dn && up > 0 ? up : 0) / tr;
+      const minus = 100 * st.rm.next(dn > up && dn > 0 ? dn : 0) / tr;
+      const sum = plus + minus;
+      const adx = 100 * st.adx.next(Math.abs(plus - minus) / (sum === 0 ? 1 : sum));
+      return [plus, minus, adx];
+    });
+    def(['label.new'], (name, node, ctx, path, an, a) => {
+      const st = labelsState();
+      const x = a[3] === 'bar_time' ? barIndexOfTime(num(a[0])) : Math.round(num(a[0]));
+      let y = num(a[1]);
+      if (a[4] === 'abovebar') y = bars.high[Math.min(Math.max(0, x), n - 1)];
+      if (a[4] === 'belowbar') y = bars.low[Math.min(Math.max(0, x), n - 1)];
+      const l = { id: ++st.seq, x, y, text: a[2] === undefined || isNa(a[2]) ? '' : String(a[2]), style: typeof a[6] === 'string' ? a[6] : 'labeldown', color: toHex8(a[5]) || '#2962ffff', created: i, deletedAt: -1 };
+      st.list.push(l);
+      if (st.list.length > 500) st.list.shift();
+      return l.id;
+    });
+    def(['label.delete'], (name, node, ctx, path, an, a) => {
+      const id = num(a[0]);
+      if (Number.isNaN(id)) return NaN;
+      const l = labelsState().list.find((q) => q.id === id);
+      if (l && l.deletedAt < 0) l.deletedAt = i;
+      return NaN;
+    });
+    // arrays (reference values; scripts using them re-run in full on each update, see pine.worker.js)
+    def(['array.new_float', 'array.new_int', 'array.new_bool', 'array.new_string', 'array.new_color'], (name, node, ctx, path, an, a) => {
+      const size = a[0] === undefined ? 0 : Math.max(0, intArg(a[0], 'size', node));
+      const init = a[1] === undefined ? (name === 'array.new_bool' ? false : NaN) : a[1];
+      return Object.assign(new Array(size).fill(init), { __pineArray: true });
+    });
+    const arr = (v, node) => { if (!Array.isArray(v)) throw new PineRuntimeError('Array is na (was it created with array.new_*?)', node.line, node.col); return v; };
+    const idx = (A, v, node) => {
+      let k = intArg(v, 'index', node);
+      if (k < 0) k += A.length;
+      if (k < 0 || k >= A.length) throw new PineRuntimeError(`Index ${num(v)} is out of bounds: the array has ${A.length} elements`, node.line, node.col);
+      return k;
+    };
+    def(['array.push'], (name, node, ctx, path, an, a) => { arr(a[0], node).push(a[1]); return NaN; });
+    def(['array.unshift'], (name, node, ctx, path, an, a) => { arr(a[0], node).unshift(a[1]); return NaN; });
+    def(['array.pop'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); if (!A.length) throw new PineRuntimeError('Cannot pop from an empty array', node.line, node.col); return A.pop(); });
+    def(['array.shift'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); if (!A.length) throw new PineRuntimeError('Cannot shift an empty array', node.line, node.col); return A.shift(); });
+    def(['array.get'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); return A[idx(A, a[1], node)]; });
+    def(['array.set'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); A[idx(A, a[1], node)] = a[2]; return NaN; });
+    def(['array.insert'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); A.splice(Math.max(0, Math.min(A.length, intArg(a[1], 'index', node))), 0, a[2]); return NaN; });
+    def(['array.remove'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); return A.splice(idx(A, a[1], node), 1)[0]; });
+    def(['array.size'], (name, node, ctx, path, an, a) => (Array.isArray(a[0]) ? a[0].length : NaN));
+    def(['array.clear'], (name, node, ctx, path, an, a) => { arr(a[0], node).length = 0; return NaN; });
+    def(['array.first'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); return A.length ? A[0] : NaN; });
+    def(['array.last'], (name, node, ctx, path, an, a) => { const A = arr(a[0], node); return A.length ? A[A.length - 1] : NaN; });
+    def(['array.includes'], (name, node, ctx, path, an, a) => arr(a[0], node).some((x) => x === a[1] || (typeof x === 'number' && typeof a[1] === 'number' && num(x) === num(a[1]))));
+    def(['array.indexof'], (name, node, ctx, path, an, a) => arr(a[0], node).findIndex((x) => x === a[1]));
+    const finite = (A) => A.map(num).filter((x) => !Number.isNaN(x));
+    def(['array.max', 'array.min'], (name, node, ctx, path, an, a) => {
+      const v = finite(arr(a[0], node)).sort((x, y) => (name === 'array.max' ? y - x : x - y));
+      const nth = a[1] === undefined ? 0 : intArg(a[1], 'nth', node);
+      return nth < v.length ? v[nth] : NaN;
+    });
+    def(['array.sum'], (name, node, ctx, path, an, a) => { const v = finite(arr(a[0], node)); return v.length ? v.reduce((x, y) => x + y, 0) : NaN; });
+    def(['array.avg'], (name, node, ctx, path, an, a) => { const v = finite(arr(a[0], node)); return v.length ? v.reduce((x, y) => x + y, 0) / v.length : NaN; });
+    def(['str.format'], (name, node, ctx, path, an, a) => String(a[0] ?? '').replace(/\{(\d+)[^}]*\}/g, (m, k) => strOf(a[+k + 1])));
     def(['indicator', 'study'], (name, node, ctx, path, an, a) => {
       if (i === 0) {
         meta.title = typeof a[0] === 'string' ? a[0] : 'Indicator';
@@ -922,6 +1108,7 @@ export function createSession(ast, opts = {}) {
     const fn = funcs.get(name);
     if (fn) return callUser(fn, node, ctx, path);
 
+    if (name === 'request.security') return security(node, ctx, path);
     // input.source needs the *name* of its default series, so handle it before evaluating args
     if (name === 'input.source') {
       const an = argNodes(node, P[name]);
@@ -938,6 +1125,120 @@ export function createSession(ast, opts = {}) {
     const h = H.get(name);
     if (!h) throw new PineRuntimeError(`Function '${name}' is not available`, node.line, node.col);
     return h(name, node, ctx, path, an, a);
+  }
+
+
+  // ---------------- strategy() as signals ----------------
+  // A strategy script runs like an indicator plus a position flag: market orders fill at the next
+  // bar's open (or this bar's close with process_orders_on_close), stop/limit exits are checked
+  // against each bar's range, and every fill becomes a marker. No equity, P&L or trade list.
+  const strat = () => {
+    let st = states.get('__strategy');
+    if (!st) { st = { pos: 0, avg: NaN, count: 0, closed: 0, pending: [], exits: [], pyramiding: 1, onClose: false, capital: 100000 }; states.set('__strategy', st); }
+    return st;
+  };
+  let entryShape = null, exitShape = null;
+  function mark(kind, k, price, text) {
+    if (kind === 'entry' && !entryShape) { entryShape = { title: 'Strategy entries', style: 'arrowup', location: 'belowbar', color: '#2fcb92ff', size: 'normal', text: '', points: [] }; shapes.push(entryShape); }
+    if (kind === 'exit' && !exitShape) { exitShape = { title: 'Strategy exits', style: 'arrowdown', location: 'abovebar', color: '#ff9800ff', size: 'normal', text: '', points: [] }; shapes.push(exitShape); }
+    const sh = kind === 'entry' ? entryShape : exitShape;
+    sh.points.push({ i: k, price, color: sh.color, text });
+  }
+  function fill(st, o, price, k) {
+    if (st.pos && Math.sign(st.pos) !== o.dir) flat(st, price, k, 'Reverse');
+    if (st.pos && st.count >= st.pyramiding) return;
+    st.avg = st.count ? (st.avg * st.count + price) / (st.count + 1) : price;
+    st.count++;
+    st.pos = st.count * o.dir;
+    mark('entry', k, price, o.comment);
+  }
+  function flat(st, price, k, comment) {
+    if (!st.pos) return;
+    mark('exit', k, price, comment);
+    st.pos = 0; st.count = 0; st.avg = NaN; st.exits = []; st.closed++;
+  }
+  function processOrders(k) {
+    const st = strat();
+    const O = bars.open[k], H = bars.high[k], L = bars.low[k];
+    const keep = [];
+    for (const o of st.pending) {
+      if (o.kind === 'close') { flat(st, O, k, o.comment); continue; }
+      const hasStop = !Number.isNaN(o.stop), hasLimit = !Number.isNaN(o.limit);
+      if (!hasStop && !hasLimit) { fill(st, o, O, k); continue; }
+      if (hasStop && (o.dir > 0 ? H >= o.stop : L <= o.stop)) { fill(st, o, o.dir > 0 ? Math.max(O, o.stop) : Math.min(O, o.stop), k); continue; }
+      if (hasLimit && (o.dir > 0 ? L <= o.limit : H >= o.limit)) { fill(st, o, o.dir > 0 ? Math.min(O, o.limit) : Math.max(O, o.limit), k); continue; }
+      keep.push(o); // unfilled stop/limit entries wait, as in TradingView
+    }
+    st.pending = keep;
+    if (!st.pos) return;
+    const long = st.pos > 0;
+    for (const ex of st.exits) {
+      if (!Number.isNaN(ex.stop) && (long ? L <= ex.stop : H >= ex.stop)) { flat(st, long ? Math.min(O, ex.stop) : Math.max(O, ex.stop), k, ex.comment); return; }
+      if (!Number.isNaN(ex.limit) && (long ? H >= ex.limit : L <= ex.limit)) { flat(st, long ? Math.max(O, ex.limit) : Math.min(O, ex.limit), k, ex.comment); return; }
+    }
+  }
+
+  // ---------------- labels ----------------
+  const labels = { seq: 0, list: [] };
+  const labelsState = () => labels;
+  function barIndexOfTime(ms) {
+    const t = ms / 1000; let lo = 0, hi = n - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (bars.time[mid] <= t) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
+
+  // ---------------- request.security: this symbol, higher timeframes ----------------
+  // Higher-timeframe bars are built from the chart's own bars. Timing follows TradingView's
+  // non-repainting rule for lookahead_off: on historical bars a value appears on the chart bar
+  // that closes its higher-timeframe bar and holds until the next one closes; on the live bar it
+  // shows the forming higher-timeframe bar.
+  const runWarnings = new Map();
+  const warnOnce = (node, message) => { if (!runWarnings.has(node.id)) runWarnings.set(node.id, { severity: 'warning', line: node.line, col: node.col, message }); };
+  const TF_ALIAS = { D: '1D', '1D': '1D', W: '1W', '1W': '1W', M: '1M', '1M': '1M', '3M': '3M', '3D': '3D' };
+  const tfOf = (v) => (typeof v === 'string' ? TIMEFRAMES.find((t) => t.pine === v.trim() || t.id === (TF_ALIAS[v.trim()] || v.trim())) : null);
+  const aggs = new Map();
+  const secVals = new Map();
+  function security(node, ctx, path) {
+    const an = node._an || (node._an = argNodes(node, P['request.security']));
+    const symV = an[0] ? ev(an[0], ctx, path) : sym.ticker;
+    const tfV = an[1] ? ev(an[1], ctx, path) : tf.period;
+    const expr = an[2];
+    if (!expr) throw new PineRuntimeError('request.security() needs an expression', node.line, node.col);
+    const naV = expr.k === K.Tuple ? expr.items.map(() => NaN) : NaN;
+    if (typeof symV === 'string' && symV && symV !== sym.ticker) {
+      warnOnce(node, `request.security() for "${symV}" returns na: only this chart's own contract has data here.`);
+      return naV;
+    }
+    const T = tfOf(tfV);
+    if (!T || T.sec <= tf.seconds) return ev(expr, ctx, path); // same or lower timeframe: the chart's own bars
+    let agg = aggs.get(T.id);
+    if (!agg) { agg = { starts: [], time: [], open: [], high: [], low: [], close: [], volume: [], last: -1 }; aggs.set(T.id, agg); }
+    for (let j = agg.last + 1; j <= i; j++) {
+      const b = bucketStart(bars.time[j], T);
+      if (!agg.time.length || b !== agg.time[agg.time.length - 1]) { agg.starts.push(j); agg.time.push(b); }
+    }
+    if (i > agg.last) agg.last = i;
+    let lo = 0, hi = agg.starts.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (agg.starts[mid] <= i) lo = mid; else hi = mid - 1; }
+    const k = lo;
+    const key = 'sec' + node.id + (path ? '@' + path : '');
+    let vals = secVals.get(key);
+    if (!vals) { vals = []; secVals.set(key, vals); }
+    const complete = i + 1 < n && bucketStart(bars.time[i + 1], T) !== agg.time[k];
+    if (!complete && i < n - 1) return k > 0 && vals[k - 1] !== undefined ? vals[k - 1] : naV;
+    // aggregate bucket k from its first chart bar up to this one
+    const s0 = agg.starts[k];
+    let o = bars.open[s0], hh = bars.high[s0], ll = bars.low[s0], vv = 0;
+    for (let j = s0; j <= i; j++) { if (bars.high[j] > hh) hh = bars.high[j]; if (bars.low[j] < ll) ll = bars.low[j]; vv += bars.volume[j]; }
+    agg.open[k] = o; agg.high[k] = hh; agg.low[k] = ll; agg.close[k] = bars.close[i]; agg.volume[k] = vv;
+    const saved = { bars, i, n };
+    bars = { time: agg.time, open: agg.open, high: agg.high, low: agg.low, close: agg.close, volume: agg.volume, length: k + 1 };
+    i = k; n = k + 1;
+    let v;
+    try { v = ev(expr, global, key); }
+    finally { bars = saved.bars; i = saved.i; n = saved.n; }
+    if (complete) vals[k] = v;
+    return v;
   }
 
   // ---------------- bar execution ----------------
@@ -962,7 +1263,9 @@ export function createSession(ast, opts = {}) {
     if (bg) bg[k] = null;
     if (barColors) barColors[k] = null;
     for (const sh of shapes) while (sh.points.length && sh.points[sh.points.length - 1].i >= k) sh.points.pop();
-    for (const h of siteHist.values()) if (h.length > k) h[k] = undefined;
+    for (const [key, h] of siteHist) if (h.length > k && !key.startsWith('sec')) h[k] = undefined; // 'sec…' buffers are indexed by higher-timeframe bar
+    labels.list = labels.list.filter((l) => l.created < k);
+    for (const l of labels.list) if (l.deletedAt >= k) l.deletedAt = -1;
   }
 
   function execBar(k) {
@@ -972,6 +1275,7 @@ export function createSession(ast, opts = {}) {
       s.hist[k] = s.isVar && k > 0 ? s.hist[k - 1] : NaN;
     }
     callDepth = 0;
+    if (ast.usesStrategy) processOrders(k);
     for (const stmt of ast.body) {
       const r = exec(stmt, global, '');
       if (r === BREAK || r === CONTINUE) throw new PineRuntimeError('break/continue used outside a loop', stmt.line, stmt.col);
@@ -998,7 +1302,11 @@ export function createSession(ast, opts = {}) {
     const cut = (a) => (copy ? a.slice(0, n) : a.subarray(0, n));
     return {
       plots: plots.map((p) => ({ ...p, values: cut(p.values), colors: p.colors ? p.colors.slice(0, n) : null })),
-      shapes: shapes.map((sh) => ({ ...sh, points: copy ? sh.points.slice() : sh.points })),
+      shapes: [
+        ...shapes.map((sh) => ({ ...sh, points: copy ? sh.points.slice() : sh.points })),
+        ...(labels.list.length ? [{ title: 'Labels', style: 'labeldown', location: 'absolute', color: '#2962ffff', size: 'normal', text: '',
+          points: labels.list.filter((l) => l.deletedAt < 0 && l.x >= 0 && l.x < n).map((l) => ({ i: l.x, price: l.y, color: l.color, text: l.text, style: l.style })) }] : []),
+      ],
       alertconds: alertconds.map((ac) => ({ ...ac, at: cut(ac.at) })),
       bgcolors: bg ? bg.slice(0, n) : null,
       barcolors: barColors ? barColors.slice(0, n) : null,
@@ -1046,7 +1354,7 @@ export function createSession(ast, opts = {}) {
         ok: !error,
         meta, inputs, hlines,
         ...out(copy),
-        diagnostics,
+        diagnostics: [...runWarnings.values(), ...diagnostics],
         bars: n,
         ran,
         ms: Math.round(((typeof performance !== 'undefined' ? performance : Date).now() - t0) * 10) / 10,

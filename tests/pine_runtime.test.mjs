@@ -120,7 +120,8 @@ test('compile errors carry line numbers', () => {
   assert.match(syn.diagnostics[0].message, /Syntax error/);
 
   const strat = compile('strategy("s")\nplot(close)');
-  assert.match(strat.diagnostics[0].message, /out of scope/);
+  assert.ok(strat.ast, 'strategy() scripts compile');
+  assert.match(strat.diagnostics[0].message, /runs as signals/);
 
   const missing = compile('plot(close)');
   assert.match(missing.diagnostics[0].message, /Missing indicator/);
@@ -239,4 +240,62 @@ test('incremental: a session that hit a runtime error stays broken', () => {
   assert.equal(sess.update(slice(130)).ok, false);
   assert.equal(sess.broken, true);
   assert.equal(sess.update(slice(131)).ok, false);
+});
+
+// ---------------------------------------------------------------- strategy signals, HTF, pivots, arrays, labels
+test('strategy(): market entry fills next bar open, stop exit at the stop, markers carry comments', () => {
+  const src = 'strategy("s", overlay=true)\nif bar_index == 10\n    strategy.entry("L", strategy.long, comment="GO")\nif strategy.position_size > 0\n    strategy.exit("X", "L", stop=low[1] - 1000000, limit=high * 100, comment="OUT")\nif bar_index == 20\n    strategy.close("L", comment="TIME")\nplot(strategy.position_size)';
+  const r = exec(src);
+  const ent = r.shapes.find((s) => s.title === 'Strategy entries'), ext = r.shapes.find((s) => s.title === 'Strategy exits');
+  assert.deepEqual(ent.points.map((p) => [p.i, p.price, p.text]), [[11, bars.open[11], 'GO']]);
+  assert.deepEqual(ext.points.map((p) => [p.i, p.price, p.text]), [[21, bars.open[21], 'TIME']]);
+  assert.equal(r.plots[0].values[10], 0); assert.equal(r.plots[0].values[11], 1); assert.equal(r.plots[0].values[21], 0);
+  // a stop that is hit exits at the stop price
+  const s2 = exec('strategy("s2", overlay=true)\nif bar_index == 5\n    strategy.entry("L", strategy.long)\nif strategy.position_size > 0\n    strategy.exit("X", "L", stop=strategy.position_avg_price * 1.5)\nplot(close)');
+  const ex2 = s2.shapes.find((s) => s.title === 'Strategy exits').points[0];
+  // entry fills at bar 6's open; the exit placed on bar 6 is live from bar 7, as in TradingView
+  assert.equal(ex2.i, 7); // stop above price: hit on the first bar it is active
+  assert.equal(ex2.price, bars.open[7]); // already through the stop at the open: filled at the open
+});
+
+test('request.security on this symbol: weekly value appears when the week closes and holds (no repaint)', () => {
+  // hourly bars from makeBars(): 24 per day; use a daily request on them
+  const r = exec('indicator("h")\nd = request.security(syminfo.tickerid, "D", close)\nplot(d)', { timeframe: { period: '60', seconds: 3600 }, symbol: { ticker: 'X', mintick: 0.01 } });
+  const v = r.plots[0].values, t = bars.time;
+  const dayOf = (x) => Math.floor(x / 86400);
+  for (let i = 1; i < bars.length - 1; i++) {
+    const lastOfDay = dayOf(t[i + 1]) !== dayOf(t[i]);
+    if (lastOfDay) assert.equal(v[i], C[i], `bar ${i}: daily close appears on the day's last bar`);
+    else if (!Number.isNaN(v[i])) {
+      // otherwise it is the previous day's close
+      let j = i; while (j >= 0 && dayOf(t[j]) === dayOf(t[i])) j--;
+      assert.equal(v[i], C[j], `bar ${i}: holds the previous day's close`);
+    }
+  }
+  const other = run(compile('indicator("o")\nx = request.security("SPY", "D", close)\nplot(x)').ast, bars, {});
+  assert.ok(Number.isNaN(other.plots[0].values[100]));
+  assert.match(other.diagnostics.find((d) => d.severity === 'warning').message, /only this chart's own contract/);
+});
+
+test('ta.pivothigh / ta.pivotlow mark the bar `right` bars after the pivot', () => {
+  const r = exec('indicator("p")\nplot(ta.pivothigh(high, 3, 2))\nplot(ta.pivotlow(3, 2))');
+  const H = Array.from(bars.high), L = Array.from(bars.low);
+  for (let i = 5; i < H.length; i++) {
+    const c = i - 2;
+    const isHi = H.slice(c - 3, c).every((x) => x < H[c]) && H.slice(c + 1, c + 3).every((x) => x <= H[c]);
+    const isLo = L.slice(c - 3, c).every((x) => x > L[c]) && L.slice(c + 1, c + 3).every((x) => x >= L[c]);
+    assert.equal(Number.isNaN(r.plots[0].values[i]) ? null : r.plots[0].values[i], isHi ? H[c] : null, `pivot high at ${i}`);
+    assert.equal(Number.isNaN(r.plots[1].values[i]) ? null : r.plots[1].values[i], isLo ? L[c] : null, `pivot low at ${i}`);
+  }
+});
+
+test('arrays, typed declarations and labels', () => {
+  const r = exec('indicator("a")\nvar float[] xs = array.new_float(0)\narray.push(xs, close)\nif array.size(xs) > 5\n    array.shift(xs)\nplot(array.avg(xs))\nplot(array.get(xs, -1))\nvar label lb = na\nif barstate.islast\n    label.delete(lb)\n    lb := label.new(bar_index, high, "last " + str.tostring(close, "#.##"))');
+  const ref = C.map((_, i) => (i < 4 ? NaN : C.slice(Math.max(0, i - 4), i + 1).reduce((a, b) => a + b, 0) / Math.min(5, i + 1)));
+  for (let i = 10; i < C.length; i++) assert.ok(Math.abs(r.plots[0].values[i] - ref[i]) < 1e-9);
+  assertSeries(r.plots[1].values, C, 'array.get -1');
+  const lab = r.shapes.find((s) => s.title === 'Labels');
+  assert.equal(lab.points.length, 1);
+  assert.equal(lab.points[0].text, 'last ' + C[C.length - 1].toFixed(2));
+  assert.match(run(compile('indicator("e")\nxs = array.new_float(2)\nplot(array.get(xs, 5))').ast, bars, {}).diagnostics[0].message, /out of bounds/);
 });

@@ -348,11 +348,12 @@ export class ChartEngine {
     const t = this.buf.cols.time, n = this.buf.length, out = [];
     for (const sh of res.shapes) {
       if ((cfg.styles[sh.title] || {}).hidden) continue;
-      const [shape, defPos] = SHAPE[sh.style] || ['circle', null];
-      const pos = LOC[sh.location] || defPos || 'aboveBar';
       for (const p of sh.points) {
-        if (p.i >= n) continue;
-        const m = { time: t[p.i], shape, color: toCss((cfg.styles[sh.title] || {}).color || p.color), size: SIZE[sh.size] || 1, text: sh.text || '' };
+        if (p.i >= n || p.i < 0) continue;
+        // a point may carry its own style and text (labels, strategy fills); otherwise the shape's
+        const [shape, defPos] = SHAPE[p.style || sh.style] || ['circle', null];
+        const pos = LOC[sh.location] || defPos || 'aboveBar';
+        const m = { time: t[p.i], shape, color: toCss((cfg.styles[sh.title] || {}).color || p.color), size: SIZE[sh.size] || 1, text: p.text ?? sh.text ?? '' };
         if (sh.location === 'absolute' && Number.isFinite(p.price)) { m.position = 'atPriceMiddle'; m.price = p.price; }
         else m.position = pos;
         out.push(m);

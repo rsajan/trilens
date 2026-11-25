@@ -472,7 +472,7 @@ pre.txt { white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 ui-mon
 .cx-tfsel.on { border-color: var(--accent); color: var(--accent); }
 
 /* chart + legends */
-.cx-chart { position: relative; flex: 1 1 auto; min-height: 200px; }
+.cx-chart { position: relative; flex: 1 1 auto; min-height: 200px; overflow: hidden; } /* legends and markers never spill over the editor or watchlist */
 .cx-host, .cx-canvas { position: absolute; inset: 0; }
 .cx-legends { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 .cx-legend { position: absolute; left: 8px; top: 6px; right: 70px; font-size: 12px; line-height: 1.55; }

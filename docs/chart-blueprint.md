@@ -233,3 +233,25 @@ Details:
   are not offered.
 - Parsers are pure functions tested against the documented payloads
   (`tests/live.test.mjs`).
+
+**Pine runtime: strategy scripts and more TradingView features.** Added so TradingView
+strategy scripts run unchanged:
+- **`strategy()`:** runs as signals, with no equity, P&L or trade list.
+  - Market orders fill at the next bar's open (or the same bar's close with
+    `process_orders_on_close`).
+  - Stop/limit entries wait until touched; `strategy.exit` stops and limits are checked
+    against each bar's range from the bar after they are placed.
+  - `strategy.position_size` / `position_avg_price` reflect the open position, and every fill is
+    a marker carrying its comment.
+- **`request.security` on the chart's own symbol at a higher timeframe:** higher-timeframe bars
+  are built from the chart's bars with TradingView's non-repainting `lookahead_off` timing.
+  - On history, a value appears on the bar that closes its higher-timeframe bar and holds until
+    the next one closes; on the live bar it shows the forming bar.
+  - Other symbols and `request.financial` return `na` with a warning: there is no free data for
+    them.
+- **Also new:** `ta.pivothigh`/`ta.pivotlow`, `ta.dmi`, arrays (`float[]`, `array<float>`, and the
+  common `array.*` functions), `label.new`/`label.delete` (drawn as markers with text),
+  `input.symbol`, `input.timeframe` and `str.format`.
+- **Incremental runs:** strategy, higher-timeframe and label state all take part in the
+  forming-bar rollback, so incremental runs equal full runs. Scripts that use arrays re-run in
+  full each update, because arrays are shared references the snapshot does not copy.
