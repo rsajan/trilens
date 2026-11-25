@@ -1,12 +1,12 @@
 // Trilens service worker: app shell works offline; data is network-first with a saved fallback.
-const VERSION = 'trilens-v35';
+const VERSION = 'trilens-v36';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
   'assets/js/main.js',
   'assets/js/lib/dom.js', 'assets/js/lib/data.js', 'assets/js/lib/store.js', 'assets/js/lib/charts.js', 'assets/js/lib/md.js', 'assets/js/lib/crypto.js', 'assets/js/lib/ui.js', 'assets/js/lib/bundle.js',
   'assets/js/pages/scanner.js', 'assets/js/pages/fundamentals.js',
-  'assets/js/pages/results.js', 'assets/js/pages/scanner-results.js', 'assets/js/pages/fundamental-results.js', 'assets/js/pages/watchlists.js',
+  'assets/js/pages/results.js', 'assets/js/pages/scanner-results.js', 'assets/js/pages/fundamental-results.js', 'assets/js/pages/watchlists.js', 'assets/js/pages/tv.js',
   'assets/js/lib/crosscheck.js', 'assets/js/lib/sync.js',
   'assets/js/pages/chart.js',
   'assets/js/chart/drawings/geometry.js', 'assets/js/chart/drawings/layer.js', 'assets/js/chart/drawings/store.js', 'assets/js/chart/ui/draw-rail.js',

@@ -9,6 +9,7 @@ const NAV = [
   { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
   { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
+  { id: 'tv', label: 'TradingView', path: '#/tv', icon: 'live' },
 ];
 
 const PAGES = {
@@ -18,6 +19,7 @@ const PAGES = {
   'fundamental-results': () => import('./pages/fundamental-results.js'),
   watchlists: () => import('./pages/watchlists.js'),
   chart: () => import('./pages/chart.js'),
+  tv: () => import('./pages/tv.js'),
 };
 
 const view = $('#view');
