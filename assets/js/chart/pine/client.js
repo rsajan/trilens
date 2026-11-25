@@ -64,7 +64,7 @@ export class PineEngine {
     this.latest.set(key, id);
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject, key, started: performance.now() });
-      this.worker.postMessage({ id, type: 'run', ds, source, inputs });
+      this.worker.postMessage({ id, type: 'run', key, ds, source, inputs });
     });
   }
 

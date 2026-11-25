@@ -212,7 +212,38 @@ class Slot {
  * @param {{ inputs?: Record<string, any>, symbol?: { ticker: string, mintick: number }, timeframe?: { period: string, seconds: number }, realtime?: boolean }} opts
  */
 export function run(ast, bars, opts = {}) {
-  const n = bars.length;
+  return createSession(ast, opts).update(bars, false);
+}
+
+/** Deep copy of interpreter state (ta.* objects keep their class; typed arrays are copied). */
+function cloneDeep(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (ArrayBuffer.isView(v)) return v.slice();
+  if (Array.isArray(v)) return v.map(cloneDeep);
+  const o = Object.create(Object.getPrototypeOf(v));
+  for (const k of Object.keys(v)) o[k] = cloneDeep(v[k]);
+  return o;
+}
+
+/**
+ * A resumable run of one script over one growing series of bars, with TradingView's realtime
+ * semantics: closed bars are executed once and committed; the forming bar is re-executed from the
+ * committed state on every update ("rollback"), so a tick costs one bar, not the whole history.
+ *
+ * What a commit saves: every ta.* call-site state, plus each `var` slot's "already initialised"
+ * flag. Everything else is indexed by bar (series history, plot values, colours, alert flags), so
+ * re-running a bar simply overwrites its own index after beginBar() clears it.
+ *
+ * Contract for update(bars): `bars` is the same series as last time with the last bar possibly
+ * changed and/or new bars appended. Anything else (history prepended, a different symbol) needs
+ * a new session.
+ *
+ * @param {any} ast @param {Parameters<typeof run>[2]} opts
+ */
+export function createSession(ast, opts = {}) {
+  let n = 0;
+  /** @type {Bars} */
+  let bars = null;
   const overrides = opts.inputs || {};
   const tf = opts.timeframe || { period: '60', seconds: 3600 };
   const sym = opts.symbol || { ticker: 'SYMBOL', mintick: 0.01 };
@@ -246,6 +277,10 @@ export function run(ast, bars, opts = {}) {
   let i = 0;
   let loopOps = 0;
   let callDepth = 0;
+  let cap = 0; // allocated length of per-bar output arrays (grows with the bars)
+  let committed = -1; // bars [0, committed) are final and their end state is in `snap`
+  let snap = null;
+  let broken = false;
 
   const ctxFor = (path) => { let c = ctxs.get(path); if (!c) { c = new Map(); ctxs.set(path, c); } return c; };
   const global = ctxFor('');
@@ -254,7 +289,7 @@ export function run(ast, bars, opts = {}) {
     if (path === '') { let s = topStates[node.id]; if (!s) { s = make(); topStates[node.id] = s; } return s; }
     const k = path + ':' + node.id; let s = states.get(k); if (!s) { s = make(); states.set(k, s); } return s;
   };
-  const declare = (ctx, name, isVar) => { let s = ctx.get(name); if (!s) { s = new Slot(n, isVar); ctx.set(name, s); slots.push(s); } return s; };
+  const declare = (ctx, name, isVar) => { let s = ctx.get(name); if (!s) { s = new Slot(0, isVar); ctx.set(name, s); slots.push(s); } return s; };
   const lookup = (ctx, name) => ctx.get(name) || global.get(name);
 
   const seriesAt = (name, k) => {
@@ -328,7 +363,7 @@ export function run(ast, bars, opts = {}) {
         // history of an arbitrary expression: keep its own per-bar buffer
         const key = path + ':' + node.id;
         let h = siteHist.get(key);
-        if (!h) { h = new Array(n); siteHist.set(key, h); }
+        if (!h) { h = []; siteHist.set(key, h); }
         h[i] = ev(t, ctx, path);
         const j = i - k;
         return j >= 0 && h[j] !== undefined ? h[j] : NaN;
@@ -572,7 +607,7 @@ export function run(ast, bars, opts = {}) {
           id: plots.length, title: typeof a[1] === 'string' ? a[1] : `Plot ${plots.length + 1}`,
           style: typeof a[4] === 'string' ? a[4] : 'line', color: toHex8(a[2]) || '#2962ffff',
           linewidth: Number.isFinite(num(a[3])) ? Math.max(1, Math.min(4, num(a[3]))) : 1,
-          values: new Float64Array(n).fill(NaN), colors: null, hidden: a[11] === 'none',
+          values: new Float64Array(cap).fill(NaN), colors: null, hidden: a[11] === 'none',
           offset: Number.isFinite(num(a[7])) ? Math.round(num(a[7])) : 0,
         };
         plots.push(p);
@@ -582,7 +617,7 @@ export function run(ast, bars, opts = {}) {
       if (an[2]) {
         const c = toHex8(a[2]);
         if (c !== p.color || p.colors) {
-          if (!p.colors) p.colors = new Array(n).fill(p.color);
+          if (!p.colors) p.colors = new Array(cap).fill(p.color);
           p.colors[i] = c; // null = gap (na colour)
         }
       }
@@ -622,14 +657,14 @@ export function run(ast, bars, opts = {}) {
     def(['bgcolor'], (name, node, ctx, path, an, a) => {
       {
       const c = toHex8(a[0]);
-      if (c) { if (!bg) bg = new Array(n).fill(null); bg[i] = c; }
+      if (c) { if (!bg) bg = new Array(cap).fill(null); bg[i] = c; }
       return NaN;
       }
     });
     def(['barcolor'], (name, node, ctx, path, an, a) => {
       {
       const c = toHex8(a[0]);
-      if (c) { if (!barColors) barColors = new Array(n).fill(null); barColors[i] = c; }
+      if (c) { if (!barColors) barColors = new Array(cap).fill(null); barColors[i] = c; }
       return NaN;
       }
     });
@@ -642,7 +677,7 @@ export function run(ast, bars, opts = {}) {
       let ac = alertBySite.get(key);
       if (!ac) {
         const title = typeof a[1] === 'string' && a[1] ? a[1] : `Alert ${alertconds.length + 1}`;
-        ac = { title, message: typeof a[2] === 'string' ? a[2] : '', at: new Uint8Array(n) };
+        ac = { title, message: typeof a[2] === 'string' ? a[2] : '', at: new Uint8Array(cap) };
         alertconds.push(ac);
         alertBySite.set(key, ac);
       }
@@ -905,35 +940,117 @@ export function run(ast, bars, opts = {}) {
     return h(name, node, ctx, path, an, a);
   }
 
-  // ---------------- bar loop ----------------
-  const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
-  let error = null;
-  try {
-    for (i = 0; i < n; i++) {
-      for (let k = 0; k < slots.length; k++) {
-        const s = slots[k];
-        s.hist[i] = s.isVar && i > 0 ? s.hist[i - 1] : NaN;
-      }
-      callDepth = 0;
-      for (const stmt of ast.body) {
-        const r = exec(stmt, global, '');
-        if (r === BREAK || r === CONTINUE) throw new PineRuntimeError('break/continue used outside a loop', stmt.line, stmt.col);
-      }
+  // ---------------- bar execution ----------------
+  /** Make room for N bars in every per-bar output array. */
+  function grow(N) {
+    if (N <= cap) return;
+    const next = cap === 0 ? N : Math.ceil(N * 1.25) + 16;
+    for (const p of plots) {
+      const v = new Float64Array(next).fill(NaN); v.set(p.values.subarray(0, cap)); p.values = v;
+      if (p.colors) { const old = p.colors; p.colors = new Array(next).fill(p.color); for (let k = 0; k < cap; k++) p.colors[k] = old[k]; }
     }
-  } catch (e) {
-    const where = e && e.line ? e : null;
-    error = { severity: 'error', line: where ? where.line : 1, col: where ? where.col : 1, message: `Runtime error on bar ${i}: ${e && e.message || e}` };
-    if (!(e instanceof PineRuntimeError)) error.message += ' (internal)';
-    diagnostics.push(error);
+    for (const ac of alertconds) { const at = new Uint8Array(next); at.set(ac.at.subarray(0, cap)); ac.at = at; }
+    if (bg) for (let k = cap; k < next; k++) bg[k] = null;
+    if (barColors) for (let k = cap; k < next; k++) barColors[k] = null;
+    cap = next;
   }
 
+  /** Clear bar k's outputs, so a re-executed bar cannot keep a value from an earlier tick. */
+  function beginBar(k) {
+    for (const p of plots) { p.values[k] = NaN; if (p.colors) p.colors[k] = p.color; }
+    for (const ac of alertconds) ac.at[k] = 0;
+    if (bg) bg[k] = null;
+    if (barColors) barColors[k] = null;
+    for (const sh of shapes) while (sh.points.length && sh.points[sh.points.length - 1].i >= k) sh.points.pop();
+    for (const h of siteHist.values()) if (h.length > k) h[k] = undefined;
+  }
+
+  function execBar(k) {
+    i = k;
+    for (let q = 0; q < slots.length; q++) {
+      const s = slots[q];
+      s.hist[k] = s.isVar && k > 0 ? s.hist[k - 1] : NaN;
+    }
+    callDepth = 0;
+    for (const stmt of ast.body) {
+      const r = exec(stmt, global, '');
+      if (r === BREAK || r === CONTINUE) throw new PineRuntimeError('break/continue used outside a loop', stmt.line, stmt.col);
+    }
+  }
+
+  function snapshot() {
+    const top = new Map();
+    topStates.forEach((v, id) => { if (v !== undefined) top.set(id, cloneDeep(v)); });
+    const rest = new Map();
+    for (const [k, v] of states) rest.set(k, cloneDeep(v));
+    return { top, rest, inits: slots.map((x) => x.init) };
+  }
+
+  function restore() {
+    topStates.fill(undefined);
+    for (const [id, v] of snap.top) topStates[id] = cloneDeep(v);
+    states.clear();
+    for (const [k, v] of snap.rest) states.set(k, cloneDeep(v));
+    slots.forEach((x, q) => { x.init = q < snap.inits.length ? snap.inits[q] : false; });
+  }
+
+  const out = (copy) => {
+    const cut = (a) => (copy ? a.slice(0, n) : a.subarray(0, n));
+    return {
+      plots: plots.map((p) => ({ ...p, values: cut(p.values), colors: p.colors ? p.colors.slice(0, n) : null })),
+      shapes: shapes.map((sh) => ({ ...sh, points: copy ? sh.points.slice() : sh.points })),
+      alertconds: alertconds.map((ac) => ({ ...ac, at: cut(ac.at) })),
+      bgcolors: bg ? bg.slice(0, n) : null,
+      barcolors: barColors ? barColors.slice(0, n) : null,
+    };
+  };
+
   return {
-    ok: !error,
-    alertconds,
-    meta, inputs, plots, shapes, hlines,
-    bgcolors: bg, barcolors: barColors,
-    diagnostics,
-    bars: n,
-    ms: Math.round(((typeof performance !== 'undefined' ? performance : Date).now() - t0) * 10) / 10,
+    /** True after a runtime error: the session's state is undefined, start a new one. */
+    get broken() { return broken; },
+    /**
+     * Bring the run up to date with `nextBars` and return a result like run()'s.
+     * @param {Bars} nextBars @param {boolean} [copy] copy output arrays (needed when the session keeps running)
+     */
+    update(nextBars, copy = true) {
+      const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
+      /** @type {Diagnostic[]} */
+      const diagnostics = [];
+      bars = nextBars;
+      const N = nextBars.length;
+      let ran = 0;
+      let error = null;
+      try {
+        if (broken) throw new PineRuntimeError('This run stopped on an earlier error', 1, 1);
+        if (committed >= 0 && N - 1 < committed) throw new Error('bars went backwards: start a new session');
+        n = N;
+        grow(N);
+        loopOps = 0;
+        if (N > 0) {
+          if (committed < 0) committed = 0;
+          else restore();
+          // bars that closed since the last update: execute them for good and commit
+          for (let k = committed; k < N - 1; k++) { beginBar(k); execBar(k); ran++; }
+          if (!snap || N - 1 > committed) { snap = snapshot(); committed = N - 1; }
+          // the forming bar runs on a scratch copy of the committed state
+          beginBar(N - 1); execBar(N - 1); ran++;
+        }
+      } catch (e) {
+        broken = true;
+        const where = e && e.line ? e : null;
+        error = { severity: 'error', line: where ? where.line : 1, col: where ? where.col : 1, message: `Runtime error on bar ${i}: ${e && e.message || e}` };
+        if (!(e instanceof PineRuntimeError)) error.message += ' (internal)';
+        diagnostics.push(error);
+      }
+      return {
+        ok: !error,
+        meta, inputs, hlines,
+        ...out(copy),
+        diagnostics,
+        bars: n,
+        ran,
+        ms: Math.round(((typeof performance !== 'undefined' ? performance : Date).now() - t0) * 10) / 10,
+      };
+    },
   };
 }

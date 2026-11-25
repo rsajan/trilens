@@ -56,10 +56,18 @@ mostly use; anything else fails at compile time with a clear message rather than
   `switch`, `line./label./box./table.`, `array./matrix./map.`, `fill()` (ignored with a warning),
   `alertcondition()` (ignored; alerts are M5), methods and user types, `library`/`import`.
 
-Realtime semantics: every update re-runs the script over all bars, so there is no repainting
-mismatch with history. It costs O(bars) per update, which is fine up to the 20k cap. The upgrade
-path is snapshot/rollback of interpreter state at the last confirmed bar, re-executing only the
-forming bar.
+Realtime semantics follow TradingView's rollback model (`createSession` in `pine/runtime.js`):
+- **Closed bars run once.** Their end state is committed as a snapshot of every `ta.*` call-site
+  state and each `var` slot's initialised flag.
+- **Each tick re-runs only the forming bar,** on a fresh copy of that snapshot.
+- **Per-bar outputs** (series history, plot values, colours, alert flags) are indexed by bar,
+  so re-running a bar overwrites its own index after it is cleared.
+- **Sessions:** the Pine worker keeps one session per study or alert. It starts a fresh one when
+  the script, inputs or dataset change (symbol or timeframe switch, history load, replay start).
+- **Cost:** a full run of 1,500 bars takes ~20 ms; a live update takes ~0.1 ms.
+- **Tests:** `tests/pine_runtime.test.mjs` feeds every built-in, the starter script and several
+  stateful scripts tick by tick and checks the result is identical to a full run on the final
+  bars.
 
 ## 2. Layout
 
@@ -128,7 +136,7 @@ Fixed along the way: switching timeframe used to leave the view on old bars, bec
 series still held the previous timeframe's times. They are now emptied when a new dataset
 loads.
 
-Moved to M4: incremental Pine (rollback), drawing templates, and parallel channels and text
+Moved to M4: incremental Pine (rollback, since done), drawing templates, and parallel channels and text
 notes.
 
 **M4 — workspace (done).** The page shell (`ui/chart-page.js`) lays out 1×1, 1×2 or 2×2
@@ -167,11 +175,8 @@ focused cell, which is outlined.
   - armed alerts show as dashed price lines on their contract's charts;
   - the trigger logic (`alertHit`) is tested.
 
-**Not done, on purpose.**
-- *Incremental Pine (re-running only the forming bar).* Measured cost of the full re-run: about
-  2–4 µs per bar per script, so a 1,500-bar chart with five studies costs ~20 ms per update, in a
-  worker, at most 4×/s. Snapshotting every interpreter state object adds a class of subtle bugs
-  for no visible gain at this scale; revisit only if charts grow past ~20k bars.
+**Incremental Pine (done).** Re-running only the forming bar, as described under realtime
+semantics above. In the editor, the console says how many bars the last update re-ran.
 
 **Follow-ups (done).**
 - **`alertcondition()` alerts.** The runtime records each `alertcondition()` per bar
