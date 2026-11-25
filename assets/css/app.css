@@ -151,7 +151,7 @@ input, select { font: inherit; color: inherit; }
 
 .nav {
   position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
-  display: grid; grid-template-columns: repeat(7, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding-bottom: var(--safe-b);
   background: color-mix(in srgb, var(--surface-1) 94%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -605,9 +605,14 @@ button.pd-msg:hover { background: var(--surface-2); }
 .cx-sync button { padding: 0 9px; }
 .cx-layouts button { font-size: 16px; padding: 0 9px; }
 
-.wl { flex: none; width: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--surface-1); border-left: 1px solid var(--line-soft); }
-.cx-main.wl-open .wl { width: 280px; }
-@media (max-width: 900px) { .cx-main.wl-open .wl { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; width: min(300px, 86%); box-shadow: -10px 0 30px rgba(0,0,0,.35); } }
+.cx-main { flex-direction: column; }
+.cx-grid { flex: 1 1 auto; min-height: 0; }
+/* watchlist: a panel below the chart, full width, rows flow into columns */
+.wl { flex: none; height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--surface-1); border-top: 1px solid var(--line); }
+.cx-main.wl-open .wl { height: 236px; }
+@media (max-width: 700px) { .cx-main.wl-open .wl { height: 200px; } }
+.wl-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-content: start; column-gap: 1px; }
+.wl-cols { display: none !important; }
 .wl-head { display: flex; align-items: center; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line-soft); }
 .wl-sel { flex: 1; min-width: 0; height: 34px; font-size: 13px; padding: 0 8px; }
 .wl-mini { width: 28px; height: 28px; border-radius: 7px; color: var(--ink-2); font-size: 13px; flex: none; display: inline-grid; place-items: center; }
@@ -683,3 +688,4 @@ button.pd-msg:hover { background: var(--surface-2); }
 .pd-import { margin: 8px var(--pad) 0; }
 .pd-import.ok { color: var(--gain); }
 .pd-import.warn { color: var(--warn); }
+.cx-saved { flex: none; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }

@@ -65,6 +65,8 @@ export function createStore(initial, persist) {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => persist(state), 150);
     },
+    /** Write the current state now (the debounced save may still be pending). */
+    flush() { clearTimeout(saveTimer); persist(state); },
     /** Subscribe to a slice; the listener only fires when selector(state) changes (by ===). */
     subscribe(selector, fn) {
       let last = selector(state);

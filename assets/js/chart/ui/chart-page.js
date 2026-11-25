@@ -7,8 +7,8 @@ import { TIMEFRAMES } from '../data/timeframes.js';
 import { ADAPTERS, FEEDS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
-import { workspace, removeStudy, patchStudy, addStudy, setEditor, setDraw, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
-import { alerts, defaultStyle } from '../store/library.js';
+import { workspace, scripts, removeStudy, patchStudy, addStudy, setEditor, setDraw, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
+import { alerts, defaultStyle, watchlists, templates, layouts, drawStyles } from '../store/library.js';
 import { popMenu } from './menu.js';
 import { createPineDrawer } from './pine-drawer.js';
 import { symbolDialog, indicatorDialog, settingsDialog, promptDialog } from './dialogs.js';
@@ -43,12 +43,9 @@ const adapters = new Map();
 const adapterFor = (feed) => { if (!adapters.has(feed)) adapters.set(feed, (ADAPTERS[feed] || ADAPTERS.synthetic)()); return adapters.get(feed); };
 const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
-const narrow = () => matchMedia('(max-width: 900px)').matches;
 
 export function mountChartPage(root) {
   pine = pine || new PineEngine();
-  // on a phone the watchlist is an overlay over the chart: start with it closed
-  if (narrow() && workspace.get().watchOpen) workspace.set({ watchOpen: false });
   const cleanups = [];
   /** @type {ChartCell[]} */
   const cells = [];
@@ -75,6 +72,7 @@ export function mountChartPage(root) {
   feedSel.addEventListener('change', () => workspace.set({ feed: feedSel.value }));
   // which source is really in use: "Live (auto)" settles on an exchange, or on synthetic
   const feedChip = h('span', { class: 'cx-feedchip', role: 'status' });
+  const savedChip = h('span', { class: 'cx-saved', title: 'Chart settings, drawings, scripts, watchlists and alerts are saved in this browser: on every change, every 2 minutes, and when you leave the page' });
   let warnedFallback = false;
   function paintFeed() {
     const a = adapterFor(workspace.get().feed);
@@ -126,7 +124,7 @@ export function mountChartPage(root) {
     h('span', { class: 'grow' }),
     watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
-    feedChip, feedSel);
+    savedChip, feedChip, feedSel);
 
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
@@ -134,7 +132,7 @@ export function mountChartPage(root) {
     getAdapter: () => adapterFor(workspace.get().feed),
     getContracts: () => adapterFor(workspace.get().feed).contracts(),
     currentSymbol: () => activeCell().symbol,
-    onPick: (symbol) => { setCell(workspace.get().active, { symbol }); if (narrow()) workspace.set({ watchOpen: false }); },
+    onPick: (symbol) => setCell(workspace.get().active, { symbol }),
     onClose: () => workspace.set({ watchOpen: false }),
   });
   const main = h('div', { class: 'cx-main' }, grid, watch.el, toasts);
@@ -292,8 +290,24 @@ export function mountChartPage(root) {
   addEventListener('keydown', onKey);
   cleanups.push(() => removeEventListener('keydown', onKey));
 
+  // ---------------------------------------------------------------- auto-save
+  // Every store already saves itself a moment after each change. This also writes everything
+  // every 2 minutes and when the tab is hidden or closed, so nothing waits on a pending timer.
+  function saveAll() {
+    for (const st of [workspace, scripts, watchlists, templates, layouts, alerts, drawStyles]) { try { st.flush(); } catch (err) { console.error(err); } }
+    for (const c of cells) c.layer.flushSave(true);
+    const t = new Date();
+    savedChip.textContent = `Saved ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  }
+  const saveTimer = setInterval(saveAll, 120000);
+  const onHide = () => { if (document.visibilityState === 'hidden') saveAll(); };
+  document.addEventListener('visibilitychange', onHide);
+  addEventListener('pagehide', saveAll);
+  cleanups.push(() => { clearInterval(saveTimer); document.removeEventListener('visibilitychange', onHide); removeEventListener('pagehide', saveAll); saveAll(); });
+
   layoutCells();
   paintToolbar();
+  saveAll();
   paintFeed();
   adapterFor(workspace.get().feed).contracts().then(paintFeed, paintFeed);
 

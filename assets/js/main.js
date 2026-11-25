@@ -3,13 +3,12 @@ import { store } from './lib/store.js';
 import { getJSON, clearMemo } from './lib/data.js';
 
 const NAV = [
-  { id: 'scanner', label: 'Scanner', path: '#/', icon: 'scanner' },
+  { id: 'chart', label: 'Chart', path: '#/', icon: 'chart' },
+  { id: 'scanner', label: 'Scanner', path: '#/scanner', icon: 'scanner' },
   { id: 'scanner-results', label: 'Scanner Results', path: '#/scanner-results', icon: 'results' },
   { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
   { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
-  { id: 'summary', label: 'Summary', path: '#/summary', icon: 'summary' },
-  { id: 'chart', label: 'Chart', path: '#/chart', icon: 'chart' },
 ];
 
 const PAGES = {
@@ -18,7 +17,6 @@ const PAGES = {
   'scanner-results': () => import('./pages/scanner-results.js'),
   'fundamental-results': () => import('./pages/fundamental-results.js'),
   watchlists: () => import('./pages/watchlists.js'),
-  summary: () => import('./pages/summary.js'),
   chart: () => import('./pages/chart.js'),
 };
 
@@ -95,7 +93,7 @@ async function route() {
   const token = ++renderToken;
   const hash = location.hash.replace(/^#/, '') || '/';
   const parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
-  const id = PAGES[parts[0]] ? parts[0] : 'scanner';
+  const id = PAGES[parts[0]] ? parts[0] : 'chart'; // the chart is the home page
   markNav(id);
   view.classList.add('loading');
   try {
