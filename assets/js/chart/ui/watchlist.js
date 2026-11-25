@@ -2,10 +2,11 @@
 // Click a row to load it in the focused chart. Prices come from the same feed as the charts
 // (one telemetry subscription per listed symbol, dropped when the list changes).
 
-import { h, clear } from '../../lib/dom.js';
+import { h, clear, sheet } from '../../lib/dom.js';
+import { loadBundle, lockScreen, notPublished } from '../../lib/bundle.js';
 import { fmtNum } from '../engine/chart-engine.js';
 import { promptDialog } from './dialogs.js';
-import { watchlists, activeList, addList, renameList, deleteList, selectList, addToList, removeFromList, cycleFlag, moveInList } from '../store/library.js';
+import { watchlists, activeList, addList, renameList, deleteList, selectList, addToList, removeFromList, cycleFlag, moveInList, buildSignalLists, installLists } from '../store/library.js';
 
 const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
@@ -22,6 +23,7 @@ export function createWatchlist(o) {
   const el = h('aside', { class: 'wl', 'aria-label': 'Watchlist' },
     h('div', { class: 'wl-head' },
       listSel,
+      menuBtn('⚡', 'Build watchlists from my Scanner signals (needs your Technical password)', () => fromSignals()),
       menuBtn('+', 'New list', async () => { const n = await promptDialog('New watchlist', 'Name', 'My list'); if (n) addList(n); }),
       menuBtn('✎', 'Rename this list', async () => { const l = activeList(); const n = await promptDialog('Rename watchlist', 'Name', l.name); if (n) renameList(l.id, n); }),
       menuBtn('🗑', 'Delete this list', () => { const l = activeList(); if (window.confirm(`Delete the list "${l.name}"?`)) deleteList(l.id); }),
@@ -85,6 +87,28 @@ export function createWatchlist(o) {
         }));
       }
     }
+  }
+
+  const status = h('p', { class: 'tiny muted wl-status' });
+  el.querySelector('.wl-foot').prepend(status);
+
+  // One list per Scanner signal, built here in the browser from your unlocked data.
+  async function fromSignals() {
+    status.textContent = 'Opening your signal data…';
+    const res = await loadBundle().catch(() => ({ lock: 'not-published' }));
+    if (res.lock === 'not-published') { status.textContent = ''; sheet('Signal watchlists', notPublished()); return; }
+    if (res.lock === 'locked') {
+      status.textContent = '';
+      const bg = sheet('Unlock your signals', lockScreen(res.env, () => { bg.remove(); fromSignals(); }));
+      return;
+    }
+    const lists = buildSignalLists(res.bundle);
+    installLists(lists);
+    const filled = lists.filter((l) => l.symbols.length).length;
+    const total = lists.reduce((a, l) => a + l.symbols.length, 0);
+    const first = watchlists.get().lists.find((l) => l.name === lists[0].name);
+    if (first) selectList(first.id);
+    status.textContent = `${lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols). Stocks show prices once the end-of-day stock feed is added.`;
   }
 
   const unsub = watchlists.subscribe((s) => s, paint);

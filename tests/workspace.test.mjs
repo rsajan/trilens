@@ -80,3 +80,27 @@ test('drawing templates: per-tool defaults, cleaned styles, delete', async () =>
   deleteDrawTemplate(t.id);
   assert.ok(!drawStyles.get().list.some((x) => x.id === t.id));
 });
+
+test('signal watchlists: symbols from every row shape, India tagged, deduped, refresh keeps flags', async () => {
+  const { buildSignalLists, installLists, watchlists, SIGNAL_LISTS } = await import('../assets/js/chart/store/library.js');
+  const bundle = { signals: {
+    weinstein: { US: { rows: [{ symbol: 'aaa' }, { symbol: 'BBB' }, { symbol: 'AAA' }] }, IN: { rows: [{ symbol: 'CCC' }] } },
+    accumulation: { US: { buys: [{ ticker: 'DDD' }], watch: [{ ticker: 'EEE' }] }, IN: { near: [{ ticker: 'FFF.NS' }] } },
+    reversal: { US: { configs: { v5: [{ symbol: 'GGG' }], v6: [{ symbol: 'GGG' }, { symbol: 'HHH' }] } } },
+  } };
+  const lists = buildSignalLists(bundle);
+  assert.equal(lists.length, SIGNAL_LISTS.length + 1);
+  const by = Object.fromEntries(lists.map((l) => [l.name, l.symbols]));
+  assert.deepEqual(by['01 Weinstein Stage-2'], ['AAA', 'BBB', 'CCC.NS']);
+  assert.deepEqual(by['16 Accumulation Bot'], ['DDD', 'EEE', 'FFF.NS']);
+  assert.deepEqual(by['17 Reversal Bot'], ['GGG', 'HHH']);
+  assert.deepEqual(by['02 Revenue Dip'], []);
+  assert.ok(by.Crypto.includes('BTCUSDT.P'));
+  installLists(lists);
+  const wl = () => watchlists.get().lists.find((l) => l.name === '01 Weinstein Stage-2');
+  const id = wl().id;
+  watchlists.set((w) => ({ ...w, lists: w.lists.map((l) => (l.id === id ? { ...l, items: l.items.map((x) => (x.symbol === 'BBB' ? { ...x, flag: '#ff7a73' } : x)) } : l)) }));
+  installLists([{ name: '01 Weinstein Stage-2', symbols: ['BBB', 'ZZZ'] }]);
+  assert.equal(wl().id, id, 'same list, refreshed');
+  assert.deepEqual(wl().items, [{ symbol: 'BBB', flag: '#ff7a73' }, { symbol: 'ZZZ', flag: null }]);
+});
