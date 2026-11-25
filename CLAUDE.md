@@ -15,7 +15,7 @@ Free personal market desk: a static website (GitHub Pages) that works as an Andr
 
 | Task | Command |
 |---|---|
-| Run the tests | `python -m unittest discover -s tests` |
+| Run the tests | `python -m unittest discover -s tests` and `node --test "tests/*.test.mjs"` (Pine runtime) |
 | Build the page for local preview | `python pipeline\build_technical.py` (or `PREVIEW.bat`, which also serves `localhost:8080`) |
 | Build, check, encrypt and upload the page | `PUBLISH.bat` (runs `tools\publish.py`) |
 | Upload any other local change (code, config) | `PUSH_CHANGES.bat` |
@@ -26,6 +26,7 @@ Set `PYTHONUTF8=1` when running Python by hand. `tools\_py.bat` does this for th
 ## How it fits together
 
 - `index.html`, `assets/`, `sw.js`: the site. Vanilla ES modules, hash routing, one page (`assets/js/pages/overview.js`, which holds everything - signals/strategies/results/automation/library), design tokens in `assets/css/app.css` (Harbour dark and Paper light, gold accent). No framework, no bundler.
+- `#/chart` (`assets/js/pages/chart.js` → `assets/js/chart/`): futures chart, telemetry and Pine editor, fully client-side (synthetic market in a worker, Pine interpreter in a worker, vendored lightweight-charts in `assets/vendor/`). Design and roadmap: `docs/chart-blueprint.md`. It has no private data and does not touch the bundle.
 - `data/technical/`: the only runtime data. `bundle.json` is the encrypted page content; `meta.json` (`built_at`, `strategies`, `library`, `markets_scanned`) is public and drives the status chip.
 - `pipeline/build_technical.py`: reads the scanner folders on the owner's PC and builds the bundle. Fully self-contained (stdlib + `openpyxl`/`cryptography`/`pypdf`/`Pillow` from `pipeline/requirements-pc.txt`) - no network calls, no watchlist. `pipeline/technical_curated.json`: strategy library text.
 - `.github/workflows/site.yml`: deploys on every push to `main`. There is no scheduled data fetch - `tools/publish.py` pushes the new bundle directly, which is what triggers a redeploy.

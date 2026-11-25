@@ -9,6 +9,7 @@ const NAV = [
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
   { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
   { id: 'summary', label: 'Summary', path: '#/summary', icon: 'summary' },
+  { id: 'chart', label: 'Chart', path: '#/chart', icon: 'chart' },
 ];
 
 const PAGES = {
@@ -18,11 +19,13 @@ const PAGES = {
   'fundamental-results': () => import('./pages/fundamental-results.js'),
   watchlists: () => import('./pages/watchlists.js'),
   summary: () => import('./pages/summary.js'),
+  chart: () => import('./pages/chart.js'),
 };
 
 const view = $('#view');
 let meta = null;
 let renderToken = 0;
+let currentPage = null; // module of the page on screen, so it can release workers/timers on leave
 
 // ---------- theme ----------
 function applyTheme() {
@@ -99,11 +102,14 @@ async function route() {
     const mod = await PAGES[id]();
     const body = await mod.render({ ...ctx, params: id === parts[0] ? parts.slice(1) : parts });
     if (token !== renderToken) return;
+    if (currentPage && currentPage.cleanup) { try { currentPage.cleanup(); } catch (err) { console.error(err); } }
+    currentPage = mod;
+    view.classList.toggle('wide', !!mod.wide);
     clear(view);
     const b = banners();
     if (b) view.append(b);
     view.append(body);
-    if (mod.afterRender) mod.afterRender(view);
+    if (mod.afterRender) await mod.afterRender(view);
   } catch (e) {
     console.error(e);
     if (token !== renderToken) return;
