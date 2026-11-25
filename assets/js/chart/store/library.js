@@ -168,3 +168,55 @@ export function setDefaultStyle(type, style) {
 }
 /** @returns {DrawStyle|null} */
 export const defaultStyle = (type) => drawStyles.get().defaults[type] || null;
+
+// ------------------------------------------------------------------ watchlists from your signals
+// Built in the browser from the unlocked Technical bundle (the Scanner page's data), so the
+// symbols never pass through the public repository. One list per scanner signal, in the
+// Scanner page's order, plus a Crypto list. India symbols get ".NS" so the two markets stay apart.
+export const SIGNAL_LISTS = [
+  ['weinstein', '01 Weinstein Stage-2'], ['revenue_dip', '02 Revenue Dip'], ['vcp', '03 VCP Positional'],
+  ['bbladder', '04 BB Ladder'], ['ema_playbook', '05 EMA Playbook'], ['msr', '06 Master S/R'],
+  ['pbmtf', '07 Pullback-Retest MTF'], ['inversehs', '08 Inverse H&S'], ['breakretest', '09 Break & Retest'],
+  ['context', '10 Market Context'], ['analog', '11 Analog Setup'], ['basebreakout', '12 Base + Breakout'],
+  ['mtf', '13 MTF Trend'], ['dbe', '14 Logic 3 DBE'], ['dbpyramid', '15 Double-Bottom Pyramid'],
+  ['accumulation', '16 Accumulation Bot'], ['reversal', '17 Reversal Bot'],
+];
+export const CRYPTO_LIST = ['BTCUSDT.P', 'ETHUSDT.P', 'SOLUSDT.P', 'BNBUSDT.P', 'XRPUSDT.P', 'XAUUSDT.P'];
+const isIndia = (k) => /^(in|ind|india|nse|bse)$/i.test(String(k));
+
+/** Every symbol/ticker field under one signal's data, India tagged by its market key. */
+export function symbolsOf(node, market = '', out = [], depth = 0) {
+  if (!node || typeof node !== 'object' || depth > 8) return out;
+  if (Array.isArray(node)) { for (const x of node) symbolsOf(x, market, out, depth + 1); return out; }
+  const raw = typeof node.symbol === 'string' ? node.symbol : typeof node.ticker === 'string' ? node.ticker : null;
+  if (raw && raw.trim()) {
+    let s = raw.trim().toUpperCase();
+    if (isIndia(market) && !/\.(NS|BO)$/.test(s)) s += '.NS';
+    out.push(s);
+  }
+  for (const [k, v] of Object.entries(node)) if (v && typeof v === 'object') symbolsOf(v, isIndia(k) || /^(us|usa)$/i.test(k) ? k : market, out, depth + 1);
+  return out;
+}
+
+/** @returns {{ name: string, symbols: string[] }[]} the 17 signal lists (empty ones included) and Crypto */
+export function buildSignalLists(bundle) {
+  const sg = (bundle && bundle.signals) || {};
+  const lists = SIGNAL_LISTS.map(([key, name]) => ({ name, symbols: [...new Set(symbolsOf(sg[key]))] }));
+  lists.push({ name: 'Crypto', symbols: CRYPTO_LIST.slice() });
+  return lists;
+}
+
+/** Add or refresh lists by name: an existing list keeps its id and flags, its symbols are replaced. */
+export function installLists(lists) {
+  watchlists.set((w) => {
+    const next = w.lists.map((l) => ({ ...l }));
+    for (const { name, symbols } of lists) {
+      const ex = next.find((l) => l.name === name);
+      if (ex) {
+        const flags = new Map(ex.items.map((x) => [x.symbol, x.flag]));
+        ex.items = symbols.map((symbol) => ({ symbol, flag: flags.get(symbol) || null }));
+      } else next.push({ id: uid('w'), name, items: symbols.map((symbol) => ({ symbol, flag: null })) });
+    }
+    return { ...w, lists: next };
+  });
+}
