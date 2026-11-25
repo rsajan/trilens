@@ -94,8 +94,8 @@ export class DrawingLayer {
     this.hooks.onChange && this.hooks.onChange();
   }
 
-  flushSave() {
-    if (!this.saveTimer || !this.symbol) return;
+  flushSave(force = false) {
+    if ((!this.saveTimer && !force) || !this.symbol) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = 0;
     saveDrawings(this.symbol, this.drawings);

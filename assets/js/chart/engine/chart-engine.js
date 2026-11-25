@@ -7,7 +7,7 @@
 //    just update() of its last point;
 //  - the legend is a fixed set of text nodes rewritten in place, never rebuilt on crosshair moves.
 
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
+import { createChart, CandlestickSeries, BarSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
 import { toCss } from '../pine/colors.js';
 import { h, clear } from '../../lib/dom.js';
 
@@ -56,6 +56,8 @@ export class ChartEngine {
     this.hoverIndex = -1;
     this.barColors = null;
     this.raf = 0;
+    this.chartType = 'candles';
+    this.alt = null; // bars / line / area series drawn over transparent candles
     this.disposed = false; // async results (Pine runs, frames) can land after the page left
 
     this.chartEl = h('div', { class: 'cx-canvas' });
@@ -96,9 +98,56 @@ export class ChartEngine {
     this.chart.applyOptions(this.themeOptions());
     const up = css('--gain') || '#2fcb92', dn = css('--loss') || '#ff7a73';
     this.upColor = up; this.downColor = dn;
-    this.candles.applyOptions({ upColor: up, downColor: dn, borderUpColor: up, borderDownColor: dn, wickUpColor: up, wickDownColor: dn });
+    this.applyCandleStyle();
+    if (this.alt) this.alt.applyOptions(this.altStyle());
     this.volUp = withAlpha(up, 0.35); this.volDn = withAlpha(dn, 0.35);
     if (this.buf) this.setVolume();
+  }
+
+  // ------------------------------------------------------------------ chart type
+  // The candlestick series always exists: drawings, markers, alert lines and the crosshair hang
+  // off it. For bars / line / area it turns fully transparent (and hides its price label) and an
+  // extra series draws the chosen style on top. Autoscale keeps the candles' high/low range.
+
+  /** @param {'candles'|'bars'|'line'|'area'} type */
+  setChartType(type) {
+    if (!['candles', 'bars', 'line', 'area'].includes(type)) type = 'candles';
+    if (type === this.chartType) return;
+    this.chartType = type;
+    if (this.alt) { this.chart.removeSeries(this.alt); this.alt = null; }
+    const def = type === 'bars' ? BarSeries : type === 'line' ? LineSeries : type === 'area' ? AreaSeries : null;
+    if (def) {
+      this.alt = this.chart.addSeries(def, { ...this.altStyle(), priceFormat: { type: 'price', precision: this.dec, minMove: 10 ** -this.dec } }, 0);
+    }
+    this.applyCandleStyle();
+    if (this.buf) this.setCandles();
+  }
+
+  applyCandleStyle() {
+    const up = this.upColor || '#2fcb92', dn = this.downColor || '#ff7a73';
+    const hidden = this.chartType && this.chartType !== 'candles';
+    const none = 'rgba(0, 0, 0, 0)';
+    this.candles.applyOptions(hidden
+      ? { upColor: none, downColor: none, borderUpColor: none, borderDownColor: none, wickUpColor: none, wickDownColor: none, lastValueVisible: false, priceLineVisible: false }
+      : { upColor: up, downColor: dn, borderUpColor: up, borderDownColor: dn, wickUpColor: up, wickDownColor: dn, lastValueVisible: true, priceLineVisible: true });
+  }
+
+  altStyle() {
+    const up = this.upColor || '#2fcb92', dn = this.downColor || '#ff7a73', line = css('--s1') || '#3987e5';
+    if (this.chartType === 'bars') return { upColor: up, downColor: dn, thinBars: false };
+    if (this.chartType === 'area') return { lineColor: line, topColor: withAlpha(line, 0.32), bottomColor: withAlpha(line, 0.02), lineWidth: 2 };
+    return { color: line, lineWidth: 2 };
+  }
+
+  altPoint(i) {
+    const c = this.buf.cols;
+    if (this.chartType === 'bars') {
+      const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
+      const bc = this.barColors && this.barColors[i];
+      if (bc) d.color = bc;
+      return d;
+    }
+    return { time: c.time[i], value: c.close[i] };
   }
 
   // ------------------------------------------------------------------ price data
@@ -108,6 +157,7 @@ export class ChartEngine {
     this.dec = decimalsOf(info.tick);
     this.symbolLabel = info.label;
     this.candles.applyOptions({ priceFormat: { type: 'price', precision: this.dec, minMove: info.tick } });
+    if (this.alt) this.alt.applyOptions({ priceFormat: { type: 'price', precision: this.dec, minMove: info.tick } });
     const range = keepRange ? this.chart.timeScale().getVisibleLogicalRange() : null;
     if (!keepRange) {
       // A new dataset (symbol or timeframe). The time scale is the union of every series' times,
@@ -129,7 +179,9 @@ export class ChartEngine {
   }
 
   setCandles() {
-    const c = this.buf.cols, n = this.buf.length, bc = this.barColors;
+    const c = this.buf.cols, n = this.buf.length;
+    // per-bar colours (Pine barcolor) only on visible candles: on a transparent series they would show
+    const bc = !this.alt ? this.barColors : null;
     const data = new Array(n);
     for (let i = 0; i < n; i++) {
       const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
@@ -137,6 +189,7 @@ export class ChartEngine {
       data[i] = d;
     }
     this.candles.setData(data);
+    if (this.alt) { const alt = new Array(n); for (let i = 0; i < n; i++) alt[i] = this.altPoint(i); this.alt.setData(alt); }
   }
 
   setVolume() {
@@ -157,9 +210,10 @@ export class ChartEngine {
       if (i < 0) return;
       const c = this.buf.cols;
       const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
-      const bc = this.barColors && this.barColors[i];
+      const bc = !this.alt && this.barColors && this.barColors[i];
       if (bc) { d.color = bc; d.borderColor = bc; d.wickColor = bc; }
       this.candles.update(d);
+      if (this.alt) this.alt.update(this.altPoint(i));
       this.volume.update({ time: c.time[i], value: c.volume[i], color: c.close[i] >= c.open[i] ? this.volUp : this.volDn });
       this.scheduleLegend();
     });
@@ -294,11 +348,12 @@ export class ChartEngine {
     const t = this.buf.cols.time, n = this.buf.length, out = [];
     for (const sh of res.shapes) {
       if ((cfg.styles[sh.title] || {}).hidden) continue;
-      const [shape, defPos] = SHAPE[sh.style] || ['circle', null];
-      const pos = LOC[sh.location] || defPos || 'aboveBar';
       for (const p of sh.points) {
-        if (p.i >= n) continue;
-        const m = { time: t[p.i], shape, color: toCss((cfg.styles[sh.title] || {}).color || p.color), size: SIZE[sh.size] || 1, text: sh.text || '' };
+        if (p.i >= n || p.i < 0) continue;
+        // a point may carry its own style and text (labels, strategy fills); otherwise the shape's
+        const [shape, defPos] = SHAPE[p.style || sh.style] || ['circle', null];
+        const pos = LOC[sh.location] || defPos || 'aboveBar';
+        const m = { time: t[p.i], shape, color: toCss((cfg.styles[sh.title] || {}).color || p.color), size: SIZE[sh.size] || 1, text: p.text ?? sh.text ?? '' };
         if (sh.location === 'absolute' && Number.isFinite(p.price)) { m.position = 'atPriceMiddle'; m.price = p.price; }
         else m.position = pos;
         out.push(m);

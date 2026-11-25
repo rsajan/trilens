@@ -65,6 +65,7 @@ export class ChartCell {
       onStudyAction: (uidv, action) => o.onStudyAction(this, uidv, action),
     });
     this.layer = new DrawingLayer(this.engine, o.drawHooks);
+    this.engine.setChartType(workspace.get().cells[index].chartType || 'candles');
     this.engine.chart.subscribeCrosshairMove((p) => {
       if (this.syncing) return;
       const t = p && p.time !== undefined ? p.time : null;
@@ -83,6 +84,7 @@ export class ChartCell {
     let prevStudies = cell().studies;
     this.unsubs = [
       workspace.subscribe((w) => w.feed + '|' + w.cells[index].symbol + '|' + w.cells[index].tf, () => this.load()),
+      workspace.subscribe((w) => w.cells[index].chartType, (t) => this.engine.setChartType(t || 'candles')),
       workspace.subscribe((w) => w.cells[index].studies, (next) => {
         const prevMap = new Map(prevStudies.map((s) => [s.uid, s]));
         const ids = new Set(next.map((s) => s.uid));
@@ -111,7 +113,7 @@ export class ChartCell {
 
   label() {
     const tf = this.tf;
-    return `${this.contract.symbol} · ${tf.label} · ${this.adapter.id === 'synthetic' ? 'Synthetic' : 'Binance'}${this.replay ? ' · Replay' : ''}`;
+    return `${this.contract.symbol} · ${tf.label} · ${this.adapter.short || this.adapter.id}${this.replay ? ' · Replay' : ''}`;
   }
 
   // ---------------------------------------------------------------- data
@@ -149,7 +151,7 @@ export class ChartCell {
     } catch (err) {
       if (my !== this.token) return;
       console.error(err);
-      this.showStatus(String(err.message || err) + (w.feed !== 'synthetic' ? ' — choose "Synthetic market" in the feed menu to keep working offline.' : ''), 'err');
+      this.showStatus(String(err.message || err) + (w.feed !== 'synthetic' ? ' Choose "Live (auto)" or "Synthetic (offline)" in the feed menu.' : ''), 'err');
     }
   }
 

@@ -35,7 +35,9 @@ function setData(ds, bars, symbol, tf) {
 function sessionFor(key, ds, d, source, ast, inputs) {
   const inputsKey = JSON.stringify(inputs || {});
   let s = sessions.get(key);
-  if (!s || s.source !== source || s.inputsKey !== inputsKey || s.ds !== ds || s.version !== d.version || s.session.broken) {
+  // scripts using arrays always re-run in full: arrays are shared references that the rollback
+  // snapshot does not copy, so resuming could replay a forming bar's pushes twice
+  if (!s || ast.usesArrays || s.source !== source || s.inputsKey !== inputsKey || s.ds !== ds || s.version !== d.version || s.session.broken) {
     s = { source, inputsKey, ds, version: d.version, session: createSession(ast, { inputs, symbol: d.symbol, timeframe: d.tf, realtime: true }) };
     sessions.set(key, s);
   } else { sessions.delete(key); sessions.set(key, s); } // LRU order
