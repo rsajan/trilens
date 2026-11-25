@@ -4,7 +4,7 @@
 
 import { h, clear } from '../../lib/dom.js';
 import { TIMEFRAMES } from '../data/timeframes.js';
-import { ADAPTERS } from '../data/adapters.js';
+import { ADAPTERS, FEEDS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
 import { workspace, removeStudy, patchStudy, addStudy, setEditor, setDraw, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
@@ -71,8 +71,22 @@ export function mountChartPage(root) {
   const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'Timeframe', title: 'Timeframe' }, TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
   tfSel.addEventListener('change', () => setCell(workspace.get().active, { tf: tfSel.value }));
   const feedSel = h('select', { class: 'ipt cx-feed', 'aria-label': 'Data feed', title: 'Where prices come from' },
-    h('option', { value: 'synthetic' }, 'Synthetic market'), h('option', { value: 'binance' }, 'Binance public (live)'));
+    FEEDS.map((f) => h('option', { value: f.id, title: f.title }, f.label)));
   feedSel.addEventListener('change', () => workspace.set({ feed: feedSel.value }));
+  // which source is really in use: "Live (auto)" settles on an exchange, or on synthetic
+  const feedChip = h('span', { class: 'cx-feedchip', role: 'status' });
+  let warnedFallback = false;
+  function paintFeed() {
+    const a = adapterFor(workspace.get().feed);
+    const live = a.id !== 'synthetic' && !(a.source === 'synthetic');
+    feedChip.className = 'cx-feedchip ' + (live ? 'live' : 'off');
+    feedChip.textContent = live ? (a.source || a.id !== 'live' ? '● Live · ' + (a.chosen ? a.chosen.short : a.short) : '○ Connecting…') : '○ Synthetic';
+    feedChip.title = a.fallbackReason ? 'Live feeds unreachable from here: ' + a.fallbackReason : (a.note || a.label || '');
+    if (a.source === 'synthetic' && !warnedFallback) {
+      warnedFallback = true;
+      toast('Live data unavailable here', 'Binance and Bybit did not answer from this network or country, so the chart shows the synthetic market. ' + a.fallbackReason, 'ℹ');
+    }
+  }
 
   // 2. symbol search box (TradingView-style): shows the focused chart's contract, opens search
   const symText = h('span', { class: 'cx-symtext' }, '—');
@@ -107,11 +121,12 @@ export function mountChartPage(root) {
     symBtn, typeBtn, tfSel, sep(),
     btn('Indicators', 'Add an indicator or one of your scripts to the focused chart', () => indicatorDialog({ onAdd: (ref) => addStudy(ref), onNewScript: () => drawer.openNew(NEW_SCRIPT) })),
     btn('Templates', 'Indicator templates and saved layouts', () => templatesDialog()),
-    sep(), drawSwitch, replayBtn, alertBtn, editorBtn,
+    sep(), drawSwitch, editorBtn, replayBtn, alertBtn,
+    sep(), layoutSeg, syncSeg,
     h('span', { class: 'grow' }),
-    layoutSeg, syncSeg, watchBtn,
+    watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
-    feedSel);
+    feedChip, feedSel);
 
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
@@ -166,6 +181,7 @@ export function mountChartPage(root) {
         tickOf.set(cell.contract.symbol, cell.contract.tick);
         cell.setAlertLines(priceAlertsFor(cell.contract.symbol));
         if (cell === active()) { watch.markCurrent(cell.contract.symbol); paintToolbar(); }
+        paintFeed();
       },
       onReplay: () => paintToolbar(),
     });
@@ -249,8 +265,8 @@ export function mountChartPage(root) {
     alertDialog({ symbol: a.contract.symbol, tf: a.state.tf, price: price ?? last, last, fmt: (p) => a.priceText(p), conds });
   }
 
-  function toast(title, body) {
-    const t = h('div', { class: 'cx-toast', role: 'alert' }, h('b', null, '⏰ ' + title), h('div', null, body),
+  function toast(title, body, icon = '⏰') {
+    const t = h('div', { class: 'cx-toast', role: 'alert' }, h('b', null, icon + ' ' + title), h('div', null, body),
       h('button', { type: 'button', class: 'cx-toast-x', 'aria-label': 'Dismiss', onClick: () => t.remove() }, '✕'));
     toasts.append(t);
     setTimeout(() => t.remove(), 15000);
@@ -263,7 +279,7 @@ export function mountChartPage(root) {
   cleanups.push(
     workspace.subscribe((w) => w.layout, layoutCells),
     workspace.subscribe((w) => w.active, focusCell),
-    workspace.subscribe((w) => w.feed, () => { watch.refresh(); alertEngine.sync(); paintToolbar(); }),
+    workspace.subscribe((w) => w.feed, (feed) => { warnedFallback = false; watch.refresh(); alertEngine.sync(); paintToolbar(); paintFeed(); adapterFor(feed).contracts().then(paintFeed, paintFeed); }),
     workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.cells[w.active].chartType + '|' + w.draw.panel + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
     alerts.subscribe((x) => x, () => { for (const c of cells) if (c.contract) c.setAlertLines(priceAlertsFor(c.contract.symbol)); }),
   );
@@ -278,6 +294,8 @@ export function mountChartPage(root) {
 
   layoutCells();
   paintToolbar();
+  paintFeed();
+  adapterFor(workspace.get().feed).contracts().then(paintFeed, paintFeed);
 
   return () => {
     for (const f of cleanups) f();

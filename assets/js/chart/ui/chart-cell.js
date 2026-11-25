@@ -113,7 +113,7 @@ export class ChartCell {
 
   label() {
     const tf = this.tf;
-    return `${this.contract.symbol} · ${tf.label} · ${this.adapter.id === 'synthetic' ? 'Synthetic' : 'Binance'}${this.replay ? ' · Replay' : ''}`;
+    return `${this.contract.symbol} · ${tf.label} · ${this.adapter.short || this.adapter.id}${this.replay ? ' · Replay' : ''}`;
   }
 
   // ---------------------------------------------------------------- data
@@ -151,7 +151,7 @@ export class ChartCell {
     } catch (err) {
       if (my !== this.token) return;
       console.error(err);
-      this.showStatus(String(err.message || err) + (w.feed !== 'synthetic' ? ' — choose "Synthetic market" in the feed menu to keep working offline.' : ''), 'err');
+      this.showStatus(String(err.message || err) + (w.feed !== 'synthetic' ? ' Choose "Live (auto)" or "Synthetic (offline)" in the feed menu.' : ''), 'err');
     }
   }
 

@@ -12,7 +12,8 @@ import { store } from '../../lib/store.js';
  * @typedef {{ uid: string, ref: string, inputs: Record<string, any>, styles: Record<string, { color?: string, hidden?: boolean }>, hidden: boolean }} Study
  * @typedef {{ symbol: string, tf: string, chartType: 'candles'|'bars'|'line'|'area', studies: Study[] }} Cell  one chart of the split-screen layout
  * @typedef {Object} Workspace
- * @property {'synthetic'|'binance'} feed
+ * @property {'live'|'binance'|'bybit'|'synthetic'} feed  live = first reachable exchange (see data/live.js)
+ * @property {number} v  saved-format version (2: live feed is the default)
  * @property {'1x1'|'1x2'|'2x2'} layout @property {number} active index of the focused cell
  * @property {{ symbol: boolean, tf: boolean, crosshair: boolean }} sync  what follows the focused cell
  * @property {Cell[]} cells  always four; the layout decides how many are shown
@@ -29,7 +30,7 @@ export const CHART_TYPES = ['candles', 'bars', 'line', 'area'];
 const study = (uidv, ref) => ({ uid: uidv, ref, inputs: {}, styles: {}, hidden: false });
 /** @type {Workspace} */
 const DEFAULT_WS = {
-  feed: 'synthetic', layout: '1x1', active: 0,
+  v: 2, feed: 'live', layout: '1x1', active: 0,
   sync: { symbol: false, tf: false, crosshair: true },
   cells: [
     { symbol: 'BTCUSDT.P', tf: '1h', studies: [study('s1', 'builtin:ema'), study('s2', 'builtin:rsi')] },
@@ -89,7 +90,9 @@ function loadWs() {
   });
   const layout = LAYOUT_CELLS[w.layout] ? w.layout : '1x1';
   return {
-    feed: w.feed === 'binance' ? 'binance' : 'synthetic',
+    v: 2,
+    // before v2 the default feed was synthetic: move those workspaces to live data once
+    feed: !w.v && (w.feed === 'synthetic' || !w.feed) ? 'live' : ['live', 'binance', 'bybit', 'synthetic'].includes(w.feed) ? w.feed : 'live',
     layout,
     active: Number.isInteger(w.active) && w.active >= 0 && w.active < LAYOUT_CELLS[layout] ? w.active : 0,
     sync: { ...d.sync, ...(w.sync || {}) },

@@ -212,3 +212,24 @@ price alerts use it.
 
 For bars, line and area charts the candle series stays, made fully transparent, so drawings,
 markers and alert lines keep their anchor; a second series draws the chosen style.
+
+**Live data by default.** Feeds (`data/live.js`):
+- **Live (auto), the default:** Binance if it answers, else Bybit, else the synthetic market
+  with a notice saying why.
+- **Binance:** every trading USDT perpetual on Binance USD-M futures.
+- **Bybit:** every trading USDT linear perpetual on Bybit.
+- **Synthetic (offline).**
+
+Details:
+- Contract lists come from each exchange, most traded first.
+- Symbols use TradingView's `BTCUSDT.P` naming on every feed, so watchlists, drawings and alerts
+  carry over.
+- Timeframes the exchange does not stream (3M everywhere, 3D on Bybit) are built from the base
+  interval.
+- Everything uses public endpoints: no account, no key.
+- Both exchanges block some countries and networks. The feed chip in the toolbar shows the
+  source actually in use.
+- Stocks and indices (NSE, NASDAQ, …) have no free, no-key, browser-usable live feed, so they
+  are not offered.
+- Parsers are pure functions tested against the documented payloads
+  (`tests/live.test.mjs`).
