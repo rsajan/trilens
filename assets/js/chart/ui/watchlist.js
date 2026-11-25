@@ -4,14 +4,16 @@
 
 import { h, clear, sheet } from '../../lib/dom.js';
 import { loadBundle, lockScreen, notPublished } from '../../lib/bundle.js';
+import { store } from '../../lib/store.js';
 import { fmtNum } from '../engine/chart-engine.js';
+import { kindLabel } from '../data/stocks.js';
 import { promptDialog } from './dialogs.js';
 import { watchlists, activeList, addList, renameList, deleteList, selectList, addToList, removeFromList, cycleFlag, moveInList, buildSignalLists, installLists } from '../store/library.js';
 
 const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
 /**
- * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onClose: () => void }} o
+ * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onClose: () => void, onUnlocked?: () => Promise<{ name: string, symbols: string[] }[]> }} o
  */
 export function createWatchlist(o) {
   const listSel = h('select', { class: 'ipt wl-sel', 'aria-label': 'Watchlist' });
@@ -23,7 +25,7 @@ export function createWatchlist(o) {
   const el = h('aside', { class: 'wl', 'aria-label': 'Watchlist' },
     h('div', { class: 'wl-head' },
       listSel,
-      menuBtn('⚡', 'Build watchlists from my Scanner signals (needs your Technical password)', () => fromSignals()),
+      menuBtn('⚡', 'Build the 20 watchlists: 17 Scanner signals, US top 500, India top 500, Crypto (needs your Technical password; automatic once it is remembered)', () => fromSignals()),
       menuBtn('+', 'New list', async () => { const n = await promptDialog('New watchlist', 'Name', 'My list'); if (n) addList(n); }),
       menuBtn('✎', 'Rename this list', async () => { const l = activeList(); const n = await promptDialog('Rename watchlist', 'Name', l.name); if (n) renameList(l.id, n); }),
       menuBtn('🗑', 'Delete this list', () => { const l = activeList(); if (window.confirm(`Delete the list "${l.name}"?`)) deleteList(l.id); }),
@@ -69,7 +71,7 @@ export function createWatchlist(o) {
       const row = h('div', { class: 'wl-row' + (item.symbol === cur ? ' on' : '') + (c ? '' : ' off'), role: 'listitem', tabindex: '0', title: c ? c.name : 'Not offered by the current feed',
         onClick: () => { if (c) o.onPick(item.symbol); },
         onKeydown: (e) => { if (e.key === 'Enter' && c) o.onPick(item.symbol); } },
-        flag, h('span', { class: 'wl-sym' }, item.symbol, h('small', null, c ? (c.kind === 'perp' ? 'Perpetual' : 'Quarterly') : 'Not on this feed')), last, chg, actions);
+        flag, h('span', { class: 'wl-sym' }, item.symbol, h('small', null, c ? kindLabel(c) : 'Not on this feed')), last, chg, actions);
       rows.append(row);
       cells.set(item.symbol, { last, chg, row });
       if (c) {
@@ -93,26 +95,32 @@ export function createWatchlist(o) {
   el.querySelector('.wl-foot').prepend(status);
 
   // One list per Scanner signal, built here in the browser from your unlocked data.
-  async function fromSignals() {
-    status.textContent = 'Opening your signal data…';
+  async function fromSignals(auto = false) {
+    if (!auto) status.textContent = 'Opening your signal data…';
     const res = await loadBundle().catch(() => ({ lock: 'not-published' }));
+    // automatic run (chart opened): only with a remembered password, once per published bundle
+    if (auto && (!res.bundle || store.get('signalListsAt') === res.bundle.built_at)) return;
     if (res.lock === 'not-published') { status.textContent = ''; sheet('Signal watchlists', notPublished()); return; }
     if (res.lock === 'locked') {
       status.textContent = '';
       const bg = sheet('Unlock your signals', lockScreen(res.env, () => { bg.remove(); fromSignals(); }));
       return;
     }
-    const lists = buildSignalLists(res.bundle);
+    // the same password opens the stock prices: add the US / India top 500 lists too
+    const tops = o.onUnlocked ? await o.onUnlocked().catch(() => []) : [];
+    const lists = [...buildSignalLists(res.bundle), ...tops];
     installLists(lists);
+    store.set('signalListsAt', res.bundle.built_at);
     const filled = lists.filter((l) => l.symbols.length).length;
     const total = lists.reduce((a, l) => a + l.symbols.length, 0);
     const first = watchlists.get().lists.find((l) => l.name === lists[0].name);
     if (first) selectList(first.id);
-    status.textContent = `${lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols). Stocks show prices once the end-of-day stock feed is added.`;
+    status.textContent = `${lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols). ${tops.length ? '' : 'No end-of-day stock prices are published yet, so stock rows show no price. Run PUBLISH.bat (needs pandas).'}`;
   }
 
   const unsub = watchlists.subscribe((s) => s, paint);
   paint();
+  fromSignals(true).catch((err) => console.error(err));
 
   return {
     el,

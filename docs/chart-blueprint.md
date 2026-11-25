@@ -255,3 +255,9 @@ strategy scripts run unchanged:
 - **Incremental runs:** strategy, higher-timeframe and label state all take part in the
   forming-bar rollback, so incremental runs equal full runs. Scripts that use arrays re-run in
   full each update, because arrays are shared references the snapshot does not copy.
+
+### End-of-day stocks (US / India)
+
+- `PUBLISH.bat` reads the scanners' daily price pickles (default `{accumulation_dir}/data/prices_*.pkl`, or `price_files` globs in `config/technical_sources.json`) with pandas. It understands a dict of per-ticker frames, yfinance-style wide tables, long tables with a symbol column, and close-only wide tables. It keeps the 500 most traded symbols per market (average close × volume over 60 days) plus every symbol in the signals, 400 daily bars each. The prices are integer-encoded and written to `data/technical/prices.json`, encrypted like the bundle. `safety_check.py` refuses to publish an unencrypted copy.
+- `assets/js/chart/data/stocks.js` unlocks the file with the remembered Technical password (or the "🔒 Unlock stocks" button) and adds the stocks to every feed (`withStocks`). The `Stocks (end of day)` feed shows only the stocks. Daily is the finest timeframe; W/M are aggregated. There are no live ticks.
+- The watchlists are 17 signal lists + Crypto + "US top 500" + "India top 500". They are built automatically when the chart opens with a remembered password (once per publish), or with ⚡.

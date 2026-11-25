@@ -26,7 +26,8 @@ export function notPublished() {
     h('p', { class: 'soft', style: { margin: '10px 0 0' } }, 'This page is built from the scanner files on your computer. Run PUBLISH.bat in your project folder once, and it will appear here. The README explains the one-time setup.'));
 }
 
-export function lockScreen(env, onUnlocked) {
+/** opts.open(env, pass) replaces the bundle unlock (the stock prices use the same password). */
+export function lockScreen(env, onUnlocked, opts = {}) {
   const err = h('div', { class: 'err', role: 'alert' });
   const pass = h('input', { class: 'field', type: 'password', placeholder: 'Technical page password', autocomplete: 'current-password', 'aria-label': 'Password', required: true });
   const remember = h('input', { type: 'checkbox', checked: true, id: 'rem' });
@@ -34,13 +35,13 @@ export function lockScreen(env, onUnlocked) {
     e.preventDefault(); err.textContent = '';
     if (!cryptoAvailable()) { err.textContent = 'Your browser only unlocks on a secure address. Open the site by its https:// link.'; return; }
     try {
-      await unlock(env, pass.value);
+      await (opts.open || unlock)(env, pass.value);
       if (remember.checked) store.set('techpass', pass.value);
       onUnlocked();
     } catch (x) { err.textContent = x.message === 'bad-password' ? 'That password did not open it. Check it and try again.' : 'Could not unlock: ' + x.message; }
   } }, pass, h('label', { class: 'check', for: 'rem' }, remember, 'Remember on this device'), h('button', { class: 'btn primary', type: 'submit' }, 'Unlock'), err);
-  return h('div', { class: 'lock' }, icon('lock', 'big'), h('h2', null, 'Your strategies are locked'),
-    h('p', { class: 'soft', style: { margin: '10px 0 0' } }, 'Everything on this page is encrypted in your repository. Enter the password you chose during setup to read it. It is checked on your device only.'), form);
+  return h('div', { class: 'lock' }, icon('lock', 'big'), h('h2', null, opts.title || 'Your strategies are locked'),
+    h('p', { class: 'soft', style: { margin: '10px 0 0' } }, opts.text || 'Everything on this page is encrypted in your repository. Enter the password you chose during setup to read it. It is checked on your device only.'), form);
 }
 
 // Returns { bundle } once unlocked, or { lock: 'not-published' | 'locked', env } otherwise.

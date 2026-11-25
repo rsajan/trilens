@@ -12,6 +12,7 @@
     "deny": [
       "Read(./config/local.json)",
       "Read(./data/technical/bundle.local.json)",
+      "Read(./data/technical/prices.local.json)",
       "Read(./technical_uploads/**)",
       "Read(!technical_uploads/README.txt)"
     ]

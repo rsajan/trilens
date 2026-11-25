@@ -2,7 +2,7 @@
 // toolbar, Pine editor, drawing rail, watchlist, alerts,
 // templates and crosshair sync. Cells never talk to each other; they talk to this shell.
 
-import { h, clear } from '../../lib/dom.js';
+import { h, clear, sheet } from '../../lib/dom.js';
 import { TIMEFRAMES } from '../data/timeframes.js';
 import { ADAPTERS, FEEDS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
@@ -18,6 +18,10 @@ import { createWatchlist } from './watchlist.js';
 import { AlertEngine, alertDialog, alertsListDialog } from './alerts.js';
 import { templatesDialog } from './workspace-dialogs.js';
 import { fmtNum } from '../engine/chart-engine.js';
+import { stockData } from '../data/stocks.js';
+import { lockScreen } from '../../lib/bundle.js';
+import { store } from '../../lib/store.js';
+import { installLists } from '../store/library.js';
 
 // Toolbar icons: constant SVG strings only (same pattern as lib/dom.js icons).
 const ICON = {
@@ -74,11 +78,23 @@ export function mountChartPage(root) {
   const feedChip = h('span', { class: 'cx-feedchip', role: 'status' });
   const savedChip = h('span', { class: 'cx-saved', title: 'Chart settings, drawings, scripts, watchlists and alerts are saved in this browser: on every change, every 2 minutes, and when you leave the page' });
   let warnedFallback = false;
+  // end-of-day stocks: unlocked with the Technical password, then searchable on every feed
+  function unlockStocks() {
+    const bg = sheet('Unlock your stock prices', lockScreen(stockData.env, () => bg.remove(), {
+      open: (env, pass) => stockData.unlock(env, pass),
+      title: 'Your stock prices are locked',
+      text: 'PUBLISH.bat encrypts the end-of-day US and India prices with your Technical password. Enter it to add them to the chart search and watchlists. It is checked on your device only.' }));
+  }
+  const unlockBtn = btn('🔒 Unlock stocks', 'Your end-of-day stock prices are encrypted: enter your Technical password to use them', unlockStocks, 'cx-unlock');
+  unlockBtn.style.display = 'none';
   function paintFeed() {
     const a = adapterFor(workspace.get().feed);
     const live = a.id !== 'synthetic' && !(a.source === 'synthetic');
     feedChip.className = 'cx-feedchip ' + (live ? 'live' : 'off');
-    feedChip.textContent = live ? (a.source || a.id !== 'live' ? '● Live · ' + (a.chosen ? a.chosen.short : a.short) : '○ Connecting…') : '○ Synthetic';
+    feedChip.textContent = a.id === 'stocks' ? '◷ End of day' : live ? (a.source || a.id !== 'live' ? '● Live · ' + (a.chosen ? a.chosen.short : a.short) : '○ Connecting…') : '○ Synthetic';
+    const st = stockData.status;
+    unlockBtn.style.display = st === 'locked' ? '' : 'none';
+    if (st === 'ready') feedChip.textContent += a.id === 'stocks' ? '' : ' + Stocks EOD';
     feedChip.title = a.fallbackReason ? 'Live feeds unreachable from here: ' + a.fallbackReason : (a.note || a.label || '');
     if (a.source === 'synthetic' && !warnedFallback) {
       warnedFallback = true;
@@ -124,7 +140,7 @@ export function mountChartPage(root) {
     h('span', { class: 'grow' }),
     watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
-    savedChip, feedChip, feedSel);
+    savedChip, unlockBtn, feedChip, feedSel);
 
   const grid = h('div', { class: 'cx-grid' });
   const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
@@ -134,6 +150,7 @@ export function mountChartPage(root) {
     currentSymbol: () => activeCell().symbol,
     onPick: (symbol) => setCell(workspace.get().active, { symbol }),
     onClose: () => workspace.set({ watchOpen: false }),
+    onUnlocked: async () => { await stockData.load(true); return stockData.status === 'ready' ? stockData.topLists() : []; },
   });
   const main = h('div', { class: 'cx-main' }, grid, watch.el, toasts);
   const drawer = createPineDrawer({
@@ -274,11 +291,20 @@ export function mountChartPage(root) {
   cleanups.push(() => alertEngine.dispose());
 
   // ---------------------------------------------------------------- store wiring
+  let stockStatus = stockData.status;
   cleanups.push(
     workspace.subscribe((w) => w.layout, layoutCells),
     workspace.subscribe((w) => w.active, focusCell),
     workspace.subscribe((w) => w.feed, (feed) => { warnedFallback = false; watch.refresh(); alertEngine.sync(); paintToolbar(); paintFeed(); adapterFor(feed).contracts().then(paintFeed, paintFeed); }),
     workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.cells[w.active].chartType + '|' + w.draw.panel + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
+    stockData.subscribe(() => {
+      paintFeed();
+      const was = stockStatus; stockStatus = stockData.status;
+      if (stockData.status !== 'ready') return;
+      // first time a published price file is opened here: add / refresh the top-500 lists
+      if (store.get('stockListsAt') !== stockData.data.built_at) { installLists(stockData.topLists()); store.set('stockListsAt', stockData.data.built_at); }
+      if (was === 'locked') { watch.refresh(); for (const c of cells) c.load(); } // just unlocked: show the stocks now
+    }),
     alerts.subscribe((x) => x, () => { for (const c of cells) if (c.contract) c.setAlertLines(priceAlertsFor(c.contract.symbol)); }),
   );
 

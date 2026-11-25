@@ -2,3 +2,4 @@ openpyxl>=3.1
 cryptography>=42
 Pillow>=10
 pypdf>=4
+pandas>=1.5

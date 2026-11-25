@@ -4,18 +4,23 @@
 import { h, sheet, clear } from '../../lib/dom.js';
 import { BUILTINS } from '../indicators/builtins.js';
 import { scripts } from '../store/workspace.js';
+import { kindLabel } from '../data/stocks.js';
 
 /** @param {{ contracts: any[], current: string, feedLabel: string, onPick: (symbol: string) => void }} o */
 export function symbolDialog(o) {
-  const q = h('input', { class: 'field', type: 'search', placeholder: 'Search contracts', 'aria-label': 'Search contracts' });
+  const q = h('input', { class: 'field', type: 'search', placeholder: 'Search contracts and stocks (e.g. BTC, MU, CIPLA)', 'aria-label': 'Search contracts and stocks' });
   const list = h('div', { class: 'ledger' });
   const draw = () => {
     clear(list);
     const term = q.value.trim().toLowerCase();
-    for (const c of o.contracts.filter((c) => !term || (c.symbol + ' ' + c.name).toLowerCase().includes(term))) {
+    // exact symbol first, then symbols starting with the term, then any match; at most 150 rows
+    const hits = o.contracts.filter((c) => !term || (c.symbol + ' ' + c.name).toLowerCase().includes(term));
+    const rank = (c) => { const s = c.symbol.toLowerCase(), b = s.replace(/(usdt\.p|\.ns)$/, ''); return s === term || b === term ? 0 : s.startsWith(term) ? 1 : 2; };
+    if (term) hits.sort((a, b) => rank(a) - rank(b));
+    for (const c of hits.slice(0, 150)) {
       list.append(h('button', { type: 'button', class: 'lrow cx-pickrow' + (c.symbol === o.current ? ' on' : ''), style: { width: '100%', textAlign: 'left', minHeight: '52px' }, onClick: () => { o.onPick(c.symbol); bg.remove(); } },
         h('span', { class: 'who' }, h('span', { class: 'sym' }, c.symbol), h('div', { class: 'name' }, c.name)),
-        h('span', { class: 'badge' }, c.kind === 'perp' ? 'Perpetual' : 'Quarterly')));
+        h('span', { class: 'badge' }, kindLabel(c))));
     }
     if (!list.childNodes.length) list.append(h('p', { class: 'muted', style: { padding: '14px 2px' } }, 'No contract matches.'));
   };

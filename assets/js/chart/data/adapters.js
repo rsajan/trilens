@@ -83,17 +83,21 @@ export class SyntheticAdapter {
 // Live adapters live in live.js (it imports SyntheticAdapter from here for its fallback; the
 // registry below only touches them when a feed is first used, so the import cycle is harmless).
 import { AutoLiveAdapter, BinanceAdapter, BybitAdapter } from './live.js';
+import { StocksAdapter, withStocks } from './stocks.js';
 
 export const FEEDS = [
-  { id: 'live', label: 'Live (auto)', title: 'Binance, or Bybit if Binance is blocked here; synthetic only if neither answers' },
-  { id: 'binance', label: 'Binance (live)', title: 'Binance USD-M perpetuals' },
-  { id: 'bybit', label: 'Bybit (live)', title: 'Bybit linear perpetuals' },
+  { id: 'live', label: 'Live (auto)', title: 'Binance, or Bybit if Binance is blocked here; synthetic only if neither answers. Your end-of-day stocks are added once unlocked.' },
+  { id: 'binance', label: 'Binance (live)', title: 'Binance USD-M perpetuals, plus your end-of-day stocks' },
+  { id: 'bybit', label: 'Bybit (live)', title: 'Bybit linear perpetuals, plus your end-of-day stocks' },
+  { id: 'stocks', label: 'Stocks (end of day)', title: 'Only your US and India stocks, daily bars from PUBLISH.bat' },
   { id: 'synthetic', label: 'Synthetic (offline)', title: 'Generated in your browser: works offline, not real prices' },
 ];
 
+// Every crypto feed also carries your end-of-day stocks (withStocks), so one search box finds both.
 export const ADAPTERS = {
-  live: () => new AutoLiveAdapter(),
-  binance: () => new BinanceAdapter(),
-  bybit: () => new BybitAdapter(),
-  synthetic: () => new SyntheticAdapter(),
+  live: () => withStocks(new AutoLiveAdapter()),
+  binance: () => withStocks(new BinanceAdapter()),
+  bybit: () => withStocks(new BybitAdapter()),
+  stocks: () => new StocksAdapter(),
+  synthetic: () => withStocks(new SyntheticAdapter()),
 };
