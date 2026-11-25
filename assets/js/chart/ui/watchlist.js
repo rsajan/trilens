@@ -3,17 +3,17 @@
 // (one telemetry subscription per listed symbol, dropped when the list changes).
 
 import { h, clear, sheet } from '../../lib/dom.js';
-import { loadBundle, lockScreen, notPublished } from '../../lib/bundle.js';
-import { store } from '../../lib/store.js';
+import { lockScreen, notPublished } from '../../lib/bundle.js';
+import { refreshAutoLists, ensureMyLists } from '../store/auto-lists.js';
 import { fmtNum } from '../engine/chart-engine.js';
 import { kindLabel } from '../data/stocks.js';
 import { promptDialog } from './dialogs.js';
-import { watchlists, activeList, addList, renameList, deleteList, selectList, addToList, removeFromList, cycleFlag, moveInList, buildSignalLists, installLists } from '../store/library.js';
+import { watchlists, activeList, addList, renameList, deleteList, selectList, addToList, removeFromList, cycleFlag, moveInList } from '../store/library.js';
 
 const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
 /**
- * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onClose: () => void, onUnlocked?: () => Promise<{ name: string, symbols: string[] }[]> }} o
+ * @param {{ getAdapter: () => any, getContracts: () => Promise<any[]>, currentSymbol: () => string, onPick: (symbol: string) => void, onClose: () => void }} o
  */
 export function createWatchlist(o) {
   const listSel = h('select', { class: 'ipt wl-sel', 'aria-label': 'Watchlist' });
@@ -94,30 +94,25 @@ export function createWatchlist(o) {
   const status = h('p', { class: 'tiny muted wl-status' });
   el.querySelector('.wl-foot').prepend(status);
 
-  // One list per Scanner signal, built here in the browser from your unlocked data.
+  // The 20 automatic lists (17 signals, Crypto, US / India top 500), built here from your unlocked data.
   async function fromSignals(auto = false) {
     if (!auto) status.textContent = 'Opening your signal data…';
-    const res = await loadBundle().catch(() => ({ lock: 'not-published' }));
-    // automatic run (chart opened): only with a remembered password, once per published bundle
-    if (auto && (!res.bundle || store.get('signalListsAt') === res.bundle.built_at)) return;
-    if (res.lock === 'not-published') { status.textContent = ''; sheet('Signal watchlists', notPublished()); return; }
-    if (res.lock === 'locked') {
+    const r = await refreshAutoLists(auto);
+    if (auto || r.state === 'skipped') return;
+    if (r.state === 'not-published') { status.textContent = ''; sheet('Signal watchlists', notPublished()); return; }
+    if (r.state === 'locked') {
       status.textContent = '';
-      const bg = sheet('Unlock your signals', lockScreen(res.env, () => { bg.remove(); fromSignals(); }));
+      const bg = sheet('Unlock your signals', lockScreen(r.env, () => { bg.remove(); fromSignals(); }));
       return;
     }
-    // the same password opens the stock prices: add the US / India top 500 lists too
-    const tops = o.onUnlocked ? await o.onUnlocked().catch(() => []) : [];
-    const lists = [...buildSignalLists(res.bundle), ...tops];
-    installLists(lists);
-    store.set('signalListsAt', res.bundle.built_at);
-    const filled = lists.filter((l) => l.symbols.length).length;
-    const total = lists.reduce((a, l) => a + l.symbols.length, 0);
-    const first = watchlists.get().lists.find((l) => l.name === lists[0].name);
+    const filled = r.lists.filter((l) => l.symbols.length).length;
+    const total = r.lists.reduce((a, l) => a + l.symbols.length, 0);
+    const first = watchlists.get().lists.find((l) => l.name === r.lists[0].name);
     if (first) selectList(first.id);
-    status.textContent = `${lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols). ${tops.length ? '' : 'No end-of-day stock prices are published yet, so stock rows show no price. Run PUBLISH.bat (needs pandas).'}`;
+    status.textContent = `${r.lists.length} lists updated from your Scanner data (${filled} with symbols, ${total} symbols).${r.stocks ? '' : ' No end-of-day stock prices are published yet, so stock rows show no price. Run PUBLISH.bat (needs pandas).'}`;
   }
 
+  ensureMyLists();
   const unsub = watchlists.subscribe((s) => s, paint);
   paint();
   fromSignals(true).catch((err) => console.error(err));
