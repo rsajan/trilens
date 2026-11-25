@@ -1,285 +1,243 @@
-// Chart page controller. Owns the wiring between the data adapter, the bar buffer, the chart
-// engine, the Pine worker and the workspace store. Components never talk to each other directly.
+// Chart page shell. Lays out the split-screen grid of ChartCells and owns everything shared:
+// toolbar, telemetry strip (for the focused chart), Pine editor, drawing rail, watchlist, alerts,
+// templates and crosshair sync. Cells never talk to each other; they talk to this shell.
 
 import { h, clear } from '../../lib/dom.js';
 import { TIMEFRAMES, TF } from '../data/timeframes.js';
 import { ADAPTERS } from '../data/adapters.js';
-import { BarBuffer } from '../data/bar-buffer.js';
-import { ChartEngine } from '../engine/chart-engine.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
-import { workspace, scripts, getScript, addStudy, removeStudy, patchStudy, setEditor } from '../store/workspace.js';
+import { workspace, removeStudy, patchStudy, addStudy, setEditor, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
+import { alerts } from '../store/library.js';
 import { createTelemetryBar } from './telemetry-bar.js';
 import { createPineDrawer } from './pine-drawer.js';
-import { symbolDialog, indicatorDialog, settingsDialog } from './dialogs.js';
-import { DrawingLayer } from '../drawings/layer.js';
+import { symbolDialog, indicatorDialog, settingsDialog, promptDialog } from './dialogs.js';
 import { createDrawRail } from './draw-rail.js';
+import { ChartCell, sourceFor } from './chart-cell.js';
+import { createWatchlist } from './watchlist.js';
+import { AlertEngine, alertDialog, alertsListDialog } from './alerts.js';
+import { templatesDialog } from './workspace-dialogs.js';
+import { fmtNum } from '../engine/chart-engine.js';
 
 const FAV_TF = ['1m', '5m', '15m', '1h', '4h', '1D', '1W'];
-const MAX_BARS = 20000; // history paging stops here: every live recalculation runs over all loaded bars
-const RERUN_MS = 250;
 
 // Workers survive page re-renders (the theme switch re-renders every page).
 let pine = null;
 const adapters = new Map();
 const adapterFor = (feed) => { if (!adapters.has(feed)) adapters.set(feed, (ADAPTERS[feed] || ADAPTERS.synthetic)()); return adapters.get(feed); };
+const decOf = (tick) => { const s = String(tick); return s.includes('e-') ? +s.split('e-')[1] : (s.split('.')[1] || '').length; };
 
-function sourceFor(ref) {
-  if (ref.startsWith('builtin:')) { const b = BUILTIN[ref.slice(8)]; return b ? { source: b.source, name: b.short } : null; }
-  if (ref.startsWith('script:')) { const s = getScript(ref.slice(7)); return s ? { source: s.source, name: s.name, scriptId: s.id } : null; }
-  return null;
-}
+const narrow = () => matchMedia('(max-width: 900px)').matches;
 
 export function mountChartPage(root) {
   pine = pine || new PineEngine();
+  // on a phone the watchlist is an overlay over the chart: start with it closed
+  if (narrow() && workspace.get().watchOpen) workspace.set({ watchOpen: false });
   const cleanups = [];
-  let token = 0;
-  let buf = new BarBuffer();
-  let contract = null;
-  let contracts = [];
-  let adapter = null;
-  let unsubBars = null, unsubTele = null;
-  let historyBusy = false, historyDone = false;
-  let runTimer = 0, running = false, rerunWanted = false;
-  /** uid -> { res, study, error } */
-  const live = new Map();
-  const reportNext = new Set(); // script ids whose next run result goes to the editor console
-  const DS = 'main';
+  /** @type {ChartCell[]} */
+  const cells = [];
+  let unsubTele = null, teleSymbol = null;
+  const tickOf = new Map(); // symbol -> tick, for formatting alert prices
 
-  // ---------------------------------------------------------------- layout
+  const active = () => cells[workspace.get().active] || cells[0];
+  const fmtFor = (symbol, p) => fmtNum(p, tickOf.has(symbol) ? decOf(tickOf.get(symbol)) : 2);
+
+  // ---------------------------------------------------------------- toolbar
+  const btn = (label, title, onClick, cls = '') => h('button', { type: 'button', class: 'btn cx-tool ' + cls, title, onClick }, label);
+  const seg = (label, title, onClick) => h('button', { type: 'button', title, 'aria-label': title, onClick }, label);
+  const layoutSeg = h('div', { class: 'seg cx-tfs cx-layouts', role: 'group', 'aria-label': 'Layout' },
+    seg('▢', 'One chart', () => setLayout('1x1')), seg('◫', 'Two charts side by side', () => setLayout('1x2')), seg('⊞', 'Four charts', () => setLayout('2x2')));
+  const syncSeg = h('div', { class: 'seg cx-tfs cx-sync', role: 'group', 'aria-label': 'Sync between charts' },
+    seg('Sym', 'Same contract on every chart', () => setSync({ symbol: !workspace.get().sync.symbol })),
+    seg('TF', 'Same timeframe on every chart', () => setSync({ tf: !workspace.get().sync.tf })),
+    seg('✛', 'Crosshair follows across charts', () => setSync({ crosshair: !workspace.get().sync.crosshair })));
   const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'More timeframes' }, TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
   const tfButtons = h('div', { class: 'seg cx-tfs', role: 'group', 'aria-label': 'Timeframe' },
-    FAV_TF.map((id) => h('button', { type: 'button', dataset: { tf: id }, onClick: () => workspace.set({ tf: id }) }, TF[id].label)));
-  tfSel.addEventListener('change', () => workspace.set({ tf: tfSel.value }));
+    FAV_TF.map((id) => h('button', { type: 'button', dataset: { tf: id }, onClick: () => setCell(workspace.get().active, { tf: id }) }, TF[id].label)));
+  tfSel.addEventListener('change', () => setCell(workspace.get().active, { tf: tfSel.value }));
   const feedSel = h('select', { class: 'ipt cx-feed', 'aria-label': 'Data feed', title: 'Where prices come from' },
     h('option', { value: 'synthetic' }, 'Synthetic market'), h('option', { value: 'binance' }, 'Binance public (live)'));
-  feedSel.addEventListener('change', () => workspace.set({ feed: feedSel.value, symbol: '' }));
-  const btn = (label, title, onClick) => h('button', { type: 'button', class: 'btn cx-tool', title, onClick }, label);
-  const editorBtn = btn('Pine Editor', 'Open the Pine Script editor', () => setEditor({ open: !workspace.get().editor.open, tab: 'editor' }));
+  feedSel.addEventListener('change', () => workspace.set({ feed: feedSel.value }));
+  const editorBtn = btn('Pine Editor', 'Open the Pine Script editor (Alt+P)', () => setEditor({ open: !workspace.get().editor.open, tab: 'editor' }));
+  const replayBtn = btn('Replay', 'Bar replay: cut the focused chart at a past bar and play it forward', () => { const c = active(); c.replay || c.selecting ? c.exitReplay() : c.startReplaySelect(); });
+  const watchBtn = btn('Watchlist', 'Show or hide the watchlist', () => workspace.set({ watchOpen: !workspace.get().watchOpen }));
   const toolbar = h('div', { class: 'cx-toolbar' },
-    tfButtons, tfSel,
-    btn('Indicators', 'Add an indicator or one of your scripts', () => indicatorDialog({ onAdd: (ref) => addStudy(ref), onNewScript: () => drawer.openNew(NEW_SCRIPT) })),
-    editorBtn,
+    layoutSeg, syncSeg, tfButtons, tfSel,
+    btn('Indicators', 'Add an indicator or one of your scripts to the focused chart', () => indicatorDialog({ onAdd: (ref) => addStudy(ref), onNewScript: () => drawer.openNew(NEW_SCRIPT) })),
+    btn('Templates', 'Indicator templates and saved layouts', () => templatesDialog()),
+    editorBtn, replayBtn,
+    btn('Alert', 'Create a price alert for the focused contract', () => newAlert()),
+    btn('Alerts', 'Your alerts', () => alertsListDialog({ fmt: fmtFor })),
     h('span', { class: 'grow' }),
-    btn('Latest', 'Jump to the latest bar', () => engine.scrollToRealtime()),
+    watchBtn,
+    btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
     feedSel);
 
-  const tele = createTelemetryBar({ onPickSymbol: () => symbolDialog({ contracts, current: workspace.get().symbol, feedLabel: adapter ? adapter.label : '', onPick: (symbol) => workspace.set({ symbol }) }) });
-  const chartHost = h('div', { class: 'cx-host' });
-  const status = h('div', { class: 'cx-status hide', role: 'status' });
-  const chartWrap = h('div', { class: 'cx-chart' }, chartHost, status);
+  const tele = createTelemetryBar({ onPickSymbol: () => { const c = active(); symbolDialog({ contracts: c.contracts, current: c.state.symbol, feedLabel: c.adapter ? c.adapter.label : '', onPick: (symbol) => setCell(workspace.get().active, { symbol }) }); } });
+  const grid = h('div', { class: 'cx-grid' });
+  const toasts = h('div', { class: 'cx-toasts', 'aria-live': 'assertive' });
+  const watch = createWatchlist({
+    getAdapter: () => adapterFor(workspace.get().feed),
+    getContracts: () => adapterFor(workspace.get().feed).contracts(),
+    currentSymbol: () => activeCell().symbol,
+    onPick: (symbol) => { setCell(workspace.get().active, { symbol }); if (narrow()) workspace.set({ watchOpen: false }); },
+    onClose: () => workspace.set({ watchOpen: false }),
+  });
+  const main = h('div', { class: 'cx-main' }, grid, watch.el, toasts);
   const drawer = createPineDrawer({
     pine,
     onApply: (scriptId) => {
-      const ref = 'script:' + scriptId;
-      reportNext.add(scriptId);
-      const st = workspace.get().studies.find((s) => s.ref === ref);
-      if (st) runStudy(st, true);
-      else addStudy(ref);
+      const c = active(), ref = 'script:' + scriptId;
+      c.reportNext.add(scriptId);
+      const st = c.state.studies.find((s) => s.ref === ref);
+      if (st) c.runStudy(st, true); else addStudy(ref);
     },
-    onRemoveFromChart: (scriptId) => { for (const s of workspace.get().studies) if (s.ref === 'script:' + scriptId) removeStudy(s.uid); },
-    isOnChart: (scriptId) => workspace.get().studies.some((s) => s.ref === 'script:' + scriptId),
+    onRemoveFromChart: (scriptId) => { for (const s of activeCell().studies) if (s.ref === 'script:' + scriptId) removeStudy(s.uid); },
+    isOnChart: (scriptId) => activeCell().studies.some((s) => s.ref === 'script:' + scriptId),
   });
-  const page = h('div', { class: 'cx-page' }, toolbar, tele.el, chartWrap, drawer.el);
+  const page = h('div', { class: 'cx-page' }, toolbar, tele.el, main, drawer.el);
   clear(root).append(page);
 
-  const engine = new ChartEngine(chartHost, {
-    onNeedHistory: () => loadHistory(),
-    onStudyAction: (uid, action) => studyAction(uid, action),
+  const rail = createDrawRail(() => (active() ? active().layer : null), {
+    onAlert: (price) => newAlert(price),
+    refreshAll: () => cells.forEach((c) => c.layer.refresh()),
   });
-  const layer = new DrawingLayer(engine, {
+  cleanups.push(() => rail.dispose(), () => tele.dispose(), () => drawer.dispose(), () => watch.dispose());
+
+  // ---------------------------------------------------------------- cells
+  const drawHooks = {
     magnet: () => workspace.get().draw.magnet,
     hidden: () => workspace.get().draw.hidden,
-    onChange: () => rail && rail.paint(),
-    onToolDone: () => rail && rail.paint(),
-  });
-  const rail = createDrawRail(layer);
-  chartWrap.append(rail.rail, rail.bar);
-  // drawings release their listeners (and save) before the chart they draw on goes away
-  cleanups.push(() => rail.dispose(), () => layer.dispose(), () => engine.dispose(), () => tele.dispose(), () => drawer.dispose());
+    onChange: () => rail.paint(),
+    onToolDone: () => rail.paint(),
+    askText: (v) => promptDialog(v ? 'Edit note' : 'Text note', 'Text (empty deletes the note)', v),
+  };
+  function makeCell(i) {
+    return new ChartCell(i, {
+      pine, adapterFor, drawHooks,
+      onActivate: (k) => setActive(k),
+      onStudyAction: (cell, uidv, action) => studyAction(cell, uidv, action),
+      onRunReport: (scriptId, res, error) => drawer.showRun(scriptId, res, error),
+      onCrosshair: (cell, time, price) => {
+        if (!workspace.get().sync.crosshair) return;
+        for (const other of cells) if (other !== cell && other.contract) other.showCrosshair(time, other.contract.symbol === (cell.contract && cell.contract.symbol) ? price : null);
+      },
+      onContract: (cell) => {
+        tickOf.set(cell.contract.symbol, cell.contract.tick);
+        cell.setAlertLines(alerts.get().filter((a) => a.active && a.symbol === cell.contract.symbol));
+        if (cell === active()) { subscribeTele(); watch.markCurrent(cell.contract.symbol); }
+      },
+      onReplay: () => paintToolbar(),
+    });
+  }
 
-  function showStatus(text, kind = '') {
-    status.className = 'cx-status ' + kind + (text ? '' : ' hide');
-    status.textContent = text || '';
+  function layoutCells() {
+    const w = workspace.get();
+    const n = LAYOUT_CELLS[w.layout];
+    while (cells.length > n) cells.pop().dispose();
+    while (cells.length < n) { const c = makeCell(cells.length); cells.push(c); c.load(); }
+    grid.className = 'cx-grid l' + w.layout;
+    grid.replaceChildren(...cells.map((c) => c.el));
+    focusCell();
+  }
+
+  function focusCell() {
+    const a = active();
+    cells.forEach((c) => c.el.classList.toggle('on', c === a && cells.length > 1));
+    // the drawing rail and selection bar live inside the focused chart
+    a.wrap.append(rail.rail, rail.bar);
+    for (const c of cells) if (c !== a) { c.layer.setTool('cursor'); c.layer.selected = null; c.layer.refresh(); }
+    rail.paint();
+    if (a.contract) { subscribeTele(); watch.markCurrent(a.contract.symbol); }
+    paintToolbar();
+  }
+
+  function subscribeTele() {
+    const a = active();
+    if (!a.contract) return;
+    const key = workspace.get().feed + '|' + a.contract.symbol;
+    if (key === teleSymbol) return;
+    if (unsubTele) unsubTele();
+    teleSymbol = key;
+    tele.setContract(a.contract, a.adapter.label);
+    unsubTele = a.adapter.subscribeTelemetry(a.contract.symbol, (t) => { if (teleSymbol === key) tele.update(t); });
   }
 
   function paintToolbar() {
     const w = workspace.get();
-    for (const b of tfButtons.children) b.setAttribute('aria-pressed', String(b.dataset.tf === w.tf));
-    tfSel.value = w.tf;
-    tfSel.classList.toggle('on', !FAV_TF.includes(w.tf));
+    const c = w.cells[w.active];
+    const lay = ['1x1', '1x2', '2x2'];
+    [...layoutSeg.children].forEach((b, i) => b.setAttribute('aria-pressed', String(w.layout === lay[i])));
+    [...syncSeg.children].forEach((b, i) => b.setAttribute('aria-pressed', String([w.sync.symbol, w.sync.tf, w.sync.crosshair][i])));
+    syncSeg.classList.toggle('hide', w.layout === '1x1');
+    for (const b of tfButtons.children) b.setAttribute('aria-pressed', String(b.dataset.tf === c.tf));
+    tfSel.value = c.tf;
+    tfSel.classList.toggle('on', !FAV_TF.includes(c.tf));
     feedSel.value = w.feed;
     editorBtn.classList.toggle('on', w.editor.open);
+    watchBtn.classList.toggle('on', w.watchOpen);
+    main.classList.toggle('wl-open', w.watchOpen);
+    const a = active();
+    replayBtn.classList.toggle('on', !!(a && (a.replay || a.selecting)));
+    replayBtn.textContent = a && (a.replay || a.selecting) ? 'Exit replay' : 'Replay';
   }
 
-  // ---------------------------------------------------------------- data
-  async function load() {
-    const my = ++token;
-    unsubBars && unsubBars(); unsubTele && unsubTele();
-    unsubBars = unsubTele = null;
-    historyDone = false;
-    const w = workspace.get();
-    adapter = adapterFor(w.feed);
-    showStatus('Loading ' + (w.symbol || '') + ' ' + TF[w.tf].label + '…');
-    try {
-      contracts = await adapter.contracts();
-      if (my !== token) return;
-      contract = contracts.find((c) => c.symbol === w.symbol) || contracts[0];
-      if (contract.symbol !== w.symbol) { workspace.set({ symbol: contract.symbol }); return; } // triggers load() again
-      tele.setContract(contract, adapter.label);
-      const tf = TF[w.tf];
-      const bars = await adapter.bars(contract.symbol, tf.id, { limit: tf.calendar ? 5000 : 1500 });
-      if (my !== token) return;
-      buf = new BarBuffer(bars);
-      engine.setBars(buf, { tick: contract.tick, label: `${contract.symbol} · ${tf.label} · ${adapter.id === 'synthetic' ? 'Synthetic' : 'Binance'}` });
-      engine.showLatest(tf.calendar ? 120 : 160);
-      layer.setContext(contract.symbol, tf.sec);
-      pine.setData(DS, buf.copy(), { ticker: contract.symbol, mintick: contract.tick }, { period: tf.pine, seconds: tf.sec });
-      showStatus('');
-      runAll(true);
-      unsubBars = adapter.subscribeBars(contract.symbol, tf.id, (bar) => {
-        if (my !== token) return;
-        const kind = buf.apply(bar);
-        if (kind === 'stale') return;
-        engine.liveUpdate();
-        pine.pushBar(DS, bar);
-        scheduleRuns();
-      });
-      unsubTele = adapter.subscribeTelemetry(contract.symbol, (t) => { if (my === token) tele.update(t); });
-    } catch (err) {
-      if (my !== token) return;
-      console.error(err);
-      showStatus(String(err.message || err) + (w.feed !== 'synthetic' ? ' — choose "Synthetic market" in the feed menu to keep working offline.' : ''), 'err');
-    }
-  }
-
-  async function loadHistory() {
-    if (historyBusy || historyDone || !buf.length || !contract) return;
-    if (buf.length >= MAX_BARS) { historyDone = true; return; }
-    historyBusy = true;
-    const my = token;
-    const tf = TF[workspace.get().tf];
-    try {
-      const older = await adapter.bars(contract.symbol, tf.id, { to: buf.cols.time[0] - 1, limit: 1000 });
-      if (my !== token || engine.disposed) return;
-      const added = buf.prepend(older);
-      if (!added) { historyDone = true; return; }
-      engine.setBars(buf, { tick: contract.tick, label: engine.symbolLabel }, { keepRange: true, shiftBy: added });
-      pine.setData(DS, buf.copy(), { ticker: contract.symbol, mintick: contract.tick }, { period: tf.pine, seconds: tf.sec });
-      runAll(true);
-    } catch (err) { console.warn('history', err); historyDone = true; }
-    finally { historyBusy = false; }
-  }
-
-  // ---------------------------------------------------------------- studies
-  function scheduleRuns() {
-    if (runTimer) return;
-    runTimer = setTimeout(() => { runTimer = 0; runAll(false); }, RERUN_MS);
-  }
-
-  async function runAll(force) {
-    if (running && !force) { rerunWanted = true; return; }
-    running = true;
-    try { await Promise.all(workspace.get().studies.filter((s) => !s.hidden).map((s) => runStudy(s, false))); }
-    finally {
-      running = false;
-      if (rerunWanted) { rerunWanted = false; scheduleRuns(); }
-    }
-  }
-
-  function labelFor(study, res, fallback) {
-    const name = res && res.meta ? (res.meta.shorttitle || res.meta.title) : fallback;
-    const ins = res && res.inputs ? res.inputs.filter((d) => d.type !== 'bool' && d.type !== 'color').map((d) => String(d.value)).join(' ') : '';
-    return { label: name, inputsLabel: ins };
-  }
-
-  async function runStudy(study, report) {
-    const src = sourceFor(study.ref);
-    const l = live.get(study.uid) || { res: null, study, error: null };
-    live.set(study.uid, l);
-    l.study = study;
-    if (!src) {
-      l.error = 'The script for this indicator was deleted';
-      engine.renderStudy(study.uid, null, { hidden: false, styles: {}, label: study.ref, inputsLabel: '', error: l.error });
-      return;
-    }
-    if (study.hidden) {
-      engine.renderStudy(study.uid, l.res, { hidden: true, styles: study.styles, ...labelFor(study, l.res, src.name), error: null });
-      return;
-    }
-    let res = null, error = null;
-    try {
-      res = await pine.run(study.uid, DS, src.source, study.inputs);
-      if (res === null) return; // superseded by a newer run
-    } catch (err) { error = String(err.message || err); }
-    if (engine.disposed) return; // the page was left while the script ran
-    const current = workspace.get().studies.find((s) => s.uid === study.uid);
-    if (!current) return; // removed while running
-    const firstError = error || (res && res.diagnostics.find((d) => d.severity === 'error'));
-    const errText = typeof firstError === 'string' ? firstError : firstError ? `line ${firstError.line}: ${firstError.message}` : null;
-    const okChanged = (l.error || null) !== (errText || null);
-    l.error = errText;
-    if (res && res.ok) l.res = res;
-    engine.renderStudy(study.uid, res && res.ok ? res : res && res.meta ? res : null, { hidden: false, styles: current.styles, ...labelFor(current, res && res.meta ? res : l.res, src.name), error: errText });
-    if (src.scriptId && (report || okChanged || reportNext.has(src.scriptId))) {
-      reportNext.delete(src.scriptId);
-      drawer.showRun(src.scriptId, res || { ok: false, diagnostics: [], plots: [], inputs: [], bars: 0, ms: 0 }, error);
-    }
-  }
-
-  function studyAction(uid, action) {
-    const st = workspace.get().studies.find((s) => s.uid === uid);
+  function studyAction(cell, uidv, action) {
+    setActive(cell.index);
+    const st = cell.state.studies.find((s) => s.uid === uidv);
     if (!st) return;
-    if (action === 'remove') removeStudy(uid);
-    else if (action === 'hide') patchStudy(uid, { hidden: !st.hidden });
+    if (action === 'remove') removeStudy(uidv);
+    else if (action === 'hide') patchStudy(uidv, { hidden: !st.hidden });
     else if (action === 'edit') {
       if (st.ref.startsWith('script:')) drawer.openScript(st.ref.slice(7));
       else { const b = BUILTIN[st.ref.slice(8)]; if (b) drawer.openNew(b.source.replace(/indicator\("([^"]+)"/, 'indicator("$1 (my copy)"')); }
     } else if (action === 'settings') {
-      const l = live.get(uid);
+      const l = cell.live.get(uidv);
       const src = sourceFor(st.ref);
-      settingsDialog({ title: (l && l.res && l.res.meta && l.res.meta.title) || (src && src.name) || 'Indicator', result: l && l.res, study: st, onChange: (patch) => patchStudy(uid, patch) });
+      settingsDialog({ title: (l && l.res && l.res.meta && l.res.meta.title) || (src && src.name) || 'Indicator', result: l && l.res, study: st, onChange: (patch) => patchStudy(uidv, patch) });
     }
   }
 
+  function newAlert(price) {
+    const a = active();
+    if (!a.contract || !a.buf.length) return;
+    const last = a.replay ? a.replay.full.cols.close[a.replay.full.length - 1] : a.buf.cols.close[a.buf.length - 1];
+    alertDialog({ symbol: a.contract.symbol, price: price ?? last, last, fmt: (p) => a.priceText(p) });
+  }
+
+  function toast(title, body) {
+    const t = h('div', { class: 'cx-toast', role: 'alert' }, h('b', null, '⏰ ' + title), h('div', null, body),
+      h('button', { type: 'button', class: 'cx-toast-x', 'aria-label': 'Dismiss', onClick: () => t.remove() }, '✕'));
+    toasts.append(t);
+    setTimeout(() => t.remove(), 15000);
+  }
+
+  const alertEngine = new AlertEngine({ getAdapter: () => adapterFor(workspace.get().feed), toast, fmt: fmtFor });
+  cleanups.push(() => alertEngine.dispose());
+
   // ---------------------------------------------------------------- store wiring
-  let prevStudies = workspace.get().studies;
   cleanups.push(
-    workspace.subscribe((w) => w.feed + '|' + w.symbol + '|' + w.tf, () => { paintToolbar(); load(); }),
-    workspace.subscribe((w) => w.editor.open, paintToolbar),
-    workspace.subscribe((w) => w.studies, (next) => {
-      const prevMap = new Map(prevStudies.map((s) => [s.uid, s]));
-      const nextIds = new Set(next.map((s) => s.uid));
-      for (const s of prevStudies) if (!nextIds.has(s.uid)) { engine.removeStudy(s.uid); live.delete(s.uid); }
-      for (const s of next) if (prevMap.get(s.uid) !== s) runStudy(s, false);
-      prevStudies = next;
-    }),
-    scripts.subscribe((list) => list, (next, prev) => {
-      const before = new Map(prev.map((s) => [s.id, s]));
-      for (const st of workspace.get().studies) {
-        if (!st.ref.startsWith('script:')) continue;
-        const id = st.ref.slice(7);
-        const a = before.get(id), b = next.find((s) => s.id === id);
-        if (a !== b) runStudy(st, true);
-      }
-    }),
+    workspace.subscribe((w) => w.layout, layoutCells),
+    workspace.subscribe((w) => w.active, focusCell),
+    workspace.subscribe((w) => w.feed, () => { teleSymbol = null; watch.refresh(); alertEngine.sync(); paintToolbar(); }),
+    workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
+    alerts.subscribe((x) => x, (list) => { for (const c of cells) if (c.contract) c.setAlertLines(list.filter((a) => a.active && a.symbol === c.contract.symbol)); }),
   );
 
   const onKey = (e) => {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (active() && active().replayKey(e)) { e.preventDefault(); return; }
     if (e.altKey && e.key.toLowerCase() === 'p') { e.preventDefault(); setEditor({ open: !workspace.get().editor.open }); }
   };
   addEventListener('keydown', onKey);
   cleanups.push(() => removeEventListener('keydown', onKey));
 
+  layoutCells();
   paintToolbar();
-  load();
 
   return () => {
-    token++;
-    clearTimeout(runTimer);
-    unsubBars && unsubBars(); unsubTele && unsubTele();
-    pine.drop(DS);
+    if (unsubTele) unsubTele();
     for (const f of cleanups) f();
+    while (cells.length) cells.pop().dispose();
   };
 }
