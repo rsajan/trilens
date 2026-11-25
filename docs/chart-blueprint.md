@@ -172,7 +172,24 @@ focused cell, which is outlined.
   2–4 µs per bar per script, so a 1,500-bar chart with five studies costs ~20 ms per update, in a
   worker, at most 4×/s. Snapshotting every interpreter state object adds a class of subtle bugs
   for no visible gain at this scale; revisit only if charts grow past ~20k bars.
-- *`alertcondition()` driving alerts*, and drawing templates. Small follow-ups if wanted.
+
+**Follow-ups (done).**
+- **`alertcondition()` alerts.** The runtime records each `alertcondition()` per bar
+  (`res.alertconds`). The Alert dialog lists every condition from the focused chart's
+  indicators.
+  - Each script alert runs its own copy of the script in the Pine worker on its own 600 bars for
+    its contract and timeframe, so it keeps working whatever the charts show.
+  - It fires when a bar *closes* with the condition true. The forming bar is ignored, so
+    in-bar flicker never fires, and history present when the alert starts never fires.
+  - Fire once, or on every bar close that meets it.
+  - Messages fill `{{ticker}} {{interval}} {{open}} {{high}} {{low}} {{close}} {{volume}} {{time}}`
+    (`fillMessage`, tested).
+  - The alert switches itself off with a message if its script is deleted, errors, or loses
+    that condition.
+- **Drawing templates.** Drawings gain a line style (solid, dashed, dotted). Per-tool
+  templates hold a colour, width and line style. From a selected drawing's Tpl menu you can
+  apply a template, save the current style, or make a style the default for new drawings of
+  that tool (`store/library.js` `drawStyles`).
 
 Each milestone ends the same way: `node --test "tests/*.test.mjs"`, then the Playwright flow (desktop and
 phone, both themes, zero console errors).

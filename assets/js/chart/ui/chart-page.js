@@ -8,7 +8,7 @@ import { ADAPTERS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
 import { workspace, removeStudy, patchStudy, addStudy, setEditor, setLayout, setActive, setSync, setCell, activeCell, LAYOUT_CELLS } from '../store/workspace.js';
-import { alerts } from '../store/library.js';
+import { alerts, defaultStyle } from '../store/library.js';
 import { createTelemetryBar } from './telemetry-bar.js';
 import { createPineDrawer } from './pine-drawer.js';
 import { symbolDialog, indicatorDialog, settingsDialog, promptDialog } from './dialogs.js';
@@ -40,6 +40,8 @@ export function mountChartPage(root) {
   const tickOf = new Map(); // symbol -> tick, for formatting alert prices
 
   const active = () => cells[workspace.get().active] || cells[0];
+  // armed price alerts draw as dashed lines; script alerts have no single price to draw
+  const priceAlertsFor = (symbol) => alerts.get().filter((a) => a.active && a.kind !== 'script' && a.symbol === symbol);
   const fmtFor = (symbol, p) => fmtNum(p, tickOf.has(symbol) ? decOf(tickOf.get(symbol)) : 2);
 
   // ---------------------------------------------------------------- toolbar
@@ -111,6 +113,7 @@ export function mountChartPage(root) {
     onChange: () => rail.paint(),
     onToolDone: () => rail.paint(),
     askText: (v) => promptDialog(v ? 'Edit note' : 'Text note', 'Text (empty deletes the note)', v),
+    defaultStyle: (type) => defaultStyle(type),
   };
   function makeCell(i) {
     return new ChartCell(i, {
@@ -124,7 +127,7 @@ export function mountChartPage(root) {
       },
       onContract: (cell) => {
         tickOf.set(cell.contract.symbol, cell.contract.tick);
-        cell.setAlertLines(alerts.get().filter((a) => a.active && a.symbol === cell.contract.symbol));
+        cell.setAlertLines(priceAlertsFor(cell.contract.symbol));
         if (cell === active()) { subscribeTele(); watch.markCurrent(cell.contract.symbol); }
       },
       onReplay: () => paintToolbar(),
@@ -202,7 +205,16 @@ export function mountChartPage(root) {
     const a = active();
     if (!a.contract || !a.buf.length) return;
     const last = a.replay ? a.replay.full.cols.close[a.replay.full.length - 1] : a.buf.cols.close[a.buf.length - 1];
-    alertDialog({ symbol: a.contract.symbol, price: price ?? last, last, fmt: (p) => a.priceText(p) });
+    // every alertcondition() of the focused chart's indicators, as of their latest run
+    const conds = [];
+    for (const st of a.state.studies) {
+      const l = a.live.get(st.uid);
+      const res = l && l.res;
+      if (!res || !res.alertconds) continue;
+      const name = res.meta ? res.meta.shorttitle || res.meta.title : st.ref;
+      for (const ac of res.alertconds) conds.push({ label: `${name}: ${ac.title}`, ref: st.ref, inputs: st.inputs, title: ac.title, message: ac.message });
+    }
+    alertDialog({ symbol: a.contract.symbol, tf: a.state.tf, price: price ?? last, last, fmt: (p) => a.priceText(p), conds });
   }
 
   function toast(title, body) {
@@ -212,7 +224,7 @@ export function mountChartPage(root) {
     setTimeout(() => t.remove(), 15000);
   }
 
-  const alertEngine = new AlertEngine({ getAdapter: () => adapterFor(workspace.get().feed), toast, fmt: fmtFor });
+  const alertEngine = new AlertEngine({ getAdapter: () => adapterFor(workspace.get().feed), pine, toast, fmt: fmtFor });
   cleanups.push(() => alertEngine.dispose());
 
   // ---------------------------------------------------------------- store wiring
@@ -221,7 +233,7 @@ export function mountChartPage(root) {
     workspace.subscribe((w) => w.active, focusCell),
     workspace.subscribe((w) => w.feed, () => { teleSymbol = null; watch.refresh(); alertEngine.sync(); paintToolbar(); }),
     workspace.subscribe((w) => w.cells[w.active].tf + '|' + w.cells[w.active].symbol + '|' + w.editor.open + '|' + w.watchOpen + '|' + JSON.stringify(w.sync), paintToolbar),
-    alerts.subscribe((x) => x, (list) => { for (const c of cells) if (c.contract) c.setAlertLines(list.filter((a) => a.active && a.symbol === c.contract.symbol)); }),
+    alerts.subscribe((x) => x, () => { for (const c of cells) if (c.contract) c.setAlertLines(priceAlertsFor(c.contract.symbol)); }),
   );
 
   const onKey = (e) => {

@@ -265,7 +265,9 @@ export class DrawingLayer {
     const color = c.type === 'long' || c.type === 'short' || c.type === 'channel' ? css('--s1', '#3987e5') : css('--accent', '#f0b849');
     let points = c.points.slice(0, n).map(({ time, price }) => ({ time, price }));
     if (c.type === 'long' || c.type === 'short') points = G.defaultPosition(c.type, points[0], points[1]);
-    const d = { id: uid(), type: c.type, points, color, width: c.type === 'fib' || c.type === 'text' ? 1 : 2, created: Date.now() };
+    const d = { id: uid(), type: c.type, points, color, width: c.type === 'fib' || c.type === 'text' ? 1 : 2, dash: 'solid', created: Date.now() };
+    const def = this.hooks.defaultStyle && this.hooks.defaultStyle(c.type);
+    if (def) Object.assign(d, { color: def.color, width: def.width, dash: def.dash });
     this.creating = null;
     this.tool = 'cursor';
     this.el.style.cursor = '';
@@ -402,7 +404,8 @@ export class DrawingLayer {
     const selected = d.id === this.selected || d.preview;
     ctx.strokeStyle = d.color;
     ctx.lineWidth = d.width;
-    ctx.setLineDash(d.preview ? [5, 4] : []);
+    const dash = d.preview ? [5, 4] : d.dash === 'dashed' ? [7, 5] : d.dash === 'dotted' ? [1.5, 3.5] : [];
+    ctx.setLineDash(dash);
     const line = (ax, ay, bx, by) => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); };
 
     switch (d.type) {

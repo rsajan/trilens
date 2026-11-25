@@ -104,4 +104,8 @@ bear = ta.crossunder(fast, slow)
 plotshape(showSignals and bull, "Bull cross", style=shape.triangleup, location=location.belowbar, color=upColor, text="Bull")
 plotshape(showSignals and bear, "Bear cross", style=shape.triangledown, location=location.abovebar, color=dnColor, text="Bear")
 bgcolor(fast > slow ? color.new(upColor, 92) : color.new(dnColor, 92))
+
+// Alerts: choose "Alert" in the toolbar, then one of these conditions
+alertcondition(bull, "Bull cross", "{{ticker}} {{interval}}: fast EMA crossed above slow, close {{close}}")
+alertcondition(bear, "Bear cross", "{{ticker}} {{interval}}: fast EMA crossed below slow, close {{close}}")
 `;
