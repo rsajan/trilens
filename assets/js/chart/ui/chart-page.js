@@ -150,7 +150,6 @@ export function mountChartPage(root) {
     currentSymbol: () => activeCell().symbol,
     onPick: (symbol) => setCell(workspace.get().active, { symbol }),
     onClose: () => workspace.set({ watchOpen: false }),
-    onUnlocked: async () => { await stockData.load(true); return stockData.status === 'ready' ? stockData.topLists() : []; },
   });
   const main = h('div', { class: 'cx-main' }, grid, watch.el, toasts);
   const drawer = createPineDrawer({

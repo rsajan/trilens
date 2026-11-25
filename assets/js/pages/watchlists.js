@@ -2,6 +2,10 @@ import { h, icon, sheet, fmt } from '../lib/dom.js';
 import { pageHead, chipGroup, dataTable } from '../lib/ui.js';
 import { store } from '../lib/store.js';
 import * as sync from '../lib/sync.js';
+import { lockScreen, notPublished } from '../lib/bundle.js';
+import { watchlists as chartLists } from '../chart/store/library.js';
+import { refreshAutoLists, AUTO_LIST_NAMES } from '../chart/store/auto-lists.js';
+import { setCell, workspace } from '../chart/store/workspace.js';
 
 const COUNT = 15;
 const KEY = 'watchlists';
@@ -63,13 +67,53 @@ export async function render(ctx) {
 
   const root = h('div');
   const syncLine = h('p', { class: 'tiny muted', style: { margin: '4px 0 0' } });
-  root.append(pageHead('Watch Lists', 'Your own symbol lists, side by side. Add tickers, switch between lists, and rename any of them.',
+  root.append(pageHead('Watch Lists', 'The 20 automatic lists built from your Scanner signals and stock prices, then your own lists below.',
     h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Sync across devices', title: 'Sync across devices', onClick: openSyncSheet }, icon('cloud'))));
   root.append(syncLine);
 
+  // ---------------------------------------------------------------- the 20 automatic lists
+  const autoBox = h('section', { style: { marginTop: '14px' } });
+  let autoCur = store.get('wlAutoCur', AUTO_LIST_NAMES[0]);
+  const openInChart = (symbol) => { setCell(workspace.get().active, { symbol }); location.hash = '#/'; };
+
+  async function paintAuto(manual = false) {
+    const head = (extra) => h('div', { class: 'row between wrap', style: { gap: '10px' } },
+      h('h2', { style: { margin: 0 } }, 'Signal & market lists (20)'), extra || null);
+    autoBox.replaceChildren(head(), h('p', { class: 'muted small' }, 'Opening your signal data…'));
+    const r = await refreshAutoLists(!manual);
+    if (r.state === 'not-published') { autoBox.replaceChildren(head(), notPublished()); return; }
+    if (r.state === 'locked') {
+      autoBox.replaceChildren(head(),
+        h('p', { class: 'soft small' }, 'These 20 lists are built from your encrypted Scanner data: one per signal (17), Crypto, US top 500 and India top 500. Enter your Technical password once; with "Remember on this device" ticked they then refresh by themselves.'),
+        lockScreen(r.env, () => paintAuto(true), { title: 'Unlock your 20 watchlists', text: 'Same password as the Scanner page. It is checked on your device only.' }));
+      return;
+    }
+    const all = chartLists.get().lists;
+    const lists = AUTO_LIST_NAMES.map((name) => all.find((l) => l.name === name) || { id: name, name, items: [] });
+    if (!lists.some((l) => l.name === autoCur)) autoCur = lists[0].name;
+    const cur = lists.find((l) => l.name === autoCur);
+    const refresh = h('button', { class: 'btn', type: 'button', title: 'Rebuild the 20 lists from your latest published data', onClick: () => paintAuto(true) }, 'Refresh');
+    const note = cur.name.endsWith('top 500') && !cur.items.length
+      ? 'No end-of-day stock prices are published yet. Run PUBLISH.bat on your PC (it needs pandas: python -m pip install pandas).'
+      : 'No symbols in this signal right now.';
+    const table = cur.items.length
+      ? h('div', { class: 'ledger', style: { maxHeight: '60vh', overflow: 'auto' } }, cur.items.map((x) =>
+          h('button', { type: 'button', class: 'lrow', title: 'Open ' + x.symbol + ' in the chart', style: { width: '100%', textAlign: 'left', minHeight: '46px' }, onClick: () => openInChart(x.symbol) },
+            h('span', { class: 'sym' }, x.symbol), h('span', { class: 'muted small' }, 'Chart ›'))))
+      : h('div', { class: 'empty' }, h('b', null, 'Empty list'), note);
+    autoBox.replaceChildren(head(refresh),
+      h('div', { style: { marginTop: '12px' } }, chipGroup(lists.map((l) => ({ id: l.name, label: l.name, count: l.items.length })), autoCur,
+        (v) => { autoCur = v; store.set('wlAutoCur', v); paintAuto(); })),
+      h('p', { class: 'tiny muted', style: { margin: '10px 0' } }, 'Built in your browser from your Scanner data, never uploaded. The same lists are in the watchlist panel under the chart. Tap a symbol to open it in the chart.'),
+      table);
+    const on = autoBox.querySelector('.chip[aria-pressed="true"]');
+    if (on && on.parentElement) on.parentElement.scrollLeft = on.offsetLeft - 16;
+  }
+
   const chipsBox = h('div', { style: { marginTop: '14px' } });
   const body = h('div', { style: { marginTop: '18px' } });
-  root.append(chipsBox, body);
+  root.append(autoBox, h('h2', { style: { margin: '30px 0 0' } }, 'Your own lists'), chipsBox, body);
+  paintAuto();
 
   function setSyncMsg(msg) { syncMsg = msg; syncLine.textContent = msg; }
   setSyncMsg(syncMsg);
