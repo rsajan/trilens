@@ -111,3 +111,20 @@ class StockPrices(unittest.TestCase):
                 self.assertAlmostEqual(x, y, places=6)
             self.assertEqual(v, r.v)
         self.assertEqual(len(bt.encode_prices("AAA", f, bars=3)["c"]), 3)
+
+
+@unittest.skipIf(_pd is None, "pandas not installed")
+class StockPriceFieldTables(unittest.TestCase):
+    def test_dict_of_field_tables(self):
+        pd = _pd
+        idx = pd.date_range("2025-01-06", periods=4, freq="B")
+        wide = lambda base: pd.DataFrame({"AAA": [base + i for i in range(4)], "BBB": [base * 2 + i for i in range(4)]}, index=idx)
+        obj = {"Open": wide(10), "High": wide(12), "Low": wide(9), "Close": wide(11), "Adj Close": wide(5), "Volume": wide(1000), "meta": {"x": 1}}
+        got = bt.price_frames(obj, pd)
+        self.assertEqual(sorted(got), ["AAA", "BBB"])
+        a = got["AAA"]
+        self.assertEqual(list(a["o"]), [10, 11, 12, 13])
+        self.assertEqual(list(a["h"]), [12, 13, 14, 15])
+        self.assertEqual(list(a["l"]), [9, 10, 11, 12])
+        self.assertEqual(list(a["c"]), [11, 12, 13, 14])   # Close, not Adj Close
+        self.assertEqual(list(a["v"]), [1000, 1001, 1002, 1003])

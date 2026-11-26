@@ -1362,8 +1362,24 @@ def _ohlcv(df, pd):
 def price_frames(obj, pd, depth: int = 0) -> dict:
     """Any common layout -> {ticker: frame}. Handles a dict of per-ticker frames, a yfinance-style
     wide table (MultiIndex columns in either order), a long table with a symbol column, a wide
-    close-only table (one column per ticker), and a dict wrapping any of those."""
+    close-only table (one column per ticker), a dict of per-field tables ({"Open": table,
+    "Close": table, ...}, each with one column per ticker), and a dict wrapping any of those."""
     if isinstance(obj, dict):
+        fields = {}
+        for k, v in obj.items():
+            f = _field(k)
+            if f and f not in fields and isinstance(v, (pd.DataFrame, pd.Series)):
+                fields[f] = v.to_frame() if isinstance(v, pd.Series) else v
+        if "c" in fields and len(fields["c"].columns) >= 1:
+            names = {"o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}
+            out = {}
+            for t in fields["c"].columns:
+                df = pd.DataFrame({names[f]: tab[t] for f, tab in fields.items() if t in tab.columns})
+                f = _ohlcv(df, pd)
+                if f is not None:
+                    out[str(t)] = f
+            if out:
+                return out
         out = {}
         for k, v in obj.items():
             if isinstance(v, pd.DataFrame):
@@ -1523,6 +1539,8 @@ def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
             continue
         frames = price_frames(obj, pd)
         kind = type(obj).__name__ + (f" of {len(obj)}" if isinstance(obj, dict) else f" {getattr(obj, 'shape', '')}")
+        if isinstance(obj, dict) and len(obj) <= 12:
+            kind += ": " + ", ".join(str(k) for k in obj)
         if not frames:
             cols = list(getattr(obj, "columns", []))[:8] if not isinstance(obj, dict) else list(obj)[:5]
             print(f"  Stock prices      {p.name}: layout not recognised ({kind}; first columns/keys {cols}). Please send this line to get it supported.")
@@ -1541,6 +1559,11 @@ def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
     markets = {}
     for mk, frames in per.items():
         value = {s: float((f["c"].iloc[-60:] * f["v"].iloc[-60:]).mean()) for s, f in frames.items()}
+        if not any(value.values()):
+            print(f"  Stock prices      {mk}: no volume in the price files, so the top 500 is not ranked by traded value")
+        flat = sum(1 for f in frames.values() if (f["h"] == f["l"]).all())
+        if flat * 2 > len(frames):
+            print(f"  Stock prices      {mk}: only one price per day found (no open/high/low), so candles show as lines")
         ranked = sorted(frames, key=lambda s: -value[s])
         top = [s for s in ranked if value[s] > 0][:PRICE_TOP] or ranked[:PRICE_TOP]
         keep = list(dict.fromkeys(top + sorted(wanted.get(mk, set()) & set(frames))))

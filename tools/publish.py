@@ -13,6 +13,11 @@ def main() -> int:
     if not read_local().get("technical_password"):
         say("No password yet. Run SETUP_ONCE.bat first.")
         return 1
+    # get the latest Trilens code first, so this run already uses it
+    if have("git") and (ROOT / ".git").exists():
+        p = git("pull", "--rebase", "--autostash", "origin", "main")
+        if p.returncode != 0:
+            say("Could not download the latest Trilens code (continuing with what is here):\n" + (p.stderr or p.stdout).strip())
     from pipeline import build_technical
 
     if build_technical.main([]) != 0:
