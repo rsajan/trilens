@@ -3,7 +3,7 @@
 // templates and crosshair sync. Cells never talk to each other; they talk to this shell.
 
 import { h, clear, sheet } from '../../lib/dom.js';
-import { TIMEFRAMES } from '../data/timeframes.js';
+import { MENU_TIMEFRAMES, HIDDEN_TF } from '../data/timeframes.js';
 import { ADAPTERS, FEEDS } from '../data/adapters.js';
 import { PineEngine } from '../pine/client.js';
 import { BUILTIN, NEW_SCRIPT } from '../indicators/builtins.js';
@@ -71,7 +71,7 @@ export function mountChartPage(root) {
     seg('Sym', 'Same contract on every chart', () => setSync({ symbol: !workspace.get().sync.symbol })),
     seg('TF', 'Same timeframe on every chart', () => setSync({ tf: !workspace.get().sync.tf })),
     seg('✛', 'Crosshair follows across charts', () => setSync({ crosshair: !workspace.get().sync.crosshair })));
-  const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'Timeframe', title: 'Timeframe' }, TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
+  const tfSel = h('select', { class: 'ipt cx-tfsel', 'aria-label': 'Timeframe', title: 'Timeframe' }, MENU_TIMEFRAMES.map((t) => h('option', { value: t.id }, t.label)));
   tfSel.addEventListener('change', () => setCell(workspace.get().active, { tf: tfSel.value }));
   const feedSel = h('select', { class: 'ipt cx-feed', 'aria-label': 'Data feed', title: 'Where prices come from' },
     FEEDS.map((f) => h('option', { value: f.id, title: f.title }, f.label)));
@@ -156,9 +156,9 @@ export function mountChartPage(root) {
   const toolbar = h('div', { class: 'cx-toolbar' },
     symBtn, typeBtn, tfSel, sep(),
     btn('Indicators', 'Add an indicator or one of your scripts to the focused chart', () => indicatorDialog({ onAdd: (ref) => addStudy(ref), onNewScript: () => drawer.openNew(NEW_SCRIPT) })),
-    btn('Templates', 'Indicator templates and saved layouts', () => templatesDialog()),
     sep(), drawSwitch, editorBtn, replayBtn, alertBtn,
     sep(), layoutSeg, syncSeg,
+    btn('Templates', 'Indicator templates and saved layouts', () => templatesDialog()),
     h('span', { class: 'grow' }),
     watchBtn,
     btn('Latest', 'Jump to the latest bar', () => active().engine.scrollToRealtime()),
@@ -241,7 +241,7 @@ export function mountChartPage(root) {
     const a = active();
     cells.forEach((c) => c.el.classList.toggle('on', c === a && cells.length > 1));
     // the drawing rail and selection bar live inside the focused chart
-    a.wrap.append(rail.rail, rail.bar);
+    a.wrap.append(rail.rail, rail.favBar, rail.bar);
     for (const c of cells) if (c !== a) { c.layer.setTool('cursor'); c.layer.selected = null; c.layer.refresh(); }
     rail.paint();
     if (a.contract) watch.markCurrent(a.contract.symbol);
@@ -264,7 +264,7 @@ export function mountChartPage(root) {
     typeBtn.setAttribute('aria-label', typeBtn.title);
     drawSwitch.setAttribute('aria-checked', String(w.draw.panel));
     rail.rail.classList.toggle('hide', !w.draw.panel);
-    main.classList.toggle('no-rail', !w.draw.panel);
+    main.classList.toggle('no-rail', !w.draw.panel || !!w.draw.horizontal);
     feedSel.value = w.feed;
     editorBtn.classList.toggle('on', w.editor.open);
     watchBtn.classList.toggle('on', w.watchOpen);
@@ -358,6 +358,8 @@ export function mountChartPage(root) {
   cleanups.push(() => { clearInterval(saveTimer); document.removeEventListener('visibilitychange', onHide); removeEventListener('pagehide', saveAll); saveAll(); });
 
   const tidy = tidyScripts();
+  // charts saved on a timeframe no longer in the menu move to the nearest one
+  if (workspace.get().cells.some((c) => c.tf in HIDDEN_TF)) workspace.set((w) => ({ ...w, cells: w.cells.map((c) => (c.tf in HIDDEN_TF ? { ...c, tf: HIDDEN_TF[c.tf] } : c)) }));
   layoutCells();
   paintToolbar();
   if (tidy.renamed || tidy.removed) toast('Scripts tidied', `EMA Playbook and Reversal Bot: ${tidy.removed} versions removed, ${tidy.renamed} renamed to their full version names. See My Scripts.`, '✓');

@@ -22,6 +22,9 @@ export const TIMEFRAMES = [
   { id: '3M', label: '3M', sec: 7889400, pine: '3M', calendar: 'M', mult: 3 },
 ];
 export const TF = Object.fromEntries(TIMEFRAMES.map((t) => [t.id, t]));
+/** Timeframes left out of the chart's menu (still usable by Pine scripts); the owner's choice. */
+export const HIDDEN_TF = { '3m': '5m', '2h': '1h', '6h': '4h', '12h': '4h', '3D': '1D' };
+export const MENU_TIMEFRAMES = TIMEFRAMES.filter((t) => !(t.id in HIDDEN_TF));
 export const DAY = 86400;
 
 /** Start of the bar that contains `t`. Weeks start Monday, like TradingView. */

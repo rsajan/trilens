@@ -18,7 +18,7 @@ import { store } from '../../lib/store.js';
  * @property {{ symbol: boolean, tf: boolean, crosshair: boolean }} sync  what follows the focused cell
  * @property {Cell[]} cells  always four; the layout decides how many are shown
  * @property {{ open: boolean, height: number, scriptId: string|null, draft: string, tab: 'editor'|'library' }} editor
- * @property {{ magnet: boolean, hidden: boolean, panel: boolean }} draw  drawing-tool preferences; panel: show the tool rail
+ * @property {{ magnet: boolean, hidden: boolean, panel: boolean, horizontal: boolean, favorites: string[], favPos: ({ x: number, y: number }|null) }} draw  drawing-tool preferences; panel: show the tool rail; horizontal: rail along the top; favorites: tools on the floating favorites bar, favPos its dragged position
  * @property {boolean} watchOpen  watchlist panel shown
  */
 
@@ -39,7 +39,7 @@ const DEFAULT_WS = {
     { symbol: 'SOLUSDT.P', tf: '4h', studies: [study('s5', 'builtin:bb')] },
   ],
   editor: { open: false, height: 300, scriptId: null, draft: '', tab: 'editor' },
-  draw: { magnet: true, hidden: false, panel: true },
+  draw: { magnet: true, hidden: false, panel: true, horizontal: false, favorites: [], favPos: null },
   watchOpen: true,
 };
 
