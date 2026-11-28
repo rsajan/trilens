@@ -32,6 +32,15 @@ export function restore(obj, storage = localStorage) {
   return n;
 }
 
+/** Restore, then reload at once so the open page cannot save its old state over the backup. */
+export async function restoreAndReload(obj) {
+  const n = restore(obj);
+  const { freezeWrites } = await import('./store.js');
+  freezeWrites();
+  setTimeout(() => location.reload(), 600);
+  return n;
+}
+
 export function download() {
   const data = collect();
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
