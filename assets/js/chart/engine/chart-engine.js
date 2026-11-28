@@ -7,7 +7,7 @@
 //    just update() of its last point;
 //  - the legend is a fixed set of text nodes rewritten in place, never rebuilt on crosshair moves.
 
-import { createChart, CandlestickSeries, BarSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
+import { createChart, PriceScaleMode, CandlestickSeries, BarSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
 import { toCss } from '../pine/colors.js';
 import { h, clear } from '../../lib/dom.js';
 
@@ -58,6 +58,8 @@ export class ChartEngine {
     this.raf = 0;
     this.chartType = 'candles';
     this.alt = null; // bars / line / area series drawn over transparent candles
+    /** @type {import('../store/workspace.js').Scale} */
+    this.scale = {};
     this.disposed = false; // async results (Pine runs, frames) can land after the page left
 
     this.chartEl = h('div', { class: 'cx-canvas' });
@@ -90,6 +92,7 @@ export class ChartEngine {
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       crosshair: { mode: CrosshairMode.Normal, vertLine: { color: ink3, labelBackgroundColor: css('--surface-3') || '#223a54' }, horzLine: { color: ink3, labelBackgroundColor: css('--surface-3') || '#223a54' } },
       rightPriceScale: { borderColor: css('--line') || '#27425c' },
+      leftPriceScale: { borderColor: css('--line') || '#27425c' },
       timeScale: { borderColor: css('--line') || '#27425c', timeVisible: true, secondsVisible: false, rightOffset: 8, barSpacing: 7 },
     };
   }
@@ -121,6 +124,7 @@ export class ChartEngine {
     }
     this.applyCandleStyle();
     if (this.buf) this.setCandles();
+    this.applyScale();
   }
 
   applyCandleStyle() {
@@ -253,6 +257,7 @@ export class ChartEngine {
     const legendKey = JSON.stringify([cfg.label, cfg.inputsLabel, cfg.error || '', cfg.styles, res.plots.map((p) => [p.title, p.color, p.hidden])]);
     if (!s.legend || s.legendKey !== legendKey) { s.legendKey = legendKey; this.buildLegends(); }
     this.scheduleLegend();
+    if (this.scale.left) this.applyScale();
   }
 
   createStudySeries(s) {
@@ -432,6 +437,9 @@ export class ChartEngine {
 
   layoutLegends() {
     if (this.disposed) return;
+    // a left price scale pushes the drawing toolbar and legends right (CSS reads --lscale)
+    const ls = this.chart.priceScale('left'), lw = ls.options().visible ? ls.width() : 0, wrap = this.chartEl.closest('.cx-chart');
+    if (wrap && wrap._lw !== lw) { wrap._lw = lw; wrap.style.setProperty('--lscale', lw + 'px'); }
     const panes = this.chart.panes();
     const tops = []; let y = 0;
     for (const p of panes) { tops.push(y); y += p.getHeight() + 1; }
@@ -473,6 +481,25 @@ export class ChartEngine {
   }
 
   // ------------------------------------------------------------------ misc
+  // ---- price scale settings (TradingView's chart settings menu)
+  /** @param {import('../store/workspace.js').Scale} s */
+  setScale(s) { this.scale = { ...(s || {}) }; this.applyScale(); }
+  get scaleSide() { return this.scale.left ? 'left' : 'right'; }
+  applyScale() {
+    if (this.disposed) return;
+    const s = this.scale, side = this.scaleSide, grid = s.grid !== false;
+    this.chart.applyOptions({ leftPriceScale: { visible: !!s.left }, rightPriceScale: { visible: !s.left }, grid: { vertLines: { visible: grid }, horzLines: { visible: grid } } });
+    const mode = { log: PriceScaleMode.Logarithmic, percent: PriceScaleMode.Percentage, indexed: PriceScaleMode.IndexedTo100 }[s.mode] ?? PriceScaleMode.Normal;
+    this.chart.panes().forEach((pane, i) => {
+      for (const ser of pane.getSeries()) { const id = ser.options().priceScaleId; if (id === 'right' || id === 'left' || id === '' || id == null) { if (id !== side) ser.applyOptions({ priceScaleId: side }); } }
+      this.chart.priceScale(side, i).applyOptions({ mode: i === 0 ? mode : PriceScaleMode.Normal, invertScale: i === 0 && !!s.invert });
+    });
+    (this.alt || this.candles).applyOptions({ lastValueVisible: s.priceLabel !== false, priceLineVisible: s.priceLine !== false });
+  }
+  /** Is the main price scale auto-fitting? (it turns off when you drag the scale) */
+  isAutoScale() { return this.chart.priceScale(this.scaleSide, 0).options().autoScale !== false; }
+  setAutoScale(on) { this.chart.panes().forEach((_, i) => this.chart.priceScale(this.scaleSide, i).applyOptions({ autoScale: on })); }
+
   fit() { this.chart.timeScale().fitContent(); }
   showLatest(bars = 150) {
     const n = this.buf ? this.buf.length : 0;
