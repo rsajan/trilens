@@ -4,11 +4,11 @@ import { getJSON, clearMemo } from './lib/data.js';
 
 const NAV = [
   { id: 'chart', label: 'Chart', path: '#/', icon: 'chart' },
+  { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
   { id: 'scanner', label: 'Scanner', path: '#/scanner', icon: 'scanner' },
   { id: 'scanner-results', label: 'Scanner Results', path: '#/scanner-results', icon: 'results' },
   { id: 'fundamentals', label: 'Fundamental Analysis', path: '#/fundamentals', icon: 'fundamentals' },
   { id: 'fundamental-results', label: 'Fundamental Results', path: '#/fundamental-results', icon: 'results' },
-  { id: 'watchlists', label: 'Watch Lists', path: '#/watchlists', icon: 'watchlist' },
   { id: 'tv', label: 'TradingView', path: '#/tv', icon: 'live' },
 ];
 
