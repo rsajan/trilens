@@ -14,7 +14,23 @@
  * @property {string=} text  for text notes
  */
 
-export const TOOL_POINTS = { trend: 2, ray: 2, hline: 1, fib: 2, long: 2, short: 2, channel: 3, text: 1 };
+export const TOOL_POINTS = { trend: 2, ray: 2, hline: 1, fib: 2, long: 2, short: 2, channel: 3, text: 1,
+  extline: 2, infoline: 2, angle: 2, hray: 1, vline: 1, cross: 1, rect: 2, arrow: 2, measure: 2 };
+
+/** Distance from P to the infinite line through A and B. */
+export function distToLine(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy);
+  return len ? Math.abs((px - ax) * dy - (py - ay) * dx) / len : Math.hypot(px - ax, py - ay);
+}
+
+/** Screen angle of A->B in degrees, up is positive (TradingView's trend angle). */
+export const screenAngle = (ax, ay, bx, by) => Math.atan2(ay - by, bx - ax) * 180 / Math.PI;
+
+/** Price change, percent and time span between two points; `bars` from the chart's bar length. */
+export function measure(a, b, barSec) {
+  const change = b.price - a.price;
+  return { change, pct: a.price ? (change / a.price) * 100 : NaN, bars: barSec ? Math.round((b.time - a.time) / barSec) : 0, days: (b.time - a.time) / 86400 };
+}
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
 
 /**

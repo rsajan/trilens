@@ -595,6 +595,20 @@ button.pd-msg:hover { background: var(--surface-2); }
 .dr-fav { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 10px; background: var(--surface-1); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.25); touch-action: none; }
 .dr-grip { width: 16px; height: 30px; display: grid; place-items: center; color: var(--ink-3); cursor: grab; touch-action: none; }
 .dr-grip svg { width: 16px; height: 16px; fill: currentColor; }
+.dr-grp .dr-tri { position: absolute; right: 2px; bottom: 2px; width: 0; height: 0; border-left: 4px solid transparent; border-bottom: 4px solid var(--ink-3); }
+.dr-menu { position: absolute; z-index: 9; min-width: 240px; max-width: calc(100% - 8px); max-height: calc(100% - 8px); overflow-y: auto; padding: 6px 0; border-radius: 10px; background: var(--surface-1); border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+.dr-menu-h { padding: 6px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dr-mi { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 6px 0 14px; cursor: pointer; color: var(--ink); font-size: 14px; }
+.dr-mi:hover, .dr-mi:focus-visible { background: var(--surface-3); outline: none; }
+.dr-mi.on { color: var(--accent); }
+.dr-mi > svg { width: 20px; height: 20px; flex: none; }
+.dr-mi kbd { font: inherit; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.dr-star { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-3); flex: none; }
+.dr-star svg { width: 17px; height: 17px; }
+.dr-star:hover { color: var(--ink); background: var(--surface-2); }
+.dr-star.on { color: var(--accent); }
+.dr-star.on svg { fill: currentColor; }
+@media (hover: hover) { .dr-mi:not(:hover) .dr-star:not(.on) { opacity: 0; } }
 .dr-fav-ic { display: inline-grid; color: var(--ink-3); margin-right: 6px; }
 .dr-fav-ic.on { color: var(--accent); }
 .dr-fav-ic.on svg { fill: currentColor; }

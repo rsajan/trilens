@@ -68,3 +68,13 @@ test('magnet snaps to the closest OHLC within the radius only', () => {
   assert.equal(G.magnetPrice(102.5, toY(102.5), bar, toY, 10), 102.5); // 12.5 px from 100 and 105: outside a 10 px radius
   assert.equal(G.magnetPrice(104, toY(104), bar, toY), 105); // nearest wins, not the first checked
 });
+
+test('new drawing tools: point counts, infinite-line distance, measure, angle', async () => {
+  const G = await import('../assets/js/chart/drawings/geometry.js');
+  assert.deepEqual(['extline', 'infoline', 'angle', 'hray', 'vline', 'cross', 'rect', 'arrow', 'measure'].map((t) => G.TOOL_POINTS[t]), [2, 2, 2, 1, 1, 1, 2, 2, 2]);
+  assert.equal(G.distToLine(10, 5, 0, 0, 1, 0), 5);
+  assert.equal(G.distToLine(-50, 0, 0, 0, 1, 0), 0, 'beyond both ends still on the line');
+  const m = G.measure({ time: 0, price: 100 }, { time: 86400 * 10, price: 110 }, 86400);
+  assert.deepEqual([m.change, m.pct, m.bars, m.days], [10, 10, 10, 10]);
+  assert.equal(Math.round(G.screenAngle(0, 0, 10, -10)), 45);
+});

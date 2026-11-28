@@ -158,16 +158,26 @@ export class DrawingLayer {
   handles(d) {
     const s = this.screenPoints(d);
     if (d.type === 'hline') return s[0].y == null ? [] : [{ x: this.el.clientWidth / 2, y: s[0].y, index: 0 }];
+    if (d.type === 'vline') return s[0].x == null ? [] : [{ x: s[0].x, y: (this.paneHeight ? this.paneHeight() : this.el.clientHeight) / 2, index: 0 }];
     return s.map((p, index) => ({ ...p, index })).filter((p) => p.x != null && p.y != null);
   }
 
   hitDrawing(d, x, y, tol) {
     const s = this.screenPoints(d);
-    if (s.some((p) => p.y == null) || (d.type !== 'hline' && s.some((p) => p.x == null))) return false;
+    if ((d.type !== 'vline' && s.some((p) => p.y == null)) || (d.type !== 'hline' && s.some((p) => p.x == null))) return false;
     switch (d.type) {
       case 'trend': return G.distToSegment(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
       case 'ray': return G.distToRay(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
       case 'hline': return Math.abs(y - s[0].y) <= tol;
+      case 'extline': return G.distToLine(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
+      case 'infoline': case 'angle': case 'arrow': return G.distToSegment(x, y, s[0].x, s[0].y, s[1].x, s[1].y) <= tol;
+      case 'hray': return Math.abs(y - s[0].y) <= tol && x >= s[0].x - tol;
+      case 'vline': return Math.abs(x - s[0].x) <= tol;
+      case 'cross': return Math.abs(y - s[0].y) <= tol || Math.abs(x - s[0].x) <= tol;
+      case 'rect': case 'measure': {
+        const xl = Math.min(s[0].x, s[1].x), xr = Math.max(s[0].x, s[1].x), yt = Math.min(s[0].y, s[1].y), yb = Math.max(s[0].y, s[1].y);
+        return x >= xl - tol && x <= xr + tol && y >= yt - tol && y <= yb + tol;
+      }
       case 'channel': {
         const off = G.channelOffset(...d.points);
         const q1 = this.toY(d.points[0].price + off), q2 = this.toY(d.points[1].price + off);
@@ -412,6 +422,51 @@ export class DrawingLayer {
       case 'trend': if (s[0].x != null && s[1].x != null) line(s[0].x, s[0].y, s[1].x, s[1].y); break;
       case 'ray': if (s[0].x != null && s[1].x != null) { const [ex, ey] = G.rayEnd(s[0].x, s[0].y, s[1].x, s[1].y); line(s[0].x, s[0].y, ex, ey); } break;
       case 'hline': if (s[0].y != null) line(0, s[0].y, W, s[0].y); break;
+      case 'extline': {
+        if (s[0].x == null || s[1].x == null) break;
+        const [ax, ay] = G.rayEnd(s[1].x, s[1].y, s[0].x, s[0].y), [bx, by] = G.rayEnd(s[0].x, s[0].y, s[1].x, s[1].y);
+        line(ax, ay, bx, by); break;
+      }
+      case 'hray': if (s[0].x != null && s[0].y != null) line(s[0].x, s[0].y, W, s[0].y); break;
+      case 'vline': if (s[0].x != null) line(s[0].x, 0, s[0].x, size.height); break;
+      case 'cross': if (s[0].x != null && s[0].y != null) { line(0, s[0].y, W, s[0].y); line(s[0].x, 0, s[0].x, size.height); } break;
+      case 'arrow': {
+        if (s[0].x == null || s[1].x == null) break;
+        line(s[0].x, s[0].y, s[1].x, s[1].y);
+        const a = Math.atan2(s[1].y - s[0].y, s[1].x - s[0].x), k = 10 + d.width * 2;
+        ctx.setLineDash([]);
+        line(s[1].x, s[1].y, s[1].x - k * Math.cos(a - 0.45), s[1].y - k * Math.sin(a - 0.45));
+        line(s[1].x, s[1].y, s[1].x - k * Math.cos(a + 0.45), s[1].y - k * Math.sin(a + 0.45));
+        break;
+      }
+      case 'infoline': case 'angle': {
+        if (s[0].x == null || s[1].x == null) break;
+        line(s[0].x, s[0].y, s[1].x, s[1].y);
+        const bg = hexA(css('--bg', '#0d1b2a'), 0.85), ink = css('--ink', '#e8eef4');
+        if (d.type === 'angle') {
+          ctx.setLineDash([3, 3]); ctx.lineWidth = 1; line(s[0].x, s[0].y, s[0].x + 60, s[0].y); ctx.setLineDash([]);
+          this.label(ctx, `${G.screenAngle(s[0].x, s[0].y, s[1].x, s[1].y).toFixed(1)}°`, s[0].x + 64, s[0].y - 10, ink, 'left', bg);
+        } else {
+          const m = G.measure(d.points[0], d.points[1], this.barSec);
+          this.label(ctx, `${m.change >= 0 ? '+' : ''}${fmtNum(m.change, dec)} (${m.pct >= 0 ? '+' : ''}${m.pct.toFixed(2)}%) · ${m.bars} bars`, s[1].x + 6, s[1].y - 10, ink, 'left', bg);
+        }
+        break;
+      }
+      case 'rect': case 'measure': {
+        if (s[0].x == null || s[1].x == null) break;
+        const xl = Math.min(s[0].x, s[1].x), yt = Math.min(s[0].y, s[1].y), w = Math.abs(s[1].x - s[0].x), hgt = Math.abs(s[1].y - s[0].y);
+        if (d.type === 'rect') {
+          ctx.fillStyle = hexA(d.color, 0.12); ctx.fillRect(xl, yt, w, hgt); ctx.strokeRect(xl, yt, w, hgt); break;
+        }
+        const m = G.measure(d.points[0], d.points[1], this.barSec);
+        const col = m.change >= 0 ? css('--gain', '#2fcb92') : css('--loss', '#ff7a73');
+        ctx.fillStyle = hexA(col, 0.16); ctx.fillRect(xl, yt, w, hgt);
+        ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([]);
+        line(s[0].x, (s[0].y + s[1].y) / 2, s[1].x, (s[0].y + s[1].y) / 2); line((s[0].x + s[1].x) / 2, s[0].y, (s[0].x + s[1].x) / 2, s[1].y);
+        const span = m.days >= 1 ? `${m.bars} bars, ${Math.round(Math.abs(m.days))}d` : `${m.bars} bars`;
+        this.label(ctx, `${m.change >= 0 ? '+' : ''}${fmtNum(m.change, dec)} (${m.pct >= 0 ? '+' : ''}${m.pct.toFixed(2)}%) · ${span}`, xl + w / 2, s[1].y + (s[1].y > s[0].y ? 12 : -12), css('--ink', '#e8eef4'), 'center', hexA(css('--bg', '#0d1b2a'), 0.85));
+        break;
+      }
       case 'channel': {
         if (s.some((p) => p.x == null || p.y == null)) break;
         const off = G.channelOffset(...d.points);
@@ -502,7 +557,7 @@ export class DrawingLayer {
       out.push({ coordinate: () => this.toY(price) ?? -1000, text: () => fmtNum(price, dec), textColor: () => '#ffffff', backColor: () => color, visible: () => this.toY(price) != null, tickVisible: () => true });
     };
     for (const d of this.drawings) {
-      if (d.type === 'hline') add(d.points[0].price, d.color);
+      if (d.type === 'hline' || d.type === 'hray' || d.type === 'cross') add(d.points[0].price, d.color);
       else if (d.id === this.selected) d.points.forEach((p) => add(p.price, d.color));
     }
     return out;
