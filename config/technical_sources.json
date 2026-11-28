@@ -7,6 +7,8 @@
   "scans_dir": "G:\\trading\\new back test\\scans",
   "paper_book": "G:\\trading\\new back test\\PAPER_TRADING.xlsx",
   "uploads_dir": "technical_uploads",
+  "backup_remote": "https://stockplan007@github.com/stockplan007/trilens-backup.git",
+  "backup_branch": "latest",
   "price_history_files": {
     "US": "G:\\trading\\back test stocks\\US stocks\\sp500_watchlist_eod_2000_2026.xlsx",
     "IN": "G:\\trading\\back test stocks\\India stocks\\india_watchlist_eod_2000_2026.xlsx"
