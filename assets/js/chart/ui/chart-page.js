@@ -19,6 +19,7 @@ import { AlertEngine, alertDialog, alertsListDialog } from './alerts.js';
 import { templatesDialog } from './workspace-dialogs.js';
 import { fmtNum } from '../engine/chart-engine.js';
 import { stockData } from '../data/stocks.js';
+import { tidyScripts } from '../store/script-tidy.js';
 import { tvFrame, tvSymbol } from '../../pages/tv.js';
 import { lockScreen } from '../../lib/bundle.js';
 import { store } from '../../lib/store.js';
@@ -356,8 +357,10 @@ export function mountChartPage(root) {
   addEventListener('pagehide', saveAll);
   cleanups.push(() => { clearInterval(saveTimer); document.removeEventListener('visibilitychange', onHide); removeEventListener('pagehide', saveAll); saveAll(); });
 
+  const tidy = tidyScripts();
   layoutCells();
   paintToolbar();
+  if (tidy.renamed || tidy.removed) toast('Scripts tidied', `EMA Playbook and Reversal Bot: ${tidy.removed} versions removed, ${tidy.renamed} renamed to their full version names. See My Scripts.`, '✓');
   const lastTv = store.get('chart:tv');
   if (lastTv && lastTv.on && lastTv.symbol) showTV(lastTv.symbol); // reopen the way you left it
   saveAll();
