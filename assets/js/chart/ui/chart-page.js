@@ -241,7 +241,7 @@ export function mountChartPage(root) {
     const a = active();
     cells.forEach((c) => c.el.classList.toggle('on', c === a && cells.length > 1));
     // the drawing rail and selection bar live inside the focused chart
-    a.wrap.append(rail.rail, rail.bar);
+    a.wrap.append(rail.rail, rail.favBar, rail.bar);
     for (const c of cells) if (c !== a) { c.layer.setTool('cursor'); c.layer.selected = null; c.layer.refresh(); }
     rail.paint();
     if (a.contract) watch.markCurrent(a.contract.symbol);
@@ -264,7 +264,7 @@ export function mountChartPage(root) {
     typeBtn.setAttribute('aria-label', typeBtn.title);
     drawSwitch.setAttribute('aria-checked', String(w.draw.panel));
     rail.rail.classList.toggle('hide', !w.draw.panel);
-    main.classList.toggle('no-rail', !w.draw.panel);
+    main.classList.toggle('no-rail', !w.draw.panel || !!w.draw.horizontal);
     feedSel.value = w.feed;
     editorBtn.classList.toggle('on', w.editor.open);
     watchBtn.classList.toggle('on', w.watchOpen);

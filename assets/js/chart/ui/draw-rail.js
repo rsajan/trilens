@@ -69,6 +69,9 @@ const ICONS = {
   magnet: '<path d="M6 4v8a6 6 0 0 0 12 0V4"/><path d="M6 8h3M15 8h3"/><path d="M9 4v8a3 3 0 0 0 6 0V4"/>',
   eye: '<path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>',
+  flip: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
+  grip: '<circle cx="9" cy="7" r="1.1"/><circle cx="15" cy="7" r="1.1"/><circle cx="9" cy="12" r="1.1"/><circle cx="15" cy="12" r="1.1"/><circle cx="9" cy="17" r="1.1"/><circle cx="15" cy="17" r="1.1"/>',
 };
 function svg(name) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -92,6 +95,16 @@ const TOOLS = [
 const KEYS = { t: 'trend', r: 'ray', c: 'channel', h: 'hline', f: 'fib', l: 'long', s: 'short', n: 'text' };
 const SWATCHES = ['#f0b849', '#3987e5', '#2fcb92', '#ff7a73', '#9085e9', '#e8eef4'];
 
+/** Right-click, or press and hold for half a second (touch), runs `fn` instead of a click. */
+function onHold(el, fn) {
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); fn(); });
+  let t = null, held = false;
+  el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; held = false; t = setTimeout(() => { held = true; fn(); }, 500); });
+  const stop = () => clearTimeout(t);
+  el.addEventListener('pointerup', stop); el.addEventListener('pointerleave', stop); el.addEventListener('pointercancel', stop);
+  el.addEventListener('click', (e) => { if (held) { e.stopImmediatePropagation(); e.preventDefault(); held = false; } }, true);
+}
+
 /**
  * @param {() => import('../drawings/layer.js').DrawingLayer} L  the focused cell's layer, read on every use
  * @param {{ onAlert?: (price: number) => void }} [hooks]
@@ -99,8 +112,11 @@ const SWATCHES = ['#f0b849', '#3987e5', '#2fcb92', '#ff7a73', '#9085e9', '#e8eef
 export function createDrawRail(L, hooks = {}) {
   const btns = new Map();
   const rail = h('div', { class: 'dr-rail', role: 'toolbar', 'aria-label': 'Drawing tools', 'aria-orientation': 'vertical' });
+  const favs = () => workspace.get().draw.favorites || [];
+  const toggleFav = (id) => { const f = favs(); setDraw({ favorites: f.includes(id) ? f.filter((x) => x !== id) : [...f, id] }); };
   for (const [id, label] of TOOLS) {
-    const b = h('button', { type: 'button', class: 'dr-btn', title: label, 'aria-label': label, onClick: () => pick(id) }, svg(id));
+    const b = h('button', { type: 'button', class: 'dr-btn', title: label + (id === 'cursor' ? '' : ' · right-click or long-press: add to favorites'), 'aria-label': label, onClick: () => pick(id) }, svg(id));
+    if (id !== 'cursor') onHold(b, () => toggleFav(id));
     btns.set(id, b); rail.append(b);
   }
   rail.append(h('span', { class: 'dr-sep' }));
@@ -109,7 +125,54 @@ export function createDrawRail(L, hooks = {}) {
   const trash = h('button', { type: 'button', class: 'dr-btn', title: 'Remove all drawings on this contract', 'aria-label': 'Remove all drawings', onClick: () => {
     if (L() && L().drawings.length && window.confirm(`Remove all ${L().drawings.length} drawings on ${L().symbol}?`)) L().clearAll();
   } }, svg('trash'));
-  rail.append(magnet, eye, trash);
+  const starBtn = h('button', { type: 'button', class: 'dr-btn', title: 'Favorites: choose the tools on the floating favorites bar', 'aria-label': 'Drawing favorites', onClick: () => favSheet() }, svg('star'));
+  const flipBtn = h('button', { type: 'button', class: 'dr-btn', title: 'Toolbar along the top (horizontal) or the left edge (vertical)', 'aria-label': 'Horizontal or vertical toolbar', onClick: () => setDraw({ horizontal: !workspace.get().draw.horizontal }) }, svg('flip'));
+  rail.append(magnet, eye, trash, h('span', { class: 'dr-sep' }), starBtn, flipBtn);
+
+  // floating favorites bar (TradingView-style): starred tools, drag it by its grip
+  const favBar = h('div', { class: 'dr-fav hide', role: 'toolbar', 'aria-label': 'Favorite drawing tools' });
+  function favSheet() {
+    const box = h('div', { class: 'ledger' });
+    const paintList = () => {
+      clear(box);
+      for (const [id, label] of TOOLS.slice(1)) {
+        const on = favs().includes(id);
+        box.append(h('button', { type: 'button', class: 'lrow', style: { width: '100%', minHeight: '48px', textAlign: 'left' }, 'aria-pressed': String(on), onClick: () => { toggleFav(id); paintList(); } },
+          h('span', { class: 'dr-fav-ic' + (on ? ' on' : '') }, svg('star')), svg(id), h('span', { class: 'grow' }, label.replace(/ \(.*\)$/, ''))));
+      }
+    };
+    paintList();
+    sheet('Drawing favorites', h('p', { class: 'muted small', style: { margin: '0 0 10px' } }, 'Starred tools sit on a small floating bar over the chart. Drag the bar by its dotted grip. Tip: right-click a tool (long-press on a phone) to star it.'), box);
+  }
+  function paintFav() {
+    const w = workspace.get().draw, list = favs();
+    favBar.classList.toggle('hide', !list.length || !w.panel);
+    clear(favBar);
+    const grip = h('span', { class: 'dr-grip', title: 'Drag to move', 'aria-hidden': 'true' }, svg('grip'));
+    favBar.append(grip);
+    for (const id of list) {
+      const t = TOOLS.find((x) => x[0] === id);
+      if (!t) continue;
+      favBar.append(h('button', { type: 'button', class: 'dr-btn', title: t[1], 'aria-label': t[1], 'aria-pressed': String(L() && L().tool === id), onClick: () => pick(id) }, svg(id)));
+    }
+    if (w.favPos) { favBar.style.left = w.favPos.x + 'px'; favBar.style.top = w.favPos.y + 'px'; favBar.style.transform = 'none'; }
+    else { favBar.style.left = ''; favBar.style.top = ''; favBar.style.transform = ''; }
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const host = favBar.offsetParent; if (!host) return;
+      const hr = host.getBoundingClientRect(), br = favBar.getBoundingClientRect();
+      const dx = e.clientX - br.left, dy = e.clientY - br.top;
+      let pos = null;
+      const move = (ev) => {
+        const x = Math.max(0, Math.min(hr.width - br.width, ev.clientX - hr.left - dx));
+        const y = Math.max(0, Math.min(hr.height - br.height, ev.clientY - hr.top - dy));
+        pos = { x: Math.round(x), y: Math.round(y) };
+        favBar.style.left = pos.x + 'px'; favBar.style.top = pos.y + 'px'; favBar.style.transform = 'none';
+      };
+      const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); if (pos) setDraw({ favPos: pos }); };
+      addEventListener('pointermove', move); addEventListener('pointerup', up);
+    });
+  }
 
   // selected-drawing bar
   const bar = h('div', { class: 'dr-bar hide', role: 'toolbar', 'aria-label': 'Selected drawing' });
@@ -118,7 +181,12 @@ export function createDrawRail(L, hooks = {}) {
   function paint() {
     if (!L()) return; // no chart mounted yet
     const w = workspace.get().draw;
-    for (const [id, b] of btns) b.setAttribute('aria-pressed', String(L().tool === id));
+    for (const [id, b] of btns) { b.setAttribute('aria-pressed', String(L().tool === id)); b.classList.toggle('fav', favs().includes(id)); }
+    rail.classList.toggle('horiz', !!w.horizontal);
+    rail.setAttribute('aria-orientation', w.horizontal ? 'horizontal' : 'vertical');
+    flipBtn.setAttribute('aria-pressed', String(!!w.horizontal));
+    starBtn.setAttribute('aria-pressed', String(favs().length > 0));
+    paintFav();
     magnet.setAttribute('aria-pressed', String(w.magnet));
     eye.setAttribute('aria-pressed', String(w.hidden));
     eye.title = w.hidden ? 'Show drawings' : 'Hide all drawings';
@@ -154,7 +222,7 @@ export function createDrawRail(L, hooks = {}) {
   paint();
 
   return {
-    rail, bar, paint,
+    rail, bar, favBar, paint,
     dispose() { removeEventListener('keydown', onKey); unsub(); },
   };
 }
