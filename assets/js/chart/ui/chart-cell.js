@@ -11,6 +11,7 @@ import { BUILTIN } from '../indicators/builtins.js';
 import { LineStyle } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
 import { workspace, scripts, getScript, setCell } from '../store/workspace.js';
 import { popMenu } from './menu.js';
+import { chartSettingsDialog, effectiveSettings } from './settings-dialog.js';
 
 const MAX_BARS = 20000; // history paging stops here: every recalculation runs over all loaded bars
 const RERUN_MS = 250;
@@ -70,7 +71,7 @@ export class ChartCell {
     });
     this.layer = new DrawingLayer(this.engine, o.drawHooks);
     this.engine.setChartType(workspace.get().cells[index].chartType || 'candles');
-    this.engine.setScale(workspace.get().cells[index].scale || {});
+    this.engine.setScale(effectiveSettings(workspace.get().cells[index].scale));
     this.engine.chart.subscribeCrosshairMove((p) => {
       if (this.syncing) return;
       const t = p && p.time !== undefined ? p.time : null;
@@ -90,7 +91,7 @@ export class ChartCell {
     this.unsubs = [
       workspace.subscribe((w) => w.feed + '|' + w.cells[index].symbol + '|' + w.cells[index].tf, () => this.load()),
       workspace.subscribe((w) => w.cells[index].chartType, (t) => this.engine.setChartType(t || 'candles')),
-      workspace.subscribe((w) => w.cells[index].scale, (s) => this.engine.setScale(s || {})),
+      workspace.subscribe((w) => w.cells[index].scale, (s) => this.engine.setScale(effectiveSettings(s))),
       workspace.subscribe((w) => w.cells[index].studies, (next) => {
         const prevMap = new Map(prevStudies.map((s) => [s.uid, s]));
         const ids = new Set(next.map((s) => s.uid));
@@ -125,8 +126,8 @@ export class ChartCell {
   // ---------------------------------------------------------------- data
   /** TradingView's chart settings menu (bottom-right gear). */
   settingsMenu() {
-    const s = this.state.scale || {}, mode = s.mode || 'normal';
-    const set = (patch) => setCell(this.index, { scale: patch });
+    const s = effectiveSettings(this.state.scale), mode = s.mode || 'normal';
+    const set = (patch) => setCell(this.index, { scale: { ...s, ...patch } });
     popMenu(this.gear, [
       { label: 'Reset chart view', hint: 'fit prices, latest bars', onClick: () => this.resetView() },
       { sep: true },
@@ -145,7 +146,9 @@ export class ChartCell {
       { label: 'Last price line', checked: s.priceLine !== false, onClick: () => set({ priceLine: s.priceLine === false }) },
       { label: 'Grid lines', checked: s.grid !== false, onClick: () => set({ grid: s.grid === false }) },
       { sep: true },
-      { label: 'Reset all chart settings', onClick: () => { setCell(this.index, { scale: { mode: 'normal', invert: false, left: false, priceLabel: true, priceLine: true, grid: true } }); this.resetView(); } },
+      { label: 'Reset all chart settings', onClick: () => { workspace.set((w) => ({ ...w, cells: w.cells.map((c, i) => (i === this.index ? { ...c, scale: { mode: 'normal' } } : c)) })); this.resetView(); } },
+      { sep: true },
+      { label: 'Settings…', hint: 'colours, status line, canvas', onClick: () => chartSettingsDialog({ index: this.index, engine: this.engine, symbol: this.state.symbol }) },
     ]);
   }
 

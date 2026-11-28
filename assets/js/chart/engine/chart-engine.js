@@ -7,7 +7,7 @@
 //    just update() of its last point;
 //  - the legend is a fixed set of text nodes rewritten in place, never rebuilt on crosshair moves.
 
-import { createChart, PriceScaleMode, CandlestickSeries, BarSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
+import { createChart, createTextWatermark, PriceScaleMode, CandlestickSeries, BarSeries, HistogramSeries, LineSeries, AreaSeries, CrosshairMode, LineStyle, LineType, createSeriesMarkers } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
 import { toCss } from '../pine/colors.js';
 import { h, clear } from '../../lib/dom.js';
 
@@ -105,6 +105,7 @@ export class ChartEngine {
     if (this.alt) this.alt.applyOptions(this.altStyle());
     this.volUp = withAlpha(up, 0.35); this.volDn = withAlpha(dn, 0.35);
     if (this.buf) this.setVolume();
+    if (this.scale) this.applyScale(); // your chart settings sit on top of the theme
   }
 
   // ------------------------------------------------------------------ chart type
@@ -127,13 +128,32 @@ export class ChartEngine {
     this.applyScale();
   }
 
+  /** Candle colours: your settings (body / border / wick, up / down) over the theme's. */
+  candleColors() {
+    const s = this.scale || {}, up = s.upColor || this.upColor || '#2fcb92', dn = s.downColor || this.downColor || '#ff7a73';
+    return { up, dn, bUp: s.borderUp || up, bDn: s.borderDown || dn, wUp: s.wickUp || up, wDn: s.wickDown || dn };
+  }
+
   applyCandleStyle() {
-    const up = this.upColor || '#2fcb92', dn = this.downColor || '#ff7a73';
     const hidden = this.chartType && this.chartType !== 'candles';
-    const none = 'rgba(0, 0, 0, 0)';
+    const none = 'rgba(0, 0, 0, 0)', s = this.scale || {}, k = this.candleColors();
     this.candles.applyOptions(hidden
       ? { upColor: none, downColor: none, borderUpColor: none, borderDownColor: none, wickUpColor: none, wickDownColor: none, lastValueVisible: false, priceLineVisible: false }
-      : { upColor: up, downColor: dn, borderUpColor: up, borderDownColor: dn, wickUpColor: up, wickDownColor: dn, lastValueVisible: true, priceLineVisible: true });
+      : { upColor: s.body === false ? none : k.up, downColor: s.body === false ? none : k.dn, borderVisible: s.border !== false, borderUpColor: k.bUp, borderDownColor: k.bDn,
+        wickVisible: s.wick !== false, wickUpColor: k.wUp, wickDownColor: k.wDn, lastValueVisible: s.priceLabel !== false, priceLineVisible: s.priceLine !== false });
+  }
+
+  /** One candle, with Pine bar colours or (setting) colour by the previous close. */
+  candlePoint(i) {
+    const c = this.buf.cols;
+    const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
+    const bc = !this.alt && this.barColors && this.barColors[i];
+    if (bc) { d.color = bc; d.borderColor = bc; d.wickColor = bc; }
+    else if (!this.alt && this.scale && this.scale.prevClose && i > 0) {
+      const upBar = c.close[i] >= c.close[i - 1], k = this.candleColors(), none = 'rgba(0, 0, 0, 0)';
+      d.color = this.scale.body === false ? none : upBar ? k.up : k.dn; d.borderColor = upBar ? k.bUp : k.bDn; d.wickColor = upBar ? k.wUp : k.wDn;
+    }
+    return d;
   }
 
   altStyle() {
@@ -175,6 +195,9 @@ export class ChartEngine {
       }
       this.candleMarkers.setMarkers([]);
     }
+    this.tickSize = info.tick;
+    this.applyPrecision();
+    if (this.watermark) this.applyWatermark();
     this.setCandles();
     this.setVolume();
     if (range) this.chart.timeScale().setVisibleLogicalRange({ from: range.from + shiftBy, to: range.to + shiftBy });
@@ -185,13 +208,8 @@ export class ChartEngine {
   setCandles() {
     const c = this.buf.cols, n = this.buf.length;
     // per-bar colours (Pine barcolor) only on visible candles: on a transparent series they would show
-    const bc = !this.alt ? this.barColors : null;
     const data = new Array(n);
-    for (let i = 0; i < n; i++) {
-      const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
-      if (bc && bc[i]) { d.color = bc[i]; d.borderColor = bc[i]; d.wickColor = bc[i]; }
-      data[i] = d;
-    }
+    for (let i = 0; i < n; i++) data[i] = this.candlePoint(i);
     this.candles.setData(data);
     if (this.alt) { const alt = new Array(n); for (let i = 0; i < n; i++) alt[i] = this.altPoint(i); this.alt.setData(alt); }
   }
@@ -213,10 +231,7 @@ export class ChartEngine {
       const i = this.buf.length - 1;
       if (i < 0) return;
       const c = this.buf.cols;
-      const d = { time: c.time[i], open: c.open[i], high: c.high[i], low: c.low[i], close: c.close[i] };
-      const bc = !this.alt && this.barColors && this.barColors[i];
-      if (bc) { d.color = bc; d.borderColor = bc; d.wickColor = bc; }
-      this.candles.update(d);
+      this.candles.update(this.candlePoint(i));
       if (this.alt) this.alt.update(this.altPoint(i));
       this.volume.update({ time: c.time[i], value: c.volume[i], color: c.close[i] >= c.open[i] ? this.volUp : this.volDn });
       this.scheduleLegend();
@@ -398,7 +413,8 @@ export class ChartEngine {
     const mk = (cls) => h('span', { class: cls });
     const symbol = mk('cx-sym');
     const o = mk('v'), hi = mk('v'), lo = mk('v'), c = mk('v'), ch = mk('v'), vol = mk('v');
-    const row = h('div', { class: 'cx-ohlc num' }, symbol, h('span', { class: 'k' }, 'O'), o, h('span', { class: 'k' }, 'H'), hi, h('span', { class: 'k' }, 'L'), lo, h('span', { class: 'k' }, 'C'), c, ch, h('span', { class: 'k' }, 'Vol'), vol);
+    const g = (...k) => h('span', { class: 'cx-ohlcv' }, ...k);
+    const row = h('div', { class: 'cx-ohlc num' }, symbol, g(h('span', { class: 'k' }, 'O'), o, h('span', { class: 'k' }, 'H'), hi, h('span', { class: 'k' }, 'L'), lo, h('span', { class: 'k' }, 'C'), c), h('span', { class: 'cx-chg' }, ch), h('span', { class: 'cx-volv' }, h('span', { class: 'k' }, 'Vol'), vol));
     const box = h('div', { class: 'cx-legend' }, row);
     const studies = h('div', { class: 'cx-legend-studies' });
     box.append(studies);
@@ -483,7 +499,14 @@ export class ChartEngine {
   // ------------------------------------------------------------------ misc
   // ---- price scale settings (TradingView's chart settings menu)
   /** @param {import('../store/workspace.js').Scale} s */
-  setScale(s) { this.scale = { ...(s || {}) }; this.applyScale(); }
+  setScale(s) {
+    const prev = this.scale || {};
+    this.scale = { ...(s || {}) };
+    this.applyScale();
+    // colours and per-bar colouring live in the candle data
+    if (this.buf && (prev.prevClose !== this.scale.prevClose || prev.upColor !== this.scale.upColor || prev.downColor !== this.scale.downColor || prev.body !== this.scale.body
+      || prev.borderUp !== this.scale.borderUp || prev.borderDown !== this.scale.borderDown || prev.wickUp !== this.scale.wickUp || prev.wickDown !== this.scale.wickDown)) this.setCandles();
+  }
   get scaleSide() { return this.scale.left ? 'left' : 'right'; }
   applyScale() {
     if (this.disposed) return;
@@ -494,7 +517,78 @@ export class ChartEngine {
       for (const ser of pane.getSeries()) { const id = ser.options().priceScaleId; if (id === 'right' || id === 'left' || id === '' || id == null) { if (id !== side) ser.applyOptions({ priceScaleId: side }); } }
       this.chart.priceScale(side, i).applyOptions({ mode: i === 0 ? mode : PriceScaleMode.Normal, invertScale: i === 0 && !!s.invert });
     });
-    (this.alt || this.candles).applyOptions({ lastValueVisible: s.priceLabel !== false, priceLineVisible: s.priceLine !== false });
+    if (this.alt) this.alt.applyOptions({ lastValueVisible: s.priceLabel !== false, priceLineVisible: s.priceLine !== false });
+    this.applyCandleStyle();
+    this.applyCanvas();
+    this.applyPrecision();
+    this.applyStatusLine();
+    this.applyWatermark();
+    this.volume.applyOptions({ visible: s.volume !== false });
+  }
+
+  /** Canvas tab: background, grid, crosshair, text. Unset values keep the theme's. */
+  applyCanvas() {
+    const s = this.scale, o = {};
+    const styleOf = (v) => ({ dashed: LineStyle.Dashed, dotted: LineStyle.Dotted, solid: LineStyle.Solid }[v] ?? LineStyle.LargeDashed);
+    const t = this.themeOptions(); // unset (or reset) values go back to the theme's
+    o.layout = { background: { color: s.bg || t.layout.background.color }, textColor: s.text || t.layout.textColor, fontSize: +s.fontSize || t.layout.fontSize };
+    const gc = s.gridColor || t.grid.vertLines.color;
+    o.grid = { vertLines: { visible: s.gridV ?? s.grid !== false, color: gc }, horzLines: { visible: s.gridH ?? s.grid !== false, color: gc } };
+    const ch = { visible: s.crosshair !== 'none', labelVisible: s.crosshair !== 'none', style: styleOf(s.crosshair), color: s.crossColor || t.crosshair.vertLine.color };
+    o.crosshair = { vertLine: ch, horzLine: ch };
+    // a custom background: legend text switches to light or dark so it stays readable
+    const lum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return null; const n = parseInt(m[1], 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+    const L = s.bg ? lum(s.bg) : null;
+    for (const [k, dark, light] of [['--ink', '#e8eef4', '#132235'], ['--ink-2', '#a9b9c9', '#3c5168'], ['--ink-3', '#7f95ab', '#5f7389']]) {
+      if (L === null) this.legendEl.style.removeProperty(k); else this.legendEl.style.setProperty(k, L < 0.5 ? dark : light);
+    }
+    // times: daily and longer bars keep their calendar date; shorter ones follow the chosen time zone
+    const tz = s.tz && s.tz !== 'UTC' ? s.tz : null;
+    if (tz !== this._tz) {
+      this._tz = tz;
+      const opt = tz === 'local' ? {} : tz ? { timeZone: tz } : { timeZone: 'UTC' };
+      const f = (o2) => { try { return new Intl.DateTimeFormat('en-GB', { ...opt, ...o2 }); } catch { return new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', ...o2 }); } };
+      const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: '2-digit' });
+      const full = f({ day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const hm = f({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }), dd = f({ day: 'numeric' }), mon = f({ month: 'short' }), yr = f({ year: 'numeric' });
+      const isDay = (t) => t % 86400 === 0;
+      o.localization = { timeFormatter: (t) => (isDay(t) ? day : full).format(new Date(t * 1000)) };
+      o.timeScale = { tickMarkFormatter: tz ? (t, type) => { const d = new Date(t * 1000); return type === 0 ? yr.format(d) : type === 1 ? mon.format(d) : type === 2 ? dd.format(d) : hm.format(d); } : undefined };
+    }
+    this.chart.applyOptions(o);
+  }
+
+  /** Symbol tab: decimals shown on the price scale and legend ('' = from the contract). */
+  applyPrecision() {
+    if (!this.tickSize) return;
+    const p = this.scale && this.scale.precision !== undefined && this.scale.precision !== '' ? +this.scale.precision : null;
+    this.dec = p ?? decimalsOf(this.tickSize);
+    const pf = { type: 'price', precision: this.dec, minMove: p !== null ? 10 ** -p : this.tickSize };
+    this.candles.applyOptions({ priceFormat: pf });
+    if (this.alt) this.alt.applyOptions({ priceFormat: pf });
+    this.scheduleLegend();
+  }
+
+  /** Status line tab: which parts of the top-left legend show. */
+  applyStatusLine() {
+    const s = this.scale, box = this.mainLegend && this.mainLegend.box;
+    if (!box) return;
+    box.classList.toggle('no-sym', s.showSymbol === false);
+    box.classList.toggle('no-ohlc', s.showOHLC === false);
+    box.classList.toggle('no-chg', s.showChange === false);
+    box.classList.toggle('no-vol', s.showVolume === false);
+    this.legendEl.classList.toggle('no-ind', s.showIndicators === false);
+    this.legendEl.classList.toggle('no-indval', s.showIndValues === false);
+  }
+
+  /** Canvas tab: faint symbol name across the chart. */
+  applyWatermark() {
+    const on = !!(this.scale && this.scale.watermark);
+    if (!on) { if (this.watermark) { this.watermark.detach(); this.watermark = null; } return; }
+    const text = (this.symbolLabel || '').split(' · ').slice(0, 2).join(' · ');
+    const opts = { horzAlign: 'center', vertAlign: 'center', lines: [{ text, color: withAlpha(css('--ink-3') || '#7f95ab', 0.18), fontSize: 48, fontStyle: 'bold' }] };
+    if (this.watermark) this.watermark.applyOptions(opts);
+    else this.watermark = createTextWatermark(this.chart.panes()[0], opts);
   }
   /** Is the main price scale auto-fitting? (it turns off when you drag the scale) */
   isAutoScale() { return this.chart.priceScale(this.scaleSide, 0).options().autoScale !== false; }
