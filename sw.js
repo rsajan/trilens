@@ -1,6 +1,6 @@
 // Trilens service worker: app shell works offline; data is network-first with a saved fallback.
 // Every network fetch here bypasses the browser's HTTP cache, so a new VERSION always caches the new files.
-const VERSION = 'trilens-v42';
+const VERSION = 'trilens-v43';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/css/app.css',
