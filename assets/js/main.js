@@ -82,10 +82,9 @@ function backupSection() {
     const f = picker.files[0]; picker.value = '';
     if (!f) return;
     try {
-      const { restore } = await import('./lib/backup.js');
-      const n = restore(JSON.parse(await f.text()));
-      if (!window.confirm(`Restored ${n} settings from ${f.name}. Reload now to use them?`)) { note.textContent = `Restored ${n} settings. Reload the page to use them.`; return; }
-      location.reload();
+      const { restoreAndReload } = await import('./lib/backup.js');
+      const n = await restoreAndReload(JSON.parse(await f.text()));
+      note.textContent = `Restored ${n} settings from ${f.name}. Reloading…`;
     } catch (e) { note.textContent = 'Could not restore: ' + e.message; }
   });
   const btn = (label, onClick, primary) => h('button', { type: 'button', class: 'btn' + (primary ? ' primary' : ''), style: { minHeight: '44px' }, onClick }, label);
