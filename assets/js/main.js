@@ -70,8 +70,33 @@ $('#status').addEventListener('click', () => {
     h('div', { class: 'ledger' }, h('div', { class: 'lrow', style: { minHeight: '48px' } },
       h('span', { class: 'grow' }, 'Technical bundle (from your PC)'),
       h('span', { class: 'muted num' }, meta?.built_at ? fmt.rel(meta.built_at) : 'not yet'))),
-    h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'Strategies, backtests and scanner signals, built on your PC and published when you run PUBLISH.bat. Nothing here is investment advice.'));
+    h('p', { class: 'muted small', style: { marginTop: '14px' } }, 'Strategies, backtests and scanner signals, built on your PC and published when you run PUBLISH.bat. Nothing here is investment advice.'),
+    backupSection());
 });
+
+// Chart layouts, drawings, scripts, watchlists, alerts and chart settings live only in this browser.
+function backupSection() {
+  const note = h('p', { class: 'small', role: 'status', style: { margin: '8px 0 0' } });
+  const picker = h('input', { type: 'file', accept: '.json,application/json', class: 'hide', 'aria-label': 'Backup file to restore' });
+  picker.addEventListener('change', async () => {
+    const f = picker.files[0]; picker.value = '';
+    if (!f) return;
+    try {
+      const { restore } = await import('./lib/backup.js');
+      const n = restore(JSON.parse(await f.text()));
+      if (!window.confirm(`Restored ${n} settings from ${f.name}. Reload now to use them?`)) { note.textContent = `Restored ${n} settings. Reload the page to use them.`; return; }
+      location.reload();
+    } catch (e) { note.textContent = 'Could not restore: ' + e.message; }
+  });
+  const btn = (label, onClick, primary) => h('button', { type: 'button', class: 'btn' + (primary ? ' primary' : ''), style: { minHeight: '44px' }, onClick }, label);
+  return h('div', { style: { marginTop: '18px', paddingTop: '14px', borderTop: '1px solid var(--line)' } },
+    h('h3', { style: { margin: '0 0 6px' } }, 'Your settings on this device'),
+    h('p', { class: 'muted small', style: { margin: '0 0 10px' } }, 'Chart layouts, drawings, Pine scripts, watchlists, alerts, templates and chart settings are saved only in this browser. Download a backup file to keep them safe or to move them to another phone or PC, then Restore it there. Your password and GitHub token are never included.'),
+    h('div', { class: 'row wrap', style: { gap: '8px' } },
+      btn('Download backup', async () => { const { download } = await import('./lib/backup.js'); const n = download(); note.textContent = `Backup downloaded: ${n} settings. Keep the file private: it contains your watchlists.`; }, true),
+      btn('Restore from file…', () => picker.click())),
+    picker, note);
+}
 
 function banners() {
   const box = h('div');
