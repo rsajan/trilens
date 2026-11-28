@@ -55,11 +55,11 @@ async function findGistId() {
   return null;
 }
 
-async function createGist(payload) {
+async function createGist(payload, file = FILENAME) {
   const g = await gh('/gists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description: SENTINEL, public: false, files: { [FILENAME]: { content: JSON.stringify(payload) } } }),
+    body: JSON.stringify({ description: SENTINEL, public: false, files: { [file]: { content: JSON.stringify(payload) } } }),
   });
   store.set('gist_id', g.id);
   return g.id;
@@ -81,5 +81,30 @@ export async function push(payload) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ files: { [FILENAME]: { content: JSON.stringify(payload) } } }),
+  });
+}
+
+// ---- any file in the same private gist (used by settings sync); null when there is none yet
+export async function pullFile(name) {
+  const id = await findGistId();
+  if (!id) return null;
+  const g = await gh(`/gists/${id}`);
+  const file = g.files && g.files[name];
+  if (!file) return null;
+  let text = file.content;
+  if (file.truncated && file.raw_url) {
+    const r = await fetch(file.raw_url, { headers: { Authorization: `Bearer ${getToken()}` } });
+    text = r.ok ? await r.text() : null;
+  }
+  try { return text ? JSON.parse(text) : null; } catch { return null; }
+}
+
+export async function pushFile(name, payload) {
+  const id = await findGistId();
+  if (!id) { await createGist(payload, name); return; }
+  await gh(`/gists/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: { [name]: { content: JSON.stringify(payload) } } }),
   });
 }

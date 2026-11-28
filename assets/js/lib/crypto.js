@@ -41,3 +41,15 @@ export async function decryptEnvelope(env, pass) {
   }
   return JSON.parse(text);
 }
+
+/** The reverse of decryptEnvelope (same format as the pipeline's encrypt()), for settings sync. */
+export async function encryptEnvelope(obj, pass, iter = 250000) {
+  if (!cryptoAvailable()) throw new Error('secure-context');
+  const b64e = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, keyMat, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+  const gz = new Uint8Array(await new Response(new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  const data = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, gz));
+  return { v: 1, enc: true, alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter, comp: 'gzip', salt: b64e(salt), iv: b64e(iv), data: b64e(data) };
+}

@@ -94,7 +94,49 @@ function backupSection() {
     h('div', { class: 'row wrap', style: { gap: '8px' } },
       btn('Download backup', async () => { const { download } = await import('./lib/backup.js'); const n = download(); note.textContent = `Backup downloaded: ${n} settings. Keep the file private: it contains your watchlists.`; }, true),
       btn('Restore from file…', () => picker.click())),
-    picker, note);
+    picker, note, syncSection());
+}
+
+// Automatic sync of the same settings across devices, through your private GitHub gist.
+function syncSection() {
+  const box = h('div', { style: { marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--line)' } });
+  const btn = (label, onClick, primary) => h('button', { type: 'button', class: 'btn' + (primary ? ' primary' : ''), style: { minHeight: '44px' }, onClick }, label);
+  (async () => {
+    const S = await import('./lib/settings-sync.js');
+    const sync = await import('./lib/sync.js');
+    const status = h('p', { class: 'small', role: 'status', style: { margin: '8px 0 0' } }, S.state.msg || '');
+    S.state.listeners.add((st) => { status.textContent = st.msg; });
+    const paint = () => {
+      box.replaceChildren(h('h3', { style: { margin: '0 0 6px' } }, 'Sync across devices'));
+      if (!sync.isConnected()) {
+        const field = h('input', { class: 'field', type: 'password', placeholder: 'github_pat_… or ghp_…', autocomplete: 'off', 'aria-label': 'GitHub gist token', style: { width: '100%', marginTop: '8px' } });
+        box.append(
+          h('p', { class: 'muted small', style: { margin: 0 } }, 'Keeps the settings above the same on every browser and device (both website addresses, PC and phone), automatically. They are encrypted with your Technical password and kept in a private gist on your GitHub account.'),
+          h('p', { class: 'muted small', style: { margin: '8px 0 0' } }, 'Paste a GitHub token that can only use gists (Account permissions → Gists: Read and write). Paste it here only, never in a screenshot. The same token also syncs the Watch Lists page.'),
+          h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener noreferrer', class: 'small' }, 'Create a gist-only token on GitHub →'),
+          field,
+          h('div', { class: 'row wrap', style: { gap: '8px', marginTop: '10px' } }, btn('Connect and sync', async () => {
+            const v = field.value.trim(); if (!v) return;
+            sync.setToken(v); field.value = '';
+            if (!S.password()) { status.textContent = 'Connected. Unlock with your Technical password once (tick "Remember on this device"), then reload: sync starts then.'; paint(); return; }
+            status.textContent = 'Connecting…';
+            const r = await S.syncOnce();
+            if (r === 'applied') { const { freezeWrites } = await import('./lib/store.js'); freezeWrites(); location.reload(); return; }
+            if (r !== 'error') location.reload(); // starts the automatic sync on this page
+          }, true)),
+          status);
+        return;
+      }
+      box.append(
+        h('p', { class: 'muted small', style: { margin: 0 } }, S.password() ? 'On: changes here are sent within about 20 seconds; changes from your other devices arrive when you open or return to the site.' : 'Connected, but waiting: unlock with your Technical password once (tick "Remember on this device"), then reload this page.'),
+        h('div', { class: 'row wrap', style: { gap: '8px', marginTop: '10px' } },
+          btn('Sync now', async () => { status.textContent = 'Syncing…'; const r = await S.syncOnce(); if (r === 'applied') { const { freezeWrites } = await import('./lib/store.js'); freezeWrites(); location.reload(); } }),
+          btn('Disconnect this device', () => { if (window.confirm('Stop syncing on this device? Your settings stay here and in GitHub.')) { sync.setToken(''); status.textContent = 'Disconnected on this device.'; paint(); } })),
+        status);
+    };
+    paint();
+  })().catch((e) => box.append(h('p', { class: 'small' }, 'Sync is unavailable: ' + e.message)));
+  return box;
 }
 
 function banners() {
@@ -154,6 +196,8 @@ addEventListener('hashchange', route);
 addEventListener('online', () => route());
 addEventListener('offline', () => route());
 await boot();
+// settings sync: a newer copy from your other devices is applied before the first page draws
+try { await (await import('./lib/settings-sync.js')).atStart(); } catch (e) { console.warn('settings sync', e); }
 route();
 
 // ---------- service worker (offline + install) ----------
