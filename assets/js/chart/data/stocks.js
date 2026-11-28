@@ -35,12 +35,23 @@ export function decodeSeries(e) {
   return sliceBars(b, 0, n);
 }
 
-/** Decrypted prices -> contracts, top-traded first within each market. */
+/** Several daily Bars (history pieces + this month) -> one, by time, later copies winning. */
+export function mergeBars(parts) {
+  const byTime = new Map();
+  for (const b of parts) for (let i = 0; i < b.length; i++) byTime.set(b.time[i], [b.open[i], b.high[i], b.low[i], b.close[i], b.volume[i]]);
+  const times = [...byTime.keys()].sort((a, b) => a - b);
+  const out = emptyBars(times.length);
+  times.forEach((t, i) => { const r = byTime.get(t); out.time[i] = t; out.open[i] = r[0]; out.high[i] = r[1]; out.low[i] = r[2]; out.close[i] = r[3]; out.volume[i] = r[4]; });
+  return sliceBars(out, 0, times.length);
+}
+
+/** Decrypted prices (v1: full series per market; v2: index of [symbol, decimals, bucket]) -> contracts. */
 export function stockContracts(data) {
   const out = [];
   for (const [mk, v] of Object.entries((data && data.markets) || {})) {
     const info = MARKET[mk] || { name: mk + ' stock', quote: '' };
-    for (const e of v.series || []) {
+    const rows = v.symbols ? v.symbols.map(([s, dp]) => ({ s, dp })) : (v.series || []);
+    for (const e of rows) {
       out.push({ symbol: e.s, name: `${info.name} · end of day`, base: e.s.replace(/\.NS$/, ''), quote: info.quote, kind: 'stock', market: mk, tick: 1 / 10 ** e.dp });
     }
   }
@@ -57,17 +68,26 @@ export function kindLabel(c) {
 // ---------------------------------------------------------------- shared, unlocked once per page
 /** status: 'idle' | 'loading' | 'none' (not published) | 'locked' | 'ready' | 'error' */
 export const stockData = {
-  status: 'idle', env: null, data: null, contracts: [], error: '',
-  /** symbol -> encoded series; decoded Bars cached in `bars` */
+  status: 'idle', env: null, data: null, contracts: [], error: '', pass: '',
+  /** symbol -> encoded series (v1: all bars; v2: this month); full decoded Bars cached in `bars` */
   series: new Map(), bars: new Map(), listeners: new Set(), _p: null,
+  /** v2: symbol -> bucket, bucket -> Promise<Map<symbol, encoded[]>> of its history pieces */
+  bucket: new Map(), pieces: new Map(),
 
   subscribe(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
   emit() { for (const f of [...this.listeners]) { try { f(this); } catch (err) { console.error(err); } } },
 
-  set(data) {
+  set(data, pass = '') {
     this.data = data;
+    this.pass = pass;
     this.series = new Map();
-    for (const v of Object.values(data.markets || {})) for (const e of v.series || []) this.series.set(e.s, e);
+    this.bucket = new Map();
+    this.pieces = new Map();
+    for (const v of Object.values(data.markets || {})) {
+      for (const e of v.series || []) this.series.set(e.s, e);
+      for (const [s, , b] of v.symbols || []) this.bucket.set(s, b);
+    }
+    for (const e of data.recent || []) this.series.set(e.s, e);
     this.bars = new Map();
     this.contracts = stockContracts(data);
     this.status = 'ready';
@@ -86,7 +106,7 @@ export const stockData = {
       this.env = env;
       const saved = store.get('techpass');
       if (saved && cryptoAvailable()) {
-        try { this.set(await decryptEnvelope(env, saved)); this.emit(); return this; } catch { /* stays locked */ }
+        try { this.set(await decryptEnvelope(env, saved), saved); this.emit(); return this; } catch { /* stays locked */ }
       }
       this.status = 'locked'; this.emit(); return this;
     })().catch((err) => { this.status = 'error'; this.error = String(err.message || err); this.emit(); return this; });
@@ -94,11 +114,43 @@ export const stockData = {
   },
 
   /** Used by the lock screen. Throws 'bad-password'. */
-  async unlock(env, pass) { this.set(await decryptEnvelope(env, pass)); this._p = Promise.resolve(this); this.emit(); },
+  async unlock(env, pass) { this.set(await decryptEnvelope(env, pass), pass); this._p = Promise.resolve(this); this.emit(); },
 
-  has(symbol) { return this.series.has(symbol); },
-  daily(symbol) {
-    if (!this.bars.has(symbol)) { const e = this.series.get(symbol); if (!e) throw new Error(`${symbol} is not in your end-of-day prices`); this.bars.set(symbol, decodeSeries(e)); }
+  has(symbol) { return this.series.has(symbol) || this.bucket.has(symbol); },
+  /** This month's bars only (v2) or everything (v1): enough for last price and day change. */
+  recent(symbol) {
+    const e = this.series.get(symbol);
+    return e ? decodeSeries(e) : emptyBars(0);
+  },
+  /** v2: every history piece of the symbol's bucket, fetched and opened once per bucket. */
+  bucketPieces(b) {
+    if (!this.pieces.has(b)) {
+      const names = (this.data && this.data.pieces) || [];
+      const pass = this.pass;
+      const p = (async () => {
+        const map = new Map();
+        const one = async (name) => {
+          const env = await getJSON(`data/technical/prices/${name}-b${String(b).padStart(2, '0')}.json`, { fresh: true });
+          if (!env) return; // piece missing: that stretch of history is simply not shown
+          const obj = env.enc ? await decryptEnvelope(env, pass) : env;
+          for (const e of obj.series || []) { if (!map.has(e.s)) map.set(e.s, []); map.get(e.s).push(e); }
+        };
+        for (let i = 0; i < names.length; i += 8) await Promise.all(names.slice(i, i + 8).map((n) => one(n).catch((err) => console.warn('price piece', n, err))));
+        return map;
+      })();
+      this.pieces.set(b, p);
+    }
+    return this.pieces.get(b);
+  },
+  /** All daily bars of a symbol: history pieces + this month. */
+  async daily(symbol) {
+    if (!this.bars.has(symbol)) {
+      if (!this.has(symbol)) throw new Error(`${symbol} is not in your end-of-day prices`);
+      const parts = [];
+      if (this.bucket.has(symbol)) for (const e of (await this.bucketPieces(this.bucket.get(symbol))).get(symbol) || []) parts.push(decodeSeries(e));
+      parts.push(this.recent(symbol));
+      this.bars.set(symbol, parts.length === 1 ? parts[0] : mergeBars(parts));
+    }
     return this.bars.get(symbol);
   },
   /** { name, symbols } for the "US top 500" and "India top 500" watchlists. */
@@ -129,7 +181,7 @@ export class StocksAdapter {
     const t = TF[tf];
     if (!t || !t.calendar) throw new Error('Stocks have end-of-day prices only. Pick D, W or M.');
     await stockData.load();
-    let b = stockData.daily(symbol);
+    let b = await stockData.daily(symbol);
     if (opts.to != null) {
       let n = 0;
       while (n < b.length && b.time[n] <= opts.to) n++;
@@ -146,7 +198,8 @@ export class StocksAdapter {
     let live = true;
     stockData.load().then(() => {
       if (!live || !stockData.has(symbol)) return;
-      const b = stockData.daily(symbol), n = b.length;
+      const b = stockData.recent(symbol), n = b.length;
+      if (!n) return;
       const last = b.close[n - 1], prev = n > 1 ? b.close[n - 2] : NaN;
       onTele({ symbol, kind: 'stock', time: b.time[n - 1], last, mark: last, index: last,
         change24h: last - prev, changePct24h: Number.isFinite(prev) && prev ? (last / prev - 1) * 100 : NaN,

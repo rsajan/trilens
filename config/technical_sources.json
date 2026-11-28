@@ -6,5 +6,9 @@
   "playbook_dir": "G:\\trading\\EMA_Playbook_Strategy",
   "scans_dir": "G:\\trading\\new back test\\scans",
   "paper_book": "G:\\trading\\new back test\\PAPER_TRADING.xlsx",
-  "uploads_dir": "technical_uploads"
+  "uploads_dir": "technical_uploads",
+  "price_history_files": {
+    "US": "G:\\trading\\back test stocks\\US stocks\\sp500_watchlist_eod_2000_2026.xlsx",
+    "IN": "G:\\trading\\back test stocks\\India stocks\\india_watchlist_eod_2000_2026.xlsx"
+  }
 }

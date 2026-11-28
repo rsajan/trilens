@@ -34,6 +34,9 @@ def main() -> int:
     say("\n3/4  Saving the encrypted file...")
     files = [f for f in ("data/technical/bundle.json", "data/technical/prices.json", "data/technical/meta.json", "data/technical/public_signals.json") if (ROOT / f).exists()]
     git("add", "--", *files)
+    if (ROOT / "data" / "technical" / "prices").exists() or git("ls-files", "data/technical/prices").stdout.strip():
+        git("add", "-A", "--", "data/technical/prices")   # new, changed and removed history pieces
+        files.append("data/technical/prices")
     gone = git("ls-files", "--deleted", "data/technical/public_signals.json").stdout.strip()
     if gone:
         git("add", "-A", "--", "data/technical/public_signals.json")

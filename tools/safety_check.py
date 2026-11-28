@@ -6,7 +6,7 @@ import sys
 
 from _util import ROOT, git, say
 
-BLOCKED_PREFIXES = ("config/local.json", "technical_uploads/", "data/technical/bundle.local.json", "data/technical/prices.local.json")
+BLOCKED_PREFIXES = ("config/local.json", "technical_uploads/", "data/technical/bundle.local.json", "data/technical/prices.local.json", ".cache/")
 
 
 def check() -> list[str]:
@@ -27,17 +27,20 @@ def check() -> list[str]:
                 problems.append("data/technical/bundle.json is NOT encrypted")
             elif env.get("iter", 0) < 100000:
                 problems.append("bundle.json uses too few key-stretching rounds")
-    pr = ROOT / "data" / "technical" / "prices.json"
-    if pr.exists():
+    tech = ROOT / "data" / "technical"
+    for pr in [tech / "prices.json", *sorted((tech / "prices").glob("*"))]:
+        if not pr.is_file():
+            continue
+        rel = pr.relative_to(ROOT).as_posix()
         try:
             env = json.loads(pr.read_text(encoding="utf-8"))
         except Exception:
-            problems.append("data/technical/prices.json is not valid JSON")
-        else:
-            if env.get("enc") is not True or not env.get("data") or "markets" in env:
-                problems.append("data/technical/prices.json is NOT encrypted")
-            elif env.get("iter", 0) < 100000:
-                problems.append("prices.json uses too few key-stretching rounds")
+            problems.append(f"{rel} is not valid JSON")
+            continue
+        if not isinstance(env, dict) or env.get("enc") is not True or not env.get("data") or "markets" in env or "series" in env:
+            problems.append(f"{rel} is NOT encrypted")
+        elif env.get("iter", 0) < 100000:
+            problems.append(f"{rel} uses too few key-stretching rounds")
     return problems
 
 

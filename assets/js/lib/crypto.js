@@ -6,13 +6,26 @@ const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 export function cryptoAvailable() { return !!(globalThis.crypto && crypto.subtle); }
 
+// Derived keys are kept for the page's lifetime, so files sharing a salt (the stock price
+// pieces) cost one PBKDF2 run in all.
+const KEYS = new Map();
+function keyFor(env, pass) {
+  const id = pass + '\u0000' + env.salt + '\u0000' + env.iter;
+  if (!KEYS.has(id)) {
+    const p = (async () => {
+      const keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(env.salt), iterations: env.iter, hash: 'SHA-256' },
+        keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    })();
+    p.catch(() => KEYS.delete(id));
+    KEYS.set(id, p);
+  }
+  return KEYS.get(id);
+}
+
 export async function decryptEnvelope(env, pass) {
   if (!cryptoAvailable()) throw new Error('secure-context');
-  const enc = new TextEncoder();
-  const keyMat = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: b64(env.salt), iterations: env.iter, hash: 'SHA-256' },
-    keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const key = await keyFor(env, pass);
   let plain;
   try {
     plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(env.iv) }, key, b64(env.data));

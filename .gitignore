@@ -4,6 +4,8 @@ technical_uploads/*
 !technical_uploads/README.txt
 data/technical/bundle.local.json
 data/technical/prices.local.json
+# plain-text cache of your price workbooks
+.cache/
 
 __pycache__/
 *.pyc

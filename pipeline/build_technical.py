@@ -1383,6 +1383,9 @@ def price_frames(obj, pd, depth: int = 0) -> dict:
         out = {}
         for k, v in obj.items():
             if isinstance(v, pd.DataFrame):
+                if any(str(c).strip().lower() in _SYM_COLS for c in v.columns):
+                    out.update(price_frames(v, pd, depth + 1))   # a long table (symbol column) on this sheet
+                    continue
                 f = _ohlcv(v, pd)
                 if f is not None:
                     out[str(k)] = f
@@ -1507,14 +1510,97 @@ def decode_prices(e: dict) -> list[tuple]:
     return rows
 
 
+def _load_price_file(p: Path, pd):
+    if p.suffix.lower() in (".pkl", ".pickle"):
+        return pd.read_pickle(p)   # your own scanner's file, on your own PC
+    if p.suffix.lower() == ".csv":
+        return pd.read_csv(p)
+    if p.suffix.lower() == ".parquet":
+        return pd.read_parquet(p)
+    if p.suffix.lower() in (".xlsx", ".xlsm"):
+        return pd.read_excel(p, sheet_name=None)   # {sheet name: table}
+    return None
+
+
+def _describe(obj) -> str:
+    kind = type(obj).__name__ + (f" of {len(obj)}" if isinstance(obj, dict) else f" {getattr(obj, 'shape', '')}")
+    if isinstance(obj, dict) and len(obj) <= 12:
+        kind += ": " + ", ".join(str(k) for k in obj)
+    return kind
+
+
+def _frames_from_file(p: Path, pd, label: str) -> dict:
+    """{ticker: frame} from one price file, with a line saying what was found."""
+    try:
+        obj = _load_price_file(p, pd)
+    except Exception as e:  # noqa: BLE001
+        print(f"  {label:<17} could not open {p.name}: {type(e).__name__}: {e}")
+        return {}
+    if obj is None:
+        return {}
+    frames = price_frames(obj, pd)
+    if not frames and isinstance(obj, dict) and p.suffix.lower() in (".xlsx", ".xlsm"):
+        # workbooks with two header rows (field over ticker, or ticker over field)
+        try:
+            frames = price_frames(pd.read_excel(p, sheet_name=None, header=[0, 1], index_col=0), pd)
+        except Exception:  # noqa: BLE001
+            frames = {}
+    if not frames:
+        cols = list(obj)[:5] if isinstance(obj, dict) else list(getattr(obj, "columns", []))[:8]
+        if isinstance(obj, dict) and obj:
+            first = next(iter(obj.values()))
+            cols = f"{cols}; first table columns {list(getattr(first, 'columns', []))[:8]}"
+        print(f"  {label:<17} {p.name}: layout not recognised ({_describe(obj)}; {cols}). Please send this line to get it supported.")
+        return {}
+    span = (min(f.index[0] for f in frames.values()).date(), max(f.index[-1] for f in frames.values()).date())
+    print(f"  {label:<17} {p.name}: {len(frames)} symbols, {span[0]} to {span[1]} ({_describe(obj)[:90]})")
+    return frames
+
+
+def read_price_history(cfg: dict, pd) -> dict:
+    """{market: {symbol: frame}} from the long-history workbooks in config "price_history_files"
+    ({"US": path, "IN": path}). Reading a big workbook takes minutes, so the result is cached in
+    .cache/prices (git-ignored, never published) until the workbook changes."""
+    out: dict = {}
+    cache = ROOT / ".cache" / "prices"
+    for mk, path in (cfg.get("price_history_files") or {}).items():
+        p = Path(os.path.expanduser(str(path)))
+        if not p.is_file():
+            print(f"  Price history     NOT FOUND ({mk}: {p.name})")
+            continue
+        st = p.stat()
+        key = cache / f"{mk}-{hashlib.sha256(str(p).encode()).hexdigest()[:10]}-{int(st.st_mtime)}-{st.st_size}.pkl"
+        frames = None
+        if key.is_file():
+            try:
+                frames = pd.read_pickle(key)
+                print(f"  Price history     {p.name}: {len(frames)} symbols (cached copy, workbook unchanged)")
+            except Exception:  # noqa: BLE001
+                frames = None
+        if frames is None:
+            print(f"  Price history     reading {p.name} - a large workbook can take several minutes the first time...")
+            frames = _frames_from_file(p, pd, "Price history")
+            if frames:
+                cache.mkdir(parents=True, exist_ok=True)
+                for old in cache.glob(f"{mk}-{key.name.split('-')[1]}-*.pkl"):
+                    old.unlink()
+                pd.to_pickle(frames, key)
+        dst = out.setdefault(mk, {})
+        for t, f in (frames or {}).items():
+            dst[price_symbol(t, mk)] = f
+    return out
+
+
 def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
+    """Recent prices from the scanners' price files, joined onto the long history workbooks.
+    Returns {"built_at", "markets": {mk: {"top": [...], "frames": {symbol: frame}, "asof"}}}."""
     globs = cfg.get("price_files") or PRICE_FILES
     files = []
     for g in globs:
         p = Path(D.fill(g))
         if p.parent.exists():
             files += sorted(x for x in p.parent.glob(p.name) if x.is_file())
-    if not files:
+    if not files and not cfg.get("price_history_files"):
         print("  Stock prices      NOT FOUND (looked for " + ", ".join(Path(g).name for g in globs) + ")")
         return None
     try:
@@ -1525,37 +1611,31 @@ def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
         return None
     per: dict = {}
     for p in files:
-        try:
-            if p.suffix.lower() in (".pkl", ".pickle"):
-                obj = pd.read_pickle(p)   # your own scanner's file, on your own PC
-            elif p.suffix.lower() == ".csv":
-                obj = pd.read_csv(p)
-            elif p.suffix.lower() == ".parquet":
-                obj = pd.read_parquet(p)
-            else:
-                continue
-        except Exception as e:  # noqa: BLE001
-            print(f"  Stock prices      could not open {p.name}: {type(e).__name__}: {e}")
-            continue
-        frames = price_frames(obj, pd)
-        kind = type(obj).__name__ + (f" of {len(obj)}" if isinstance(obj, dict) else f" {getattr(obj, 'shape', '')}")
-        if isinstance(obj, dict) and len(obj) <= 12:
-            kind += ": " + ", ".join(str(k) for k in obj)
+        frames = _frames_from_file(p, pd, "Stock prices")
         if not frames:
-            cols = list(getattr(obj, "columns", []))[:8] if not isinstance(obj, dict) else list(obj)[:5]
-            print(f"  Stock prices      {p.name}: layout not recognised ({kind}; first columns/keys {cols}). Please send this line to get it supported.")
             continue
         mk = price_market(p.stem, frames)
-        print(f"  Stock prices      {p.name}: {len(frames)} symbols, market {mk} ({kind})")
         dst = per.setdefault(mk, {})
         for t, f in frames.items():
             s = price_symbol(t, mk)
             old = dst.get(s)
             if old is None or (f.index[-1], len(f)) > (old.index[-1], len(old)):
                 dst[s] = f
+    # long history underneath: the scanners' newer files win wherever dates overlap
+    for mk, hist in read_price_history(cfg, pd).items():
+        dst = per.setdefault(mk, {})
+        joined = 0
+        for s, h in hist.items():
+            cur = dst.get(s)
+            if cur is None:
+                dst[s] = h
+            else:
+                both = pd.concat([h, cur])
+                dst[s] = both[~both.index.duplicated(keep="last")].sort_index()
+                joined += 1
+        print(f"  Price history     {mk}: {len(hist)} symbols, {joined} joined to the recent prices")
     if not per:
         return None
-    wanted = signal_symbols(signals)
     markets = {}
     for mk, frames in per.items():
         value = {s: float((f["c"].iloc[-60:] * f["v"].iloc[-60:]).mean()) for s, f in frames.items()}
@@ -1566,11 +1646,133 @@ def read_prices(D: Dirs, signals: dict, cfg: dict) -> dict | None:
             print(f"  Stock prices      {mk}: only one price per day found (no open/high/low), so candles show as lines")
         ranked = sorted(frames, key=lambda s: -value[s])
         top = [s for s in ranked if value[s] > 0][:PRICE_TOP] or ranked[:PRICE_TOP]
-        keep = list(dict.fromkeys(top + sorted(wanted.get(mk, set()) & set(frames))))
-        markets[mk] = {"top": top, "series": [encode_prices(s, frames[s]) for s in keep],
-                       "asof": max(frames[s].index[-1] for s in keep).strftime("%Y-%m-%d")}
-        print(f"  Stock prices      {mk}: {len(keep)} symbols kept ({len(top)} top by traded value, the rest from your signals), last date {markets[mk]['asof']}")
-    return {"v": 1, "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "markets": markets}
+        first = min(f.index[0] for f in frames.values())
+        asof = max(f.index[-1] for f in frames.values())
+        markets[mk] = {"top": top, "frames": frames, "asof": asof.strftime("%Y-%m-%d")}
+        print(f"  Stock prices      {mk}: {len(frames)} symbols, {first.date()} to {asof.date()}, top {len(top)} by traded value")
+    return {"built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "markets": markets}
+
+
+# ------------------------------------------------------------------ price pieces
+# History is split into encrypted pieces so a daily publish only uploads what changed:
+#   prices.json                 index + this month's bars (changes every publish, small)
+#   prices/y2019-b07.json       one closed year, symbols of bucket 07 (written once)
+#   prices/m2026-03-b07.json    one closed month of the current year (written once)
+# A symbol's bucket comes from an HMAC of the symbol with a key from your password, so file names
+# say nothing about which stocks are inside. Pieces whose content is unchanged are not rewritten.
+PRICE_BUCKETS = 64
+
+
+def bucket_of(sym: str, password: str) -> int:
+    import hmac
+    return int(hmac.new(password.encode("utf-8"), ("trilens-bucket:" + sym).encode("utf-8"), "sha256").hexdigest()[:8], 16) % PRICE_BUCKETS
+
+
+class Sealer:
+    """AES-GCM envelopes sharing one salt (one PBKDF2 run per publish, and one in the browser)."""
+
+    def __init__(self, password: str, salt: bytes | None = None):
+        self.password = password
+        self.salt = salt or secrets.token_bytes(16)
+        self.keys: dict = {}
+        self.key = self._key(self.salt)
+
+    def _key(self, salt: bytes) -> bytes:
+        if salt not in self.keys:
+            self.keys[salt] = hashlib.pbkdf2_hmac("sha256", self.password.encode("utf-8"), salt, PBKDF2_ITER, dklen=32)
+        return self.keys[salt]
+
+    def seal(self, obj: dict, built_at: str) -> dict:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        raw = gzip.compress(json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), 9, mtime=0)
+        iv = secrets.token_bytes(12)
+        b = lambda x: base64.b64encode(x).decode()
+        return {"v": 1, "enc": True, "alg": "AES-256-GCM", "kdf": "PBKDF2-SHA256", "iter": PBKDF2_ITER, "comp": "gzip",
+                "salt": b(self.salt), "iv": b(iv), "data": b(AESGCM(self.key).encrypt(iv, raw, None)), "built_at": built_at}
+
+    def open(self, env: dict):
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        d = lambda x: base64.b64decode(x)
+        key = self._key(d(env["salt"])) if env.get("iter") == PBKDF2_ITER else hashlib.pbkdf2_hmac("sha256", self.password.encode(), d(env["salt"]), env["iter"], dklen=32)
+        return json.loads(gzip.decompress(AESGCM(key).decrypt(d(env["iv"]), d(env["data"]), None)))
+
+
+def price_pieces(prices: dict, password: str, today: date) -> tuple[dict, dict]:
+    """-> (index with this month's bars, {piece name: {bucket, series}}) for closed years/months."""
+    month0 = datetime(today.year, today.month, 1)
+    year0 = datetime(today.year, 1, 1)
+    pieces: dict = {}
+    index = {"v": 2, "built_at": prices["built_at"], "buckets": PRICE_BUCKETS, "markets": {}, "recent": []}
+    for mk, m in prices["markets"].items():
+        syms = []
+        for s, f in sorted(m["frames"].items()):
+            b = bucket_of(s, password)
+            recent = f[f.index >= month0]
+            before = f[f.index < month0]
+            if len(before):
+                recent = pd_concat_last(before, recent)   # one earlier bar: the day change needs it
+            dp = 2 if float(f["c"].iloc[-60:].median()) >= 1 else 4
+            syms.append([s, dp, b])
+            if len(recent):
+                index["recent"].append(encode_prices(s, recent, bars=len(recent)))
+            for key, part in _closed_parts(f[f.index < month0], year0):
+                name = f"{key}-b{b:02d}"
+                pieces.setdefault(name, {"piece": key, "bucket": b, "series": []})["series"].append(encode_prices(s, part, bars=len(part)))
+        index["markets"][mk] = {"top": m["top"], "asof": m["asof"], "symbols": syms}
+    index["pieces"] = sorted({p["piece"] for p in pieces.values()})
+    return index, pieces
+
+
+def pd_concat_last(before, recent):
+    import pandas as pd
+    return pd.concat([before.iloc[-1:], recent])
+
+
+def _closed_parts(f, year0):
+    """Closed calendar years before this year as y2019, and closed months of this year as m2026-03."""
+    if not len(f):
+        return
+    for y, part in f[f.index < year0].groupby(f[f.index < year0].index.year):
+        yield f"y{y}", part
+    cur = f[f.index >= year0]
+    for (y, mth), part in cur.groupby([cur.index.year, cur.index.month]):
+        yield f"m{y}-{mth:02d}", part
+
+
+def write_prices(out_dir: Path, prices: dict, password: str, today: date | None = None) -> dict:
+    """Write prices.json and the pieces under prices/; returns counts for the summary line."""
+    index, pieces = price_pieces(prices, password, today or datetime.now(timezone.utc).date())
+    pdir = out_dir / "prices"
+    pdir.mkdir(parents=True, exist_ok=True)
+    existing = {p.stem: p for p in pdir.glob("*.json")}
+    salt = None
+    for p in list(existing.values())[:1]:
+        try:
+            salt = base64.b64decode(json.loads(p.read_text(encoding="utf-8"))["salt"])
+        except Exception:  # noqa: BLE001
+            salt = None
+    sealer = Sealer(password, salt)
+    written = kept = 0
+    for name, obj in pieces.items():
+        p = pdir / f"{name}.json"
+        if p.exists():
+            try:
+                if sealer.open(json.loads(p.read_text(encoding="utf-8"))) == obj:
+                    kept += 1
+                    continue
+            except Exception:  # noqa: BLE001
+                pass
+        p.write_text(json.dumps(sealer.seal(obj, prices["built_at"]), separators=(",", ":")), encoding="utf-8")
+        written += 1
+    removed = 0
+    for stem, p in existing.items():
+        if stem not in pieces:
+            p.unlink()
+            removed += 1
+    (out_dir / "prices.json").write_text(json.dumps(sealer.seal(index, prices["built_at"]), separators=(",", ":")), encoding="utf-8")
+    return {"pieces": len(pieces), "written": written, "kept": kept, "removed": removed,
+            "index_kb": (out_dir / "prices.json").stat().st_size / 1024,
+            "total_mb": sum(p.stat().st_size for p in pdir.glob("*.json")) / 1048576}
 
 
 # ------------------------------------------------------------------ encryption
@@ -1675,12 +1877,12 @@ def main(argv=None) -> int:
     # end-of-day stock prices for the chart, encrypted with the same password
     print("\nReading end-of-day stock prices...")
     prices = None if a.no_prices else read_prices(D, signals, D.cfg)
-    if prices:
-        if not a.no_local:
-            (out_dir / "prices.local.json").write_text(json.dumps(prices, separators=(",", ":")), encoding="utf-8")
-        if pw:
-            (out_dir / "prices.json").write_text(json.dumps(encrypt(prices, pw), separators=(",", ":")), encoding="utf-8")
-            print(f"  prices.json {(out_dir / 'prices.json').stat().st_size / 1024:.0f} KB, encrypted.")
+    if prices and pw:
+        r = write_prices(out_dir, prices, pw)
+        print(f"  prices.json {r['index_kb']:.0f} KB (this month) + {r['pieces']} history pieces, {r['total_mb']:.0f} MB in all, encrypted:"
+              f" {r['written']} new or changed, {r['kept']} unchanged, {r['removed']} removed.")
+    elif prices:
+        print("  Stock prices were read but not written: no password set (config/local.json).")
     meta["stock_markets"] = sorted(prices["markets"]) if prices else []
     (out_dir / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
 

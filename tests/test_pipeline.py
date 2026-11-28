@@ -128,3 +128,82 @@ class StockPriceFieldTables(unittest.TestCase):
         self.assertEqual(list(a["l"]), [9, 10, 11, 12])
         self.assertEqual(list(a["c"]), [11, 12, 13, 14])   # Close, not Adj Close
         self.assertEqual(list(a["v"]), [1000, 1001, 1002, 1003])
+
+
+@unittest.skipIf(_pd is None, "pandas not installed")
+class StockPricePieces(unittest.TestCase):
+    """History split into encrypted year/month pieces; made-up symbols only."""
+
+    def prices(self):
+        pd = _pd
+        idx = pd.bdate_range("2023-12-20", "2026-03-10")
+        mk = lambda base: bt._ohlcv(pd.DataFrame({"Close": [base + i * 0.01 for i in range(len(idx))], "Volume": [100] * len(idx)}, index=idx), pd)
+        return {"built_at": "2026-03-10T00:00:00Z", "markets": {"US": {"top": ["AAA"], "asof": "2026-03-10", "frames": {"AAA": mk(10), "BBB": mk(50)}}}}
+
+    def test_pieces_cover_every_bar_once(self):
+        pr = self.prices()
+        index, pieces = bt.price_pieces(pr, "pw", bt.date(2026, 3, 11))
+        self.assertEqual(index["pieces"], ["m2026-01", "m2026-02", "y2023", "y2024", "y2025"])
+        for sym in ("AAA", "BBB"):
+            rows = []
+            for p in pieces.values():
+                for e in p["series"]:
+                    if e["s"] == sym:
+                        rows += bt.decode_prices(e)
+            rec = [r for e in index["recent"] if e["s"] == sym for r in bt.decode_prices(e)]
+            self.assertEqual(rec[0][0], rows[-1][0] if rows else None, "recent starts with the last closed bar")
+            got = sorted({r[0] for r in rows + rec})
+            want = [int(t.timestamp()) for t in pr["markets"]["US"]["frames"][sym].index]
+            self.assertEqual(got, want)
+        b = {s: bk for s, dp, bk in index["markets"]["US"]["symbols"]}
+        self.assertEqual(b["AAA"], bt.bucket_of("AAA", "pw"))
+        self.assertTrue(0 <= b["BBB"] < bt.PRICE_BUCKETS)
+
+    def test_write_skips_unchanged_pieces_and_stays_encrypted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            r1 = bt.write_prices(out, self.prices(), "pw", bt.date(2026, 3, 11))
+            self.assertEqual(r1["written"], r1["pieces"])
+            r2 = bt.write_prices(out, self.prices(), "pw", bt.date(2026, 3, 11))
+            self.assertEqual((r2["written"], r2["kept"], r2["removed"]), (0, r1["pieces"], 0))
+            for p in list((out / "prices").glob("*.json")) + [out / "prices.json"]:
+                env = json.loads(p.read_text())
+                self.assertTrue(env["enc"])
+                self.assertNotIn("AAA", p.read_text())
+            salts = {json.loads(p.read_text())["salt"] for p in (out / "prices").glob("*.json")}
+            self.assertEqual(len(salts), 1, "one salt, so one key derivation in the browser")
+            idx = bt.Sealer("pw").open(json.loads((out / "prices.json").read_text()))
+            self.assertEqual(idx["v"], 2)
+            r3 = bt.write_prices(out, self.prices(), "pw", bt.date(2027, 1, 5))   # new year: months fold into y2026
+            self.assertGreater(r3["removed"], 0)
+            self.assertFalse(list((out / "prices").glob("m2026-*")))
+
+
+@unittest.skipIf(_pd is None, "pandas not installed")
+class StockPriceWorkbooks(unittest.TestCase):
+    def test_history_workbooks_sheet_per_ticker_and_long_table_with_cache(self):
+        import tempfile
+        pd = _pd
+        idx = pd.bdate_range("2001-01-02", periods=30)
+        sheet = lambda base: pd.DataFrame({"Date": idx, "Open": base, "High": base + 1, "Low": base - 1, "Close": base + 0.5, "Volume": 1000})
+        with tempfile.TemporaryDirectory() as d:
+            a = Path(d) / "us_eod.xlsx"
+            with pd.ExcelWriter(a) as w:
+                sheet(10.0).to_excel(w, sheet_name="AAA", index=False)
+                sheet(20.0).to_excel(w, sheet_name="BBB", index=False)
+            b = Path(d) / "in_eod.xlsx"
+            pd.concat([sheet(30.0).assign(Symbol="CCC.NS"), sheet(40.0).assign(Symbol="DDD.NS")]).to_excel(b, index=False)
+            old_root = bt.ROOT
+            bt.ROOT = Path(d)
+            try:
+                cfg = {"price_history_files": {"US": str(a), "IN": str(b)}}
+                h1 = bt.read_price_history(cfg, pd)
+                self.assertEqual(sorted(h1["US"]), ["AAA", "BBB"])
+                self.assertEqual(sorted(h1["IN"]), ["CCC.NS", "DDD.NS"])
+                self.assertEqual(float(h1["US"]["BBB"]["h"].iloc[0]), 21.0)
+                self.assertTrue(list((Path(d) / ".cache" / "prices").glob("US-*.pkl")))
+                h2 = bt.read_price_history(cfg, pd)   # from the cache
+                self.assertEqual(len(h2["US"]["AAA"]), 30)
+            finally:
+                bt.ROOT = old_root
