@@ -10,7 +10,8 @@ import { store } from '../../lib/store.js';
 /**
  * @typedef {{ id: string, name: string, source: string, createdAt: number, updatedAt: number }} Script
  * @typedef {{ uid: string, ref: string, inputs: Record<string, any>, styles: Record<string, { color?: string, hidden?: boolean }>, hidden: boolean }} Study
- * @typedef {{ symbol: string, tf: string, chartType: 'candles'|'bars'|'line'|'area', studies: Study[] }} Cell  one chart of the split-screen layout
+ * @typedef {{ mode?: 'normal'|'log'|'percent'|'indexed', invert?: boolean, left?: boolean, priceLabel?: boolean, priceLine?: boolean, grid?: boolean }} Scale  price-scale settings (TradingView's chart settings menu)
+ * @typedef {{ symbol: string, tf: string, chartType: 'candles'|'bars'|'line'|'area', studies: Study[], scale?: Scale }} Cell  one chart of the split-screen layout
  * @typedef {Object} Workspace
  * @property {'live'|'binance'|'bybit'|'synthetic'} feed  live = first reachable exchange (see data/live.js)
  * @property {number} v  saved-format version (2: live feed is the default)
@@ -88,7 +89,7 @@ function loadWs() {
   if (!cells && w.symbol) cells = [{ symbol: w.symbol, tf: w.tf || '1h', studies: w.studies }];
   cells = d.cells.map((dc, i) => {
     const c = cells && cells[i];
-    return c && typeof c === 'object' ? { symbol: typeof c.symbol === 'string' ? c.symbol : dc.symbol, tf: typeof c.tf === 'string' ? c.tf : dc.tf, chartType: CHART_TYPES.includes(c.chartType) ? c.chartType : 'candles', studies: cleanStudies(c.studies) } : { ...dc, chartType: 'candles' };
+    return c && typeof c === 'object' ? { symbol: typeof c.symbol === 'string' ? c.symbol : dc.symbol, tf: typeof c.tf === 'string' ? c.tf : dc.tf, chartType: CHART_TYPES.includes(c.chartType) ? c.chartType : 'candles', studies: cleanStudies(c.studies), scale: c.scale && typeof c.scale === 'object' ? c.scale : {} } : { ...dc, chartType: 'candles' };
   });
   const layout = LAYOUT_CELLS[w.layout] ? w.layout : '1x1';
   return {
@@ -165,6 +166,7 @@ export function setCell(i, patch) {
       if (patch.tf !== undefined && (k === i || (w.sync.tf && k < n))) p.tf = patch.tf;
       if (patch.studies !== undefined && k === i) p.studies = patch.studies;
       if (patch.chartType !== undefined && k === i) p.chartType = patch.chartType;
+      if (patch.scale !== undefined && k === i) p.scale = { ...(c.scale || {}), ...patch.scale };
       return Object.keys(p).length ? { ...c, ...p } : c;
     });
     return { ...w, cells };

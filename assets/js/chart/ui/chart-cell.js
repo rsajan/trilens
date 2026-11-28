@@ -9,7 +9,8 @@ import { ChartEngine, fmtNum } from '../engine/chart-engine.js';
 import { DrawingLayer } from '../drawings/layer.js';
 import { BUILTIN } from '../indicators/builtins.js';
 import { LineStyle } from '../../../vendor/lightweight-charts/lightweight-charts.mjs';
-import { workspace, scripts, getScript } from '../store/workspace.js';
+import { workspace, scripts, getScript, setCell } from '../store/workspace.js';
+import { popMenu } from './menu.js';
 
 const MAX_BARS = 20000; // history paging stops here: every recalculation runs over all loaded bars
 const RERUN_MS = 250;
@@ -56,7 +57,10 @@ export class ChartCell {
     this.host = h('div', { class: 'cx-host' });
     this.status = h('div', { class: 'cx-status hide', role: 'status' });
     this.replayBar = h('div', { class: 'rp-bar hide', role: 'toolbar', 'aria-label': 'Bar replay' });
-    this.wrap = h('div', { class: 'cx-chart' }, this.host, this.status, this.replayBar);
+    // chart settings (TradingView's gear where the price and time axes meet)
+    this.gear = h('button', { type: 'button', class: 'cx-gear', title: 'Chart settings: scale type, invert, reset view…', 'aria-label': 'Chart settings', 'aria-haspopup': 'menu', onClick: () => this.settingsMenu() },
+      h('span', { 'aria-hidden': 'true' }, '⚙'));
+    this.wrap = h('div', { class: 'cx-chart' }, this.host, this.status, this.replayBar, this.gear);
     this.el = h('div', { class: 'cx-cell', dataset: { cell: String(index) } }, this.wrap);
     this.el.addEventListener('pointerdown', () => o.onActivate(index), { capture: true });
 
@@ -66,6 +70,7 @@ export class ChartCell {
     });
     this.layer = new DrawingLayer(this.engine, o.drawHooks);
     this.engine.setChartType(workspace.get().cells[index].chartType || 'candles');
+    this.engine.setScale(workspace.get().cells[index].scale || {});
     this.engine.chart.subscribeCrosshairMove((p) => {
       if (this.syncing) return;
       const t = p && p.time !== undefined ? p.time : null;
@@ -85,6 +90,7 @@ export class ChartCell {
     this.unsubs = [
       workspace.subscribe((w) => w.feed + '|' + w.cells[index].symbol + '|' + w.cells[index].tf, () => this.load()),
       workspace.subscribe((w) => w.cells[index].chartType, (t) => this.engine.setChartType(t || 'candles')),
+      workspace.subscribe((w) => w.cells[index].scale, (s) => this.engine.setScale(s || {})),
       workspace.subscribe((w) => w.cells[index].studies, (next) => {
         const prevMap = new Map(prevStudies.map((s) => [s.uid, s]));
         const ids = new Set(next.map((s) => s.uid));
@@ -117,6 +123,38 @@ export class ChartCell {
   }
 
   // ---------------------------------------------------------------- data
+  /** TradingView's chart settings menu (bottom-right gear). */
+  settingsMenu() {
+    const s = this.state.scale || {}, mode = s.mode || 'normal';
+    const set = (patch) => setCell(this.index, { scale: patch });
+    popMenu(this.gear, [
+      { label: 'Reset chart view', hint: 'fit prices, latest bars', onClick: () => this.resetView() },
+      { sep: true },
+      { label: 'Auto (fits data to screen)', checked: this.engine.isAutoScale(), onClick: () => this.engine.setAutoScale(!this.engine.isAutoScale()) },
+      { label: 'Invert scale', checked: !!s.invert, onClick: () => set({ invert: !s.invert }) },
+      { sep: true },
+      { label: 'Regular', checked: mode === 'normal', onClick: () => set({ mode: 'normal' }) },
+      { label: 'Percent', checked: mode === 'percent', onClick: () => set({ mode: 'percent' }) },
+      { label: 'Indexed to 100', checked: mode === 'indexed', onClick: () => set({ mode: 'indexed' }) },
+      { label: 'Logarithmic', checked: mode === 'log', onClick: () => set({ mode: 'log' }) },
+      { sep: true },
+      { label: s.left ? 'Move scale to right' : 'Move scale to left', onClick: () => set({ left: !s.left }) },
+      { sep: true },
+      { header: 'Labels and lines' },
+      { label: 'Last price label on the scale', checked: s.priceLabel !== false, onClick: () => set({ priceLabel: s.priceLabel === false }) },
+      { label: 'Last price line', checked: s.priceLine !== false, onClick: () => set({ priceLine: s.priceLine === false }) },
+      { label: 'Grid lines', checked: s.grid !== false, onClick: () => set({ grid: s.grid === false }) },
+      { sep: true },
+      { label: 'Reset all chart settings', onClick: () => { setCell(this.index, { scale: { mode: 'normal', invert: false, left: false, priceLabel: true, priceLine: true, grid: true } }); this.resetView(); } },
+    ]);
+  }
+
+  /** Back to the default view: price scale fits the data again, latest bars in view. */
+  resetView() {
+    this.engine.setAutoScale(true);
+    if (this.buf && this.buf.length) this.engine.showLatest(this.tf.calendar ? 120 : 160);
+  }
+
   async load() {
     if (this.disposed) return;
     const my = ++this.token;

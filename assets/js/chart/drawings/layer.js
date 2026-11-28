@@ -133,11 +133,14 @@ export class DrawingLayer {
     return L == null ? null : this.engine.chart.timeScale().logicalToCoordinate(L);
   }
   toY(p) { return this.engine.candles.priceToCoordinate(p); }
-  local(e) { const r = this.el.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  /** Width of a left price scale: pane x = element x minus this. */
+  leftScale() { const ps = this.engine.chart.priceScale('left'); return ps.options().visible ? ps.width() : 0; }
+  local(e) { const r = this.el.getBoundingClientRect(); return { x: e.clientX - r.left - this.leftScale(), y: e.clientY - r.top }; }
   inPricePane(x, y) {
     const panes = this.engine.chart.panes();
     const h0 = panes.length ? panes[0].getHeight() : 0;
-    const w = this.el.clientWidth - this.engine.chart.priceScale('right').width();
+    const right = this.engine.chart.priceScale('right');
+    const w = this.el.clientWidth - this.leftScale() - (right.options().visible ? right.width() : 0);
     return x >= 0 && x < w && y >= 0 && y < h0;
   }
   /** Pixel -> (time, price), snapped to a bar and optionally to its OHLC. */
