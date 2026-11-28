@@ -8,6 +8,46 @@ from _util import ROOT, git, have, read_local, repo_slug, run, say
 sys.path.insert(0, str(ROOT))
 
 
+def backup_copy() -> None:
+    """Also send what was just published to your private backup repository (config
+    "backup_remote"), on its own branch (config "backup_branch", default "latest"), so the backup's
+    main branch and anything you uploaded there are never touched, and nothing from the backup can
+    flow back into the public repository. A failure here never stops the publish."""
+    import json
+    import os
+    import subprocess
+
+    try:
+        cfg = json.loads((ROOT / "config" / "technical_sources.json").read_text(encoding="utf-8"))
+    except Exception:
+        return
+    url, branch = cfg.get("backup_remote"), cfg.get("backup_branch") or "latest"
+    if not url or not str(url).startswith(("https://", "file://")):
+        return
+    quiet = "/quiet" in sys.argv
+    say("\nBackup  Copying to your private backup repository...")
+    env = dict(os.environ)
+    if quiet:  # scheduled run: nobody can answer a sign-in window, so fail instead of waiting
+        env.update(GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never")
+    for force in (False, True):  # the branch only ever mirrors what PUBLISH sent; replace it if it differs
+        try:
+            r = subprocess.run(["git", "push", *(["--force"] if force else []), url, f"HEAD:refs/heads/{branch}"], cwd=str(ROOT),
+                               text=True, capture_output=True, encoding="utf-8", errors="replace", env=env, timeout=600)
+        except subprocess.TimeoutExpired:
+            say("Backup copy skipped: GitHub did not answer within 10 minutes. The site itself was published.")
+            return
+        if r.returncode == 0:
+            say(f"Backup copy updated (branch {branch}).")
+            return
+        if "rejected" not in (r.stderr or ""):
+            break
+    msg = (r.stderr or r.stdout or "").strip().splitlines()[-1:] or [""]
+    if quiet:
+        say("Backup copy skipped (sign-in needed or not allowed). Run PUBLISH.bat by hand once and sign in to the backup account. " + msg[0])
+    else:
+        say("Backup copy failed (the site itself was published): " + msg[0] + "\nIf a sign-in window appeared, sign in to the backup account and run PUBLISH again.")
+
+
 def main() -> int:
     say("1/4  Reading your scanner folders and building the Technical page...")
     if not read_local().get("technical_password"):
@@ -70,6 +110,7 @@ def main() -> int:
     if ahead not in ("", "0"):
         say(f"Upload did not complete: {ahead} saved update(s) are still only on this PC. Run PUBLISH again; if it repeats, send this message.")
         return 1
+    backup_copy()
     slug = repo_slug()
     say("\nDone. GitHub rebuilds the site in about a minute." + (f"\nSite: https://{slug.split('/')[0]}.github.io/{slug.split('/')[1]}/" if slug else ""))
     return 0
